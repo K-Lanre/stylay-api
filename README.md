@@ -16,6 +16,12 @@ A robust, scalable, and secure e-commerce API built with Node.js, Express, and M
   - Product variants and inventory management
   - Product search and filtering
 
+- **Supply Management**
+  - Track product supplies from vendors
+  - Bulk supply creation
+  - Inventory updates on supply
+  - Supply history and reporting
+
 - **Shopping Experience**
   - Shopping cart functionality
   - Wishlist management

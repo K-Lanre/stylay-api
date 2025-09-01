@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to <%= appName %></title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; padding: 20px 0; }
+        .logo { max-width: 150px; height: auto; }
+        .verification-code {
+            display: inline-block;
+            padding: 15px 25px;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px dashed #ccc;
+        }
+        .footer { 
+            margin-top: 30px; 
+            padding-top: 20px; 
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+        .note {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to <%= appName %>!</h1>
+        </div>
+        
+        <p>Hello <%= name %>,</p>
+        
+        <p>Thank you for joining <%= appName %>! We're excited to have you on board.</p>
+        
+        <div style="text-align: center;">
+            <p>Your email verification code is:</p>
+            <div class="verification-code"><%= code %></div>
+            <p class="note">This code will expire in 30 minutes.</p>
+        </div>
+        
+        <p>If you didn't request this code, please ignore this email or contact support if you have any concerns.</p>
+        
+        <p>Best regards,<br>The <%= appName %> Team</p>
+        
+        <div class="footer">
+            <p>&copy; <%= new Date().getFullYear() %> <%= appName %>. All rights reserved.</p>
+            <p>
+                <a href="<%= frontendUrl %>/privacy">Privacy Policy</a> | 
+                <a href="<%= frontendUrl %>/terms">Terms of Service</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
