@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateUser } = require('../middlewares/auth');
+const { protect } = require('../middlewares/auth');
 const orderController = require('../controllers/order.controller');
 const { 
   createOrderValidation, 
@@ -9,24 +9,24 @@ const {
   updateOrderStatusValidation, 
   cancelOrderValidation 
 } = require('../validators/order.validator');
-const { validate } = require('../middlewares/validate');
+const validate = require('../middlewares/validation');
 
 // Apply authentication middleware to all routes
-router.use(authenticateUser);
+router.use(protect);
 
 // Create a new order from cart
-router.post('/', validate(createOrderValidation), orderController.createOrder);
+router.post('/',  createOrderValidation, validate, orderController.createOrder);
 
 // Get user's orders
-router.get('/', validate(getOrdersValidation), orderController.getUserOrders);
+router.get('/', getOrdersValidation, validate, orderController.getUserOrders);
 
 // Get order by ID
-router.get('/:id', validate(getOrderValidation), orderController.getOrderById);
+router.get('/:id', getOrderValidation, validate, orderController.getOrderById);
 
 // Update order status (admin/vendor)
-router.patch('/:id/status', validate(updateOrderStatusValidation), orderController.updateOrderStatus);
+router.patch('/:id/status', updateOrderStatusValidation, validate, orderController.updateOrderStatus);
 
 // Cancel order (user)
-router.post('/:id/cancel', validate(cancelOrderValidation), orderController.cancelOrder);
+router.post('/:id/cancel', cancelOrderValidation, validate, orderController.cancelOrder);
 
 module.exports = router;
