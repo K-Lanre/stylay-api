@@ -27,16 +27,20 @@ const productRoutes = require('./routes/product.route');
 const supplyRoutes = require('./routes/supply.route');
 const inventoryRoutes = require('./routes/inventory.route');
 const journalRoutes = require('./routes/journal.route');
-const cartRoutes = require('./routes/cart.route');
 const addressRoutes = require('./routes/address.route');
-const orderRoutes = require('./routes/order.route');
 // const reviewRoutes = require('./routes/reviews');
 
 // Initialize express app
 const app = express();
 
+// Trust first proxy (for rate limiting behind load balancer)
+app.set('trust proxy', 1);
+
 // Connect to database
 connectDB();
+
+// Initialize Passport
+initializePassport(passport);
 
 // Set security HTTP headers
 app.use(helmet());
@@ -46,18 +50,22 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev', { stream: { write: message => logger.http(message.trim()) } }));
 }
 
+// Initialize Passport and restore authentication state, if any
+app.use(passport.initialize());
+
 // File upload middleware
 const fileUpload = require('express-fileupload');
 app.use(fileUpload({
   useTempFiles: true,
   tempFileDir: './tmp/',
   createParentPath: true,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit to match validation
   abortOnLimit: true,
-  responseOnLimit: 'File size limit has been reached',
+  responseOnLimit: 'File size limit has been reached (max 10MB)',
   safeFileNames: true,
-  preserveExtension: true,
-  debug: process.env.NODE_ENV === 'development'
+  preserveExtension: 4, // Keep up to 4 characters of the extension
+  debug: process.env.NODE_ENV === 'development',
+  parseNested: true // Enable nested file uploads
 }));
 
 // Limit requests from same API
@@ -83,11 +91,113 @@ app.use(hpp({
   ]
 }));
 
-// Enable CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
-}));
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'http://localhost:5173',  // Vite default port
+  'http://127.0.0.1:5173',  // Vite default port with IP
+  'https://merry-jennet-lenient.ngrok-free.app',  // Current ngrok URL
+  'http://localhost:3000',  // React default port
+  'http://localhost:3001',  // Common React port
+  /https?:\/\/.*\.ngrok\.io$/,  // Allow any ngrok.io subdomain
+  /https?:\/\/.*\.ngrok-free\.app$/,  // Allow ngrok-free.app subdomains
+  /^http:\/\/localhost:\d+$/,  // Allow any localhost with any port
+  /^https?:\/\/localhost:\d+$/  // Allow any localhost with any port (https)
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // Check if the origin matches any of the allowed patterns
+    const isAllowed = allowedOrigins.some(pattern => {
+      if (typeof pattern === 'string') {
+        return pattern === origin;
+      } else if (pattern instanceof RegExp) {
+        return pattern.test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+    
+    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+    console.error(msg);
+    return callback(new Error(msg), false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-Forwarded-For',
+    'Accept',
+    'Accept-Version',
+    'Content-Length',
+    'Content-MD5',
+    'Date',
+    'X-Api-Version',
+    'X-Response-Time',
+    'X-PINGOTHER',
+    'X-CSRF-Token',
+    'Origin',
+    'X-Access-Token',
+    'ngrok-skip-browser-warning',
+    'access-control-allow-origin',
+    'access-control-allow-credentials',
+    'withCredentials'
+  ],
+  exposedHeaders: [
+    'Content-Range',
+    'X-Total-Count',
+    'X-Access-Token',
+    'X-Refresh-Token',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials',
+    'Access-Control-Expose-Headers'
+  ],
+  maxAge: 86400 // 24 hours
+};
+
+// Enable CORS with options
+app.use(cors(corsOptions));
+
+// Handle preflight requests for all routes
+app.options('*', cors(corsOptions));
+
+// Add manual CORS headers as a fallback
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.some(pattern => {
+    if (typeof pattern === 'string') return pattern === origin;
+    if (pattern instanceof RegExp) return pattern.test(origin);
+    return false;
+  })) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Forwarded-For, Accept, Origin, X-Access-Token, ngrok-skip-browser-warning');
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 // Initialize Passport
 app.use(passport.initialize());
@@ -107,9 +217,7 @@ app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/supplies', supplyRoutes);
 app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/journals', journalRoutes);
-app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/addresses', addressRoutes);
-app.use('/api/v1/orders', orderRoutes);
 // app.use('/api/v1/reviews', reviewRoutes);
 
 // Serve static files in production

@@ -1,6 +1,7 @@
 const { body } = require("express-validator");
 const { validationResult } = require("express-validator");
 const { Store } = require("../models");
+const { Op } = require('sequelize');
 
 // Validation rules for vendor registration
 const registerVendorValidation = [
@@ -31,8 +32,8 @@ const registerVendorValidation = [
     .trim()
     .notEmpty()
     .withMessage("Phone number is required")
-    .matches(/^[0-9+\-\s()]{10,20}$/)
-    .withMessage("Please provide a valid phone number"),
+    .matches(/^\+234(70|80|81|90|91)[0-9]{8}$/)
+    .withMessage("Phone number must be in the format +234[70|80|81|90|91]XXXXXXX (e.g., +2348012345678)"),
 
   // Store fields
   body("business_name")
@@ -55,6 +56,8 @@ const registerVendorValidation = [
     .optional({ checkFalsy: true })
     .trim()
     .isLength({ min: 5, max: 50 })
+    .isAlphanumeric()
+    .isUppercase()
     .withMessage("CAC number must be between 5 and 50 characters"),
 
   body("instagram_handle")

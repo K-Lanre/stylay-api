@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const AppError = require('../utils/appError');
 
+
 /**
  * Middleware to validate request using express-validator
  * @param {Object} req - Express request object

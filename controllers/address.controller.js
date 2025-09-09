@@ -1,26 +1,29 @@
-const { Address } = require('../models');
-const { Op } = require('sequelize');
+const { Address } = require("../models");
+const { Op } = require("sequelize");
 
 // Get all addresses for the authenticated user
 const getUserAddresses = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     const addresses = await Address.findAll({
       where: { user_id: userId },
-      order: [['is_default', 'DESC'], ['created_at', 'DESC']]
+      order: [
+        ["is_default", "DESC"],
+        ["created_at", "DESC"],
+      ],
     });
 
     res.json({
       success: true,
-      data: addresses
+      data: addresses,
     });
   } catch (error) {
-    console.error('Error getting addresses:', error);
+    console.error("Error getting addresses:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get addresses',
-      error: error.message
+      message: "Failed to get addresses",
+      error: error.message,
     });
   }
 };
@@ -30,31 +33,31 @@ const getAddressById = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    
+
     const address = await Address.findOne({
       where: {
         id,
-        user_id: userId
-      }
+        user_id: userId,
+      },
     });
 
     if (!address) {
       return res.status(404).json({
         success: false,
-        message: 'Address not found'
+        message: "Address not found",
       });
     }
 
     res.json({
       success: true,
-      data: address
+      data: address,
     });
   } catch (error) {
-    console.error('Error getting address:', error);
+    console.error("Error getting address:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get address',
-      error: error.message
+      message: "Failed to get address",
+      error: error.message,
     });
   }
 };
@@ -62,19 +65,18 @@ const getAddressById = async (req, res) => {
 // Create a new address
 const createAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
-  
+
   try {
     const userId = req.user.id;
-    const { 
-      label, 
-      address_line, 
-      city, 
-      state, 
-      country, 
-      postal_code, 
+    const {
+      label,
+      address_line,
+      city,
+      state,
+      country,
+      postal_code,
       is_default = false,
       phone,
-      additional_info
     } = req.body;
 
     // Validate required fields
@@ -82,7 +84,7 @@ const createAddress = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Address line, city, state, and country are required'
+        message: "Address line, city, state, and country are required",
       });
     }
 
@@ -92,38 +94,40 @@ const createAddress = async (req, res) => {
         { is_default: false },
         {
           where: { user_id: userId },
-          transaction
+          transaction,
         }
       );
     }
 
-    const newAddress = await Address.create({
-      user_id: userId,
-      label: label || null,
-      address_line,
-      city,
-      state,
-      country,
-      postal_code: postal_code || null,
-      is_default,
-      phone: phone || null,
-      additional_info: additional_info || null
-    }, { transaction });
+    const newAddress = await Address.create(
+      {
+        user_id: userId,
+        label: label || null,
+        address_line,
+        city,
+        state,
+        country,
+        postal_code: postal_code || null,
+        is_default,
+        phone: phone || null,
+      },
+      { transaction }
+    );
 
     await transaction.commit();
 
     res.status(201).json({
       success: true,
-      message: 'Address created successfully',
-      data: newAddress
+      message: "Address created successfully",
+      data: newAddress,
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Error creating address:', error);
+    console.error("Error creating address:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create address',
-      error: error.message
+      message: "Failed to create address",
+      error: error.message,
     });
   }
 };
@@ -131,36 +135,35 @@ const createAddress = async (req, res) => {
 // Update an existing address
 const updateAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
-  
+
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { 
-      label, 
-      address_line, 
-      city, 
-      state, 
-      country, 
-      postal_code, 
+    const {
+      label,
+      address_line,
+      city,
+      state,
+      country,
+      postal_code,
       is_default,
       phone,
-      additional_info
     } = req.body;
 
     // Find the address
     const address = await Address.findOne({
       where: {
         id,
-        user_id: userId
+        user_id: userId,
       },
-      transaction
+      transaction,
     });
 
     if (!address) {
       await transaction.rollback();
       return res.status(404).json({
         success: false,
-        message: 'Address not found'
+        message: "Address not found",
       });
     }
 
@@ -169,11 +172,11 @@ const updateAddress = async (req, res) => {
       await Address.update(
         { is_default: false },
         {
-          where: { 
+          where: {
             user_id: userId,
-            id: { [Op.ne]: id } // Exclude current address
+            id: { [Op.ne]: id }, // Exclude current address
           },
-          transaction
+          transaction,
         }
       );
     }
@@ -188,11 +191,10 @@ const updateAddress = async (req, res) => {
     if (postal_code !== undefined) updateData.postal_code = postal_code;
     if (is_default !== undefined) updateData.is_default = is_default;
     if (phone !== undefined) updateData.phone = phone;
-    if (additional_info !== undefined) updateData.additional_info = additional_info;
 
     await Address.update(updateData, {
       where: { id },
-      transaction
+      transaction,
     });
 
     await transaction.commit();
@@ -201,16 +203,16 @@ const updateAddress = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Address updated successfully',
-      data: updatedAddress
+      message: "Address updated successfully",
+      data: updatedAddress,
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Error updating address:', error);
+    console.error("Error updating address:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update address',
-      error: error.message
+      message: "Failed to update address",
+      error: error.message,
     });
   }
 };
@@ -218,7 +220,7 @@ const updateAddress = async (req, res) => {
 // Delete an address
 const deleteAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
-  
+
   try {
     const userId = req.user.id;
     const { id } = req.params;
@@ -227,16 +229,16 @@ const deleteAddress = async (req, res) => {
     const address = await Address.findOne({
       where: {
         id,
-        user_id: userId
+        user_id: userId,
       },
-      transaction
+      transaction,
     });
 
     if (!address) {
       await transaction.rollback();
       return res.status(404).json({
         success: false,
-        message: 'Address not found'
+        message: "Address not found",
       });
     }
 
@@ -245,10 +247,10 @@ const deleteAddress = async (req, res) => {
       const anotherAddress = await Address.findOne({
         where: {
           user_id: userId,
-          id: { [Op.ne]: id }
+          id: { [Op.ne]: id },
         },
-        order: [['created_at', 'DESC']],
-        transaction
+        order: [["created_at", "DESC"]],
+        transaction,
       });
 
       if (anotherAddress) {
@@ -261,15 +263,15 @@ const deleteAddress = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Address deleted successfully'
+      message: "Address deleted successfully",
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Error deleting address:', error);
+    console.error("Error deleting address:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete address',
-      error: error.message
+      message: "Failed to delete address",
+      error: error.message,
     });
   }
 };
@@ -277,7 +279,7 @@ const deleteAddress = async (req, res) => {
 // Set default address
 const setDefaultAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
-  
+
   try {
     const userId = req.user.id;
     const { id } = req.params;
@@ -286,16 +288,16 @@ const setDefaultAddress = async (req, res) => {
     const address = await Address.findOne({
       where: {
         id,
-        user_id: userId
+        user_id: userId,
       },
-      transaction
+      transaction,
     });
 
     if (!address) {
       await transaction.rollback();
       return res.status(404).json({
         success: false,
-        message: 'Address not found'
+        message: "Address not found",
       });
     }
 
@@ -303,11 +305,11 @@ const setDefaultAddress = async (req, res) => {
     await Address.update(
       { is_default: false },
       {
-        where: { 
+        where: {
           user_id: userId,
-          id: { [Op.ne]: id }
+          id: { [Op.ne]: id },
         },
-        transaction
+        transaction,
       }
     );
 
@@ -318,15 +320,15 @@ const setDefaultAddress = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Default address updated successfully'
+      message: "Default address updated successfully",
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Error setting default address:', error);
+    console.error("Error setting default address:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to set default address',
-      error: error.message
+      message: "Failed to set default address",
+      error: error.message,
     });
   }
 };
@@ -337,5 +339,5 @@ module.exports = {
   createAddress,
   updateAddress,
   deleteAddress,
-  setDefaultAddress
+  setDefaultAddress,
 };

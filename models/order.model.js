@@ -15,16 +15,12 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'address_id'
       });
       Order.hasMany(models.OrderItem, {
-        foreignKey: 'order_id'
-      });
-      Order.hasMany(models.OrderDetail, {
-        foreignKey: 'order_id'
-      });
-      Order.hasOne(models.OrderInfo, {
-        foreignKey: 'order_id'
+        foreignKey: 'order_id',
+        as: 'items'
       });
       Order.hasMany(models.PaymentTransaction, {
-        foreignKey: 'order_id'
+        foreignKey: 'order_id',
+        as: 'transactions'
       });
     }
   }
@@ -52,25 +48,52 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false
     },
+    subtotal: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0
+    },
+    shipping: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0
+    },
+    tax: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0
+    },
     payment_status: {
       type: DataTypes.ENUM('pending', 'paid', 'failed'),
       allowNull: false,
       defaultValue: 'pending'
     },
+    payment_method: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
     order_status: {
-      type: DataTypes.ENUM('processing', 'dispatched', 'delayed', 'success'),
+      type: DataTypes.ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled'),
       allowNull: false,
-      defaultValue: 'processing'
+      defaultValue: 'pending'
+    },
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    shipping_details: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.NOW
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+      defaultValue: sequelize.NOW
     }
   }, {
     sequelize,

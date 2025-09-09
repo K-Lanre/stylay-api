@@ -49,8 +49,8 @@ const userValidationRules = [
   body('phone')
     .optional({ checkFalsy: true })
     .trim()
-    .isMobilePhone()
-    .withMessage('Please provide a valid phone number'),
+    .matches(/^\+234(70|80|81|90|91)[0-9]{8}$/)
+    .withMessage('Phone number must be in the format +234[70|80|81|90|91]XXXXXXX (e.g., +2348012345678)'),
 
   body('gender')
     .optional()

@@ -69,11 +69,10 @@ const generateSocialMedia = () => ({
   twitter_handle: `vendor_${randomAlphaNumeric(8)}`
 });
 
-// Generate Nigerian phone number
+// Generate Nigerian phone number in +234[70|80|81|90|91]XXXXXXX format
 const generateNigerianPhoneNumber = () => {
-  const prefixes = ['080', '081', '070', '090', '091'];
-  const prefix = helpers.arrayElement(prefixes);
-  return `${prefix}${randomNumber({ min: 10000000, max: 99999999 })}`;
+  // Generate a random number with valid Nigerian prefix and 8 more digits
+  return `+234${faker.helpers.arrayElement(['70', '80', '81', '90', '91'])}${faker.string.numeric(8)}`;
 };
 
 // Generate Nigerian bank details
@@ -128,6 +127,25 @@ module.exports = {
     const stores = [];
     const userRoles = [];
     const now = new Date();
+    const usedCacNumbers = new Set();
+    
+    // Function to generate a unique CAC number
+    const generateUniqueCacNumber = () => {
+      let attempts = 0;
+      const maxAttempts = 100; // Prevent infinite loops
+      
+      while (attempts < maxAttempts) {
+        const cacNumber = `RC${randomNumber({ min: 10000000, max: 99999999 })}`;
+        if (!usedCacNumbers.has(cacNumber)) {
+          usedCacNumbers.add(cacNumber);
+          return cacNumber;
+        }
+        attempts++;
+      }
+      
+      // If we couldn't find a unique number after max attempts, throw an error
+      throw new Error('Could not generate a unique CAC number after maximum attempts');
+    };
     
     // Start IDs from the next available
     let userId = maxUserId || 1;
@@ -176,7 +194,7 @@ module.exports = {
         id: currentStoreId,
         business_name: businessName,
         slug: slug,
-        cac_number: `RC${randomNumber({ min: 10000000, max: 99999999 })}`,
+        cac_number: generateUniqueCacNumber(),
         instagram_handle: socialMedia.instagram_handle,
         facebook_handle: socialMedia.facebook_handle,
         twitter_handle: socialMedia.twitter_handle,

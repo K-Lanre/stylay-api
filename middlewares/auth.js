@@ -1,80 +1,75 @@
+const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
+const { Op } = require('sequelize');
 const AppError = require('../utils/appError');
-const {User, Role} = require('../models');
+const { User, Role } = require('../models');
 
 /**
- * Protect routes - check if user is authenticated
+ * Middleware to handle local authentication using Passport
+ * @returns {Function} Express middleware function
+ */
+const localAuth = () => {
+  return (req, res, next) => {
+    passport.authenticate('local', { session: false }, (err, user, info) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return next(new AppError(info?.message || 'Authentication failed', 401));
+      }
+      // Store user in request for the next middleware
+      req.user = user;
+      next();
+    })(req, res, next);
+  };
+};
+
+/**
+ * Protect routes - check if user is authenticated using JWT
  * Attaches user object to req.user with roles
  */
-const protect = async (req, res, next) => {
-  try {
-    // 1) Get token and check if it exists
-    let token;
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith('Bearer')
-    ) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies?.jwt) {
-      token = req.cookies.jwt;
+const protect = (req, res, next) => {
+  return passport.authenticate('jwt', { session: false }, (err, user, info) => {
+    if (err) {
+      return next(err);
     }
-
-    if (!token) {
-      return next(
-        new AppError('You are not logged in! Please log in to get access.', 401)
-      );
-    }
-
-    // 2) Verify token with the same options used for signing
-    let decoded;
-    try {
-      decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET, {
-        algorithms: ['HS256'],
-        issuer: process.env.APP_NAME || 'Stylay',
-        audience: 'user'
-      });
-    } catch (err) {
-      if (err.name === 'JsonWebTokenError') {
-        return next(new AppError('Invalid token. Please log in again!', 401));
+    
+    if (!user) {
+      let message = 'You are not authorized to access this resource';
+      if (info) {
+        if (info.name === 'TokenExpiredError') {
+          message = 'Your token has expired! Please log in again.';
+        } else if (info.message) {
+          message = info.message;
+        }
       }
-      if (err.name === 'TokenExpiredError') {
-        return next(
-          new AppError('Your token has expired! Please log in again.', 401)
-        );
-      }
-      return next(new AppError('Error processing your token', 401));
+      return next(new AppError(message, 401));
     }
 
-    // 3) Check if user still exists with roles
-    const currentUser = await User.findByPk(decoded.id, {
-      include: [{
-        model: Role,
-        as: 'roles',
-        through: { attributes: [] }, // Exclude junction table attributes
-        attributes: ['id', 'name', 'description']
-      }]
-    });
+    // Attach user to request object
+    req.user = user;
+    return next();
+  })(req, res, next);
+};
 
-    if (!currentUser) {
-      return next(
-        new AppError('The user belonging to this token no longer exists.', 401)
-      );
+/**
+ * Middleware to handle JWT errors consistently
+ */
+const handleJWT = (req, res, next) => {
+  return passport.authenticate('jwt', { session: false, failWithError: true }, (err, user, info) => {
+    if (err) {
+      return next(err);
     }
-
-    // 4) Check if user changed password after the token was issued
-    if (currentUser.changedPasswordAfter(decoded.iat)) {
-      return next(
-        new AppError('User recently changed password! Please log in again.', 401)
-      );
+    
+    if (!user) {
+      const message = info?.message || 'Authentication failed';
+      return next(new AppError(message, 401));
     }
-
-    // Attach user to request object with roles
-    req.user = currentUser.get({ plain: true });
-    next();
-  } catch (err) {
-    next(err);
-  }
+    
+    req.user = user;
+    return next();
+  })(req, res, next);
 };
 
 /**
@@ -301,6 +296,7 @@ const hasAllRoles = (user, ...roles) => {
 };
 
 module.exports = {
+  localAuth,
   protect,
   restrictTo,
   isLoggedIn,

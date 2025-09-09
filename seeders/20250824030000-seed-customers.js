@@ -35,7 +35,7 @@ module.exports = {
         last_name: lastName,
         email: email,
         password: passwordHash,
-        phone: faker.phone.number('+234##########'),
+        phone: `+234${faker.helpers.arrayElement(['70', '80', '81', '90', '91'])}${faker.string.numeric(8)}`, // +234 followed by valid prefix and 8 digits
         gender: faker.helpers.arrayElement(['male', 'female', 'other']),
         email_verified_at: now,
         is_active: true,

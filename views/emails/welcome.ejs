@@ -48,7 +48,12 @@
         <div style="text-align: center;">
             <p>Your email verification code is:</p>
             <div class="verification-code"><%= code %></div>
-            <p class="note">This code will expire in 30 minutes.</p>
+            <p class="note">
+                This code is valid for <%= tokenExpires > 1 ? tokenExpires + ' minutes' : '1 minute' %>.
+                <% if (tokenExpires <= 5) { %>
+                    <br><strong>Hurry! This code will expire soon.</strong>
+                <% } %>
+            </p>
         </div>
         
         <p>If you didn't request this code, please ignore this email or contact support if you have any concerns.</p>

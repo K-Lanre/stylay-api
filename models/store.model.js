@@ -30,7 +30,19 @@ module.exports = (sequelize, DataTypes) => {
     },
     cac_number: {
       type: DataTypes.STRING(50),
-      allowNull: true
+      allowNull: true,
+      unique: {
+        name: 'unique_cac_number',
+        msg: 'This CAC number is already registered',
+        fields: [sequelize.fn('lower', sequelize.col('cac_number'))]
+      },
+      validate: {
+        isCACNumber(value) {
+          if (value && !/^[A-Z]{2,3}\/\d{4,5}\d{5,7}$/i.test(value)) {
+            throw new Error('Invalid CAC number format. Expected format: RC/1234567 or BN/1234567');
+          }
+        }
+      }
     },
     instagram_handle: {
       type: DataTypes.STRING(100),

@@ -277,6 +277,45 @@
                     }
                 },
                 {
+                    "name": "Update Profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"User\",\n    \"phone\": \"+1234567890\",\n    \"gender\": \"other\",\n    \"date_of_birth\": \"1990-01-01\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/me",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "me"
+                            ]
+                        },
+                        "description": "Update the authenticated user's profile information"
+                    }
+                },
+                {
                     "name": "Logout",
                     "request": {
                         "method": "GET",
@@ -802,6 +841,10 @@
                                 {
                                     "key": "description",
                                     "value": "A great store with amazing products"
+                                },
+                                {
+                                    "key": "cac_number",
+                                    "value": "RC123456"
                                 }
                             ]
                         },
@@ -2379,7 +2422,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2403,7 +2446,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             },
                             {
@@ -2436,7 +2479,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             },
                             {
@@ -2470,7 +2513,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2496,7 +2539,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2526,7 +2569,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2550,7 +2593,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             },
                             {
@@ -2582,7 +2625,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2607,7 +2650,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             },
                             {
@@ -2640,7 +2683,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2666,7 +2709,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{token}}",
+                                "value": "Bearer {{auth_token}}",
                                 "type": "text"
                             }
                         ],
@@ -2680,175 +2723,6 @@
                                 "v1",
                                 "addresses",
                                 "1"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Orders Management",
-            "description": "Orders management operations",
-            "item": [
-                {
-                    "name": "Create Order",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"addressId\": 1,\n    \"paymentMethod\": \"card\",\n    \"notes\": \"Please deliver after 5 PM\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/orders",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "orders"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get User Orders",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/orders?status=pending&page=1&limit=10",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "orders"
-                            ],
-                            "query": [
-                                {
-                                    "key": "status",
-                                    "value": "pending"
-                                },
-                                {
-                                    "key": "page",
-                                    "value": "1"
-                                },
-                                {
-                                    "key": "limit",
-                                    "value": "10"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Order by ID",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/orders/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "orders",
-                                "1"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Update Order Status (Admin/Vendor)",
-                    "request": {
-                        "method": "PATCH",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"status\": \"shipped\",\n    \"notes\": \"Order has been shipped via DHL\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/orders/1/status",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "orders",
-                                "1",
-                                "status"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Cancel Order",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"reason\": \"Changed my mind\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/orders/1/cancel",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "orders",
-                                "1",
-                                "cancel"
                             ]
                         }
                     }

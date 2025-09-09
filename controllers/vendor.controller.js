@@ -49,6 +49,36 @@ const registerVendor = async (req, res) => {
       });
     }
 
+    // Validate CAC number format if provided
+    if (cac_number) {
+      const cacRegex = /^[A-Z]{2,3}\/\d{4,5}\d{5,7}$/i;
+      if (!cacRegex.test(cac_number)) {
+        await transaction.rollback();
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid CAC number format. Expected format: RC/1234567 or BN/1234567"
+        });
+      }
+
+      // Check if CAC number is already registered
+      const existingStore = await Store.findOne({
+        where: {
+          cac_number: {
+            [Op.iLike]: cac_number
+          }
+        },
+        transaction
+      });
+
+      if (existingStore) {
+        await transaction.rollback();
+        return res.status(400).json({
+          status: "error",
+          message: "This CAC number is already registered"
+        });
+      }
+    }
+
     // Get or generate store slug
     const storeSlug = slugify(business_name, { lower: true });
     const existingStore = await Store.findOne({
@@ -233,7 +263,7 @@ const completeOnboarding = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
   
   try {
-    const { bank_account_name, bank_account_number, bank_name, description } = req.body;
+    const { bank_account_name, bank_account_number, bank_name, description, cac_number } = req.body;
     const uploadedFiles = req.uploadedFiles || [];
     const vendorId = req.user.id;
     
@@ -276,6 +306,36 @@ const completeOnboarding = async (req, res, next) => {
       return next(new AppError('At least one business image is required', 400));
     }
 
+    // If CAC number is being updated in the onboarding, validate it
+    if (req.body.cac_number) {
+      const cac_number = req.body.cac_number.trim();
+      const cacRegex = /^[A-Z]{2,3}\/\d{4,5}\d{5,7}$/i;
+      
+      if (!cacRegex.test(cac_number)) {
+        await transaction.rollback();
+        return next(new AppError('Invalid CAC number format. Expected format: RC/1234567 or BN/1234567', 400));
+      }
+
+      // Check if CAC number is already registered to another store
+      const existingStore = await Store.findOne({
+        where: {
+          id: { [Op.ne]: vendor.Store.id }, // Exclude current store
+          cac_number: {
+            [Op.iLike]: cac_number
+          }
+        },
+        transaction
+      });
+
+      if (existingStore) {
+        await transaction.rollback();
+        return next(new AppError('This CAC number is already registered to another store', 400));
+      }
+
+      // Add CAC number to update data
+      updateData.cac_number = cac_number;
+    }
+
     // Get vendor with store
     const vendor = await Vendor.findOne({
       where: { user_id: vendorId },
@@ -300,7 +360,8 @@ const completeOnboarding = async (req, res, next) => {
       logo: logo || null,
       business_images: JSON.stringify(business_images),
       is_verified: false, // Set to false initially, admin will verify
-      status: 'pending' // Set status to pending review
+      status: 'pending', // Set status to pending review
+      cac_number: cac_number || null,
     };
 
     console.log('Updating store with data:', JSON.stringify(updateData, null, 2));

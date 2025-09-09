@@ -36,10 +36,11 @@ exports.createAddressValidation = [
     .optional()
     .isBoolean().withMessage('is_default must be a boolean'),
   
-  body('phone_number')
+  body('phone')
     .optional()
     .isString().withMessage('Phone number must be a string')
-    .isLength({ max: 20 }).withMessage('Phone number must be less than 20 characters'),
+    .matches(/^\+234(70|80|81|90|91)[0-9]{8}$/)
+    .withMessage('Phone number must be in the format +234[70|80|81|90|91]XXXXXXX (e.g., +2348012345678)'),
   
   body('additional_info')
     .optional()
@@ -90,7 +91,8 @@ exports.updateAddressValidation = [
   body('phone_number')
     .optional()
     .isString().withMessage('Phone number must be a string')
-    .isLength({ max: 20 }).withMessage('Phone number must be less than 20 characters'),
+    .matches(/^\+234(70|80|81|90|91)[0-9]{8}$/)
+    .withMessage('Phone number must be in the format +234[70|80|81|90|91]XXXXXXX (e.g., +2348012345678)'),
   
   body('additional_info')
     .optional()

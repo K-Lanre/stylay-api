@@ -6,10 +6,12 @@ module.exports = (sequelize, DataTypes) => {
   class OrderItem extends Model {
     static associate(models) {
       OrderItem.belongsTo(models.Order, {
-        foreignKey: 'order_id'
+        foreignKey: 'order_id',
+        as: 'order'
       });
       OrderItem.belongsTo(models.Product, {
-        foreignKey: 'product_id'
+        foreignKey: 'product_id',
+        as: 'product'
       });
     }
   }
@@ -23,28 +25,47 @@ module.exports = (sequelize, DataTypes) => {
     },
     order_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false
+      allowNull: false,
+      references: {
+        model: 'orders',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
     },
     product_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false
+      allowNull: false,
+      references: {
+        model: 'products',
+        key: 'id'
+      }
     },
     quantity: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 1,
+      validate: {
+        min: 1
+      }
     },
     price: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false
+      allowNull: false,
+      validate: {
+        min: 0
+      }
     },
     total: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      validate: {
+        min: 0
+      }
     },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.NOW
     }
   }, {
     sequelize,

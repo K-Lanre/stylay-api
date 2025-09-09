@@ -35,9 +35,7 @@ const getAllUsers = async (req, res, next) => {
       total: count,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
-      data: {
-        users
-      }
+      data: users
     });
   } catch (error) {
     logger.error('Error fetching users:', error);
@@ -70,9 +68,7 @@ const getUser = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        user
-      }
+      data: user
     });
   } catch (error) {
     logger.error(`Error fetching user ${req.params.id}:`, error);
@@ -132,9 +128,7 @@ const createUser = async (req, res, next) => {
 
     res.status(201).json({
       status: 'success',
-      data: {
-        user: newUser
-      }
+      data: newUser
     });
   } catch (error) {
     logger.error('Error creating user:', error);
@@ -188,9 +182,7 @@ const updateUser = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        user: updatedUser
-      }
+      data: updatedUser
     });
   } catch (error) {
     logger.error(`Error updating user ${req.params.id}:`, error);
@@ -272,9 +264,7 @@ const assignRoles = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        user: updatedUser
-      }
+      data: updatedUser
     });
   } catch (error) {
     logger.error(`Error assigning roles to user ${req.params.id}:`, error);
@@ -326,9 +316,7 @@ const removeRoles = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        user: updatedUser
-      }
+      data: updatedUser
     });
   } catch (error) {
     logger.error(`Error removing roles from user ${req.params.id}:`, error);

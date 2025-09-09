@@ -51,10 +51,17 @@ const sendErrorProd = (err, req, res) => {
   if (req.originalUrl.startsWith('/api')) {
     // Operational, trusted error: send message to client
     if (err.isOperational) {
-      return res.status(err.statusCode).json({
+      const errorResponse = {
         status: err.status,
         message: err.message,
-      });
+      };
+
+      // Add additional error details if available
+      if (err.code) errorResponse.code = err.code;
+      if (err.expiresAt) errorResponse.expiresAt = err.expiresAt;
+      if (err.isExpired !== undefined) errorResponse.isExpired = err.isExpired;
+
+      return res.status(err.statusCode).json(errorResponse);
     }
     
     // Programming or other unknown error: don't leak error details

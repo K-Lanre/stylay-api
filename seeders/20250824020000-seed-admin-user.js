@@ -24,8 +24,8 @@ module.exports = {
         last_name: 'User',
         email: 'admin@stylay.com',
         password: hashedPassword,
-        // FIX: Construct the phone number reliably
-        phone: `+23480${faker.string.numeric(8)}`,
+        // Ensure phone number follows +234[70|80|81|90|91]XXXXXXX format
+        phone: `+234${faker.helpers.arrayElement(['70', '80', '81', '90', '91'])}${faker.string.numeric(8)}`, // +234 followed by valid prefix and 8 digits
         gender: 'other',
         is_active: true,
         email_verified_at: now,

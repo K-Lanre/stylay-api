@@ -12,9 +12,6 @@ module.exports = (sequelize, DataTypes) => {
       Product.belongsTo(models.Category, {
         foreignKey: 'category_id'
       });
-      Product.hasMany(models.CartItem, {
-        foreignKey: 'product_id'
-      });
       Product.hasMany(models.CollectionProduct, {
         foreignKey: 'product_id'
       });
@@ -45,9 +42,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'product_id'
       });
       Product.hasMany(models.VendorProductTag, {
-        foreignKey: 'product_id'
-      });
-      Product.hasMany(models.WishlistItem, {
         foreignKey: 'product_id'
       });
     }
@@ -125,7 +119,7 @@ module.exports = (sequelize, DataTypes) => {
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.NOW
     },
     updated_at: {
       type: DataTypes.DATE,
