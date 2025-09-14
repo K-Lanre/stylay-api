@@ -13,17 +13,18 @@ module.exports = {
         type: Sequelize.BIGINT.UNSIGNED,
         allowNull: false
       },
-      vendor_id: {
-        type: Sequelize.BIGINT.UNSIGNED,
-        allowNull: true
-      },
-      address_id: {
-        type: Sequelize.BIGINT.UNSIGNED,
-        allowNull: false
+      order_date: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.NOW
       },
       total_amount: {
         type: Sequelize.DECIMAL(10, 2),
         allowNull: false
+      },
+      payment_method: {
+        type: Sequelize.STRING,
+        allowNull: true
       },
       payment_status: {
         type: Sequelize.ENUM('pending', 'paid', 'failed'),
@@ -31,9 +32,9 @@ module.exports = {
         defaultValue: 'pending'
       },
       order_status: {
-        type: Sequelize.ENUM('processing', 'dispatched', 'delayed', 'success'),
+        type: Sequelize.ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled'),
         allowNull: false,
-        defaultValue: 'processing'
+        defaultValue: 'pending'
       },
       created_at: {
         type: Sequelize.DATE,
@@ -48,10 +49,8 @@ module.exports = {
     });
 
     await queryInterface.addIndex('orders', ['user_id'], { name: 'orders_user_id_idx' });
-    await queryInterface.addIndex('orders', ['vendor_id'], { name: 'orders_vendor_id_idx' });
     await queryInterface.addIndex('orders', ['payment_status'], { name: 'orders_payment_status_idx' });
     await queryInterface.addIndex('orders', ['order_status'], { name: 'orders_order_status_idx' });
-    await queryInterface.addIndex('orders', ['address_id'], { name: 'address_id' });
 
     await queryInterface.addConstraint('orders', {
       type: 'foreign key',
@@ -59,30 +58,6 @@ module.exports = {
       name: 'orders_ibfk_1',
       references: {
         table: 'users',
-        field: 'id'
-      },
-      onDelete: 'NO ACTION',
-      onUpdate: 'CASCADE'
-    });
-
-    await queryInterface.addConstraint('orders', {
-      type: 'foreign key',
-      fields: ['vendor_id'],
-      name: 'orders_ibfk_2',
-      references: {
-        table: 'vendors',
-        field: 'id'
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
-    });
-
-    await queryInterface.addConstraint('orders', {
-      type: 'foreign key',
-      fields: ['address_id'],
-      name: 'orders_ibfk_3',
-      references: {
-        table: 'addresses',
         field: 'id'
       },
       onDelete: 'NO ACTION',

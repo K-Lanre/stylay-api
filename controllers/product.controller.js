@@ -1,4 +1,3 @@
-const { isVendor } = require("../middlewares/auth");
 const {
   Product,
   ProductVariant,
@@ -24,7 +23,6 @@ const createProduct = async (req, res, next) => {
       price,
       category_id,
       sku,
-      stock,
       variants = [],
       images = [],
     } = req.body;
@@ -71,7 +69,6 @@ const createProduct = async (req, res, next) => {
       description,
       price,
       sku,
-      stock,
       status: "active",
       impressions: 0,
       viewers: 0,
@@ -135,7 +132,7 @@ const createProduct = async (req, res, next) => {
  */
 const getProducts = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, category, vendor, search } = req.query;
+    const { page = 1, limit =12, category, vendor, search } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {};
@@ -275,7 +272,7 @@ const updateProduct = async (req, res, next) => {
 
     // Prepare update data
     const updateData = {};
-    const { name, description, price, category_id, sku, stock, status } =
+    const { name, description, price, category_id, sku, status } =
       req.body;
 
     // Handle category update
@@ -317,7 +314,6 @@ const updateProduct = async (req, res, next) => {
     if (description !== undefined) updateData.description = description;
     if (price !== undefined) updateData.price = price;
     if (sku !== undefined) updateData.sku = sku;
-    if (stock !== undefined) updateData.stock = stock;
     if (status !== undefined) updateData.status = status;
 
     // Only update if there are changes
@@ -391,7 +387,7 @@ const deleteProduct = async (req, res, next) => {
  */
 const getVendorProducts = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit =12 } = req.query;
     const offset = (page - 1) * limit;
 
     const vendor = await Vendor.findByPk(req.params.id);
@@ -429,7 +425,7 @@ const getVendorProducts = async (req, res, next) => {
  */
 const getAllProducts = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search, category, vendor } = req.query;
+    const { page = 1, limit =12, search, category, vendor } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {};
@@ -491,7 +487,7 @@ const adminUpdateProduct = async (req, res, next) => {
     }
 
     // Update product fields
-    const { name, description, price, category_id, sku, stock, status } =
+    const { name, description, price, category_id, sku, status } =
       req.body;
 
     if (category_id) {
@@ -524,7 +520,6 @@ const adminUpdateProduct = async (req, res, next) => {
       price: price || product.price,
       category_id: category_id || product.category_id,
       sku: sku || product.sku,
-      stock: stock !== undefined ? stock : product.stock,
       status: status || product.status,
     });
 
@@ -624,7 +619,7 @@ const updateProductStatus = async (req, res, next) => {
 const getProductsByStatus = async (req, res, next) => {
   try {
     const { status } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit =12 } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {};

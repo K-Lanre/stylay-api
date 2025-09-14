@@ -1,4 +1,4 @@
-const { Category } = require('../models');
+const { Category, Product, Vendor, Store, ProductImage, Review, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const slugify = require('slugify');
 
@@ -261,11 +261,172 @@ const getCategoryTree = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get products by category
+ * @route   GET /api/v1/categories/:id/products
+ * @access  Public
+ */
+const getCategoryProducts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 12, minPrice, maxPrice, sortBy = 'createdAt', sortOrder = 'DESC' } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Check if category exists
+    const category = await Category.findByPk(id);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    // Build where clause
+    const whereClause = {
+      category_id: id,
+      status: 'active' // Only show active products
+    };
+
+    // Price filtering
+    if (minPrice) whereClause.price = { ...whereClause.price, [Op.gte]: parseFloat(minPrice) };
+    if (maxPrice) whereClause.price = { ...whereClause.price, [Op.lte]: parseFloat(maxPrice) };
+
+    // Sorting
+    const order = [];
+    const validSortFields = ['price', 'created_at', 'name'];
+    const validSortOrders = ['ASC', 'DESC'];
+    
+    if (validSortFields.includes(sortBy) && validSortOrders.includes(sortOrder.toUpperCase())) {
+      order.push([sortBy, sortOrder]);
+    } else {
+      order.push(['created_at', 'DESC']); // Default sort
+    }
+
+    // First, get the total count of products for pagination
+    const totalCount = await Product.count({
+      where: whereClause
+    });
+
+    // Then get the products with their related data
+    const products = await Product.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Vendor,
+          attributes: ['id', 'user_id'],
+          include: [
+            {
+              model: Store,
+              as: 'Store',
+              attributes: ['id', 'business_name', 'logo']
+            }
+          ]
+        },
+        {
+          model: Category,
+          attributes: ['id', 'name', 'slug']
+        },
+        {
+          model: ProductImage,
+          attributes: ['id', 'image_url', 'is_featured'],
+          required: false
+        },
+        {
+          model: Review,
+          attributes: [],
+          required: false,
+          duplicating: false
+        }
+      ],
+      attributes: [
+        'id', 'name', 'slug', 'description', 'price', 'discounted_price',
+        'status', 'created_at',
+        [
+          sequelize.fn('IFNULL', 
+            sequelize.fn('AVG', sequelize.col('Reviews.rating')), 
+            0
+          ), 
+          'average_rating'
+        ],
+        [
+          sequelize.fn('COUNT', sequelize.col('Reviews.id')), 
+          'review_count'
+        ]
+      ],
+      order,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      subQuery: false,
+      group: ['Product.id', 'Vendor.id', 'Vendor->Store.id', 'Category.id', 'ProductImages.id']
+    });
+
+    // Get review stats for all products in one query
+    const productIds = products.map(p => p.id);
+    const reviewStats = await Review.findAll({
+      attributes: [
+        'product_id',
+        [sequelize.fn('AVG', sequelize.col('rating')), 'avg_rating'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'review_count']
+      ],
+      where: {
+        product_id: productIds
+      },
+      group: ['product_id'],
+      raw: true
+    });
+
+    // Create a map of product_id to review stats
+    const reviewStatsMap = reviewStats.reduce((acc, stat) => {
+      acc[stat.product_id] = {
+        average_rating: parseFloat(stat.avg_rating) || 0,
+        review_count: parseInt(stat.review_count) || 0
+      };
+      return acc;
+    }, {});
+
+    // Add review stats to each product
+    const productsWithReviews = products.map(product => {
+      const stats = reviewStatsMap[product.id] || { average_rating: 0, review_count: 0 };
+      return {
+        ...product.get({ plain: true }),
+        average_rating: stats.average_rating,
+        review_count: stats.review_count
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        category: {
+          id: category.id,
+          name: category.name,
+          slug: category.slug
+        },
+        products: productsWithReviews,
+        pagination: {
+          total: totalCount,
+          page: parseInt(page),
+          pages: Math.ceil(totalCount / limit),
+          limit: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching category products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching category products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createCategory,
   getCategories,
   getCategoryById,
   updateCategory,
   deleteCategory,
-  getCategoryTree
+  getCategoryTree,
+  getCategoryProducts
 };

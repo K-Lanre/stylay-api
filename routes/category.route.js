@@ -7,13 +7,15 @@ const {
   getCategoryById, 
   updateCategory, 
   deleteCategory,
-  getCategoryTree
+  getCategoryTree,
+  getCategoryProducts
 } = require('../controllers/category.controller');
 const { 
   createCategoryValidation, 
   updateCategoryValidation, 
   getCategoryValidation, 
-  deleteCategoryValidation 
+  deleteCategoryValidation,
+  getCategoryProductsValidation 
 } = require('../validators/category.validator');
 const { protect, isAdmin } = require('../middlewares/auth');
 const validate = require('../middlewares/validation');
@@ -22,6 +24,14 @@ const validate = require('../middlewares/validation');
 router.get('/', getCategories);
 router.get('/tree', getCategoryTree);
 router.get('/:id', getCategoryValidation, validate, getCategoryById);
+
+// Get products by category
+router.get(
+  '/:id/products', 
+  getCategoryProductsValidation, 
+  validate, 
+  getCategoryProducts
+);
 
 // Protected Admin routes
 router.post(

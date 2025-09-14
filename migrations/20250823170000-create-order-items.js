@@ -17,6 +17,14 @@ module.exports = {
         type: Sequelize.BIGINT.UNSIGNED,
         allowNull: false
       },
+      vendor_id: {
+        type: Sequelize.BIGINT.UNSIGNED,
+        allowNull: false
+      },
+      variant_id: {
+        type: Sequelize.BIGINT.UNSIGNED,
+        allowNull: true
+      },
       quantity: {
         type: Sequelize.INTEGER,
         allowNull: false
@@ -25,7 +33,7 @@ module.exports = {
         type: Sequelize.DECIMAL(10, 2),
         allowNull: false
       },
-      total: {
+      sub_total: {
         type: Sequelize.DECIMAL(10, 2),
         allowNull: false
       },
@@ -38,6 +46,8 @@ module.exports = {
 
     await queryInterface.addIndex('order_items', ['order_id'], { name: 'order_items_order_id_idx' });
     await queryInterface.addIndex('order_items', ['product_id'], { name: 'order_items_product_id_idx' });
+    await queryInterface.addIndex('order_items', ['vendor_id'], { name: 'order_items_vendor_id_idx' });
+    await queryInterface.addIndex('order_items', ['variant_id'], { name: 'order_items_variant_id_idx' });
 
     await queryInterface.addConstraint('order_items', {
       type: 'foreign key',

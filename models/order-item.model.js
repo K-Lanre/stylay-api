@@ -13,6 +13,14 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'product_id',
         as: 'product'
       });
+      OrderItem.belongsTo(models.Vendor, {
+        foreignKey: 'vendor_id',
+        as: 'vendor'
+      });
+      OrderItem.belongsTo(models.ProductVariant, {
+        foreignKey: 'variant_id',
+        as: 'variant'
+      });
     }
   }
 
@@ -40,6 +48,24 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
+    vendor_id: {
+      type: DataTypes.BIGINT({ unsigned: true }),
+      allowNull: false,
+      references: {
+        model: 'vendors',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    variant_id: {
+      type: DataTypes.BIGINT({ unsigned: true }),
+      allowNull: true,
+      references: {
+        model: 'product_variants',
+        key: 'id'
+      },
+      onDelete: 'SET NULL'
+    },
     quantity: {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: false,
@@ -55,7 +81,7 @@ module.exports = (sequelize, DataTypes) => {
         min: 0
       }
     },
-    total: {
+    sub_total: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
       validate: {

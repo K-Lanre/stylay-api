@@ -8,15 +8,13 @@ module.exports = (sequelize, DataTypes) => {
       Order.belongsTo(models.User, {
         foreignKey: 'user_id'
       });
-      Order.belongsTo(models.Vendor, {
-        foreignKey: 'vendor_id'
-      });
-      Order.belongsTo(models.Address, {
-        foreignKey: 'address_id'
-      });
       Order.hasMany(models.OrderItem, {
         foreignKey: 'order_id',
         as: 'items'
+      });
+      Order.hasOne(models.OrderDetail, {
+        foreignKey: 'order_id',
+        as: 'details'
       });
       Order.hasMany(models.PaymentTransaction, {
         foreignKey: 'order_id',
@@ -36,32 +34,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT({ unsigned: true }),
       allowNull: false
     },
-    vendor_id: {
-      type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: true
-    },
-    address_id: {
-      type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false
+    order_date: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW
     },
     total_amount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false
-    },
-    subtotal: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      defaultValue: 0
-    },
-    shipping: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      defaultValue: 0
-    },
-    tax: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      defaultValue: 0
     },
     payment_status: {
       type: DataTypes.ENUM('pending', 'paid', 'failed'),
@@ -72,18 +52,18 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true
     },
+    payment_reference: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    paid_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     order_status: {
       type: DataTypes.ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled'),
       allowNull: false,
       defaultValue: 'pending'
-    },
-    notes: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
-    shipping_details: {
-      type: DataTypes.TEXT,
-      allowNull: true
     },
     created_at: {
       type: DataTypes.DATE,

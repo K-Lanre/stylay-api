@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= subject %></title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; border-bottom: 1px solid #eee; }
+    .logo { max-width: 150px; }
+    .payment-details { margin: 20px 0; padding: 20px; background: #f0f9f0; border-radius: 5px; border-left: 4px solid #4CAF50; }
+    .order-summary { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 5px; }
+    .btn {
+      display: inline-block; padding: 10px 20px; background: #4CAF50; color: white;
+      text-decoration: none; border-radius: 4px; margin: 10px 0;
+    }
+    .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #777; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="<%= process.env.APP_URL %>/logo.png" alt="Stylay" class="logo">
+      <h1>Payment Received</h1>
+      <p>Thank you for your payment!</p>
+    </div>
+
+    <div class="payment-details">
+      <h2>Payment Confirmation #<%= order.payment_reference %></h2>
+      <p><strong>Date:</strong> <%= paymentDate %></p>
+      <p><strong>Amount:</strong> $<%= (order.total_amount || 0).toFixed(2) %></p>
+      <p>Your payment has been successfully processed. We're preparing your order for shipment.</p>
+    </div>
+
+    <div class="order-summary">
+      <h3>Order #<%= order.id %></h3>
+      <p><strong>Order Date:</strong> <%= new Date(order.createdAt).toLocaleDateString() %></p>
+      
+      <h4>Items Ordered</h4>
+      <% order.items.forEach(item => { %>
+        <div style="margin: 10px 0; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+          <p><strong><%= item.product.name %></strong> x <%= item.quantity %></p>
+          <p>$<%= (item.price * item.quantity).toFixed(2) %></p>
+        </div>
+      <% }); %>
+      
+      <div style="margin-top: 20px; text-align: right;">
+        <p><strong>Subtotal:</strong> $<%= (order.subtotal || 0).toFixed(2) %></p>
+        <p><strong>Shipping:</strong> $<%= (order.shipping_cost || 0).toFixed(2) %></p>
+        <p><strong>Tax:</strong> $<%= (order.tax_amount || 0).toFixed(2) %></p>
+        <p><strong>Total Paid:</strong> $<%= (order.total_amount || 0).toFixed(2) %></p>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="<%= orderUrl %>" class="btn">View Order Details</a>
+    </div>
+
+    <div class="footer">
+      <p>If you have any questions about your order, please contact our support team at <%= process.env.SUPPORT_EMAIL || 'support@stylay.com' %></p>
+      <p>© <%= new Date().getFullYear() %> Stylay. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

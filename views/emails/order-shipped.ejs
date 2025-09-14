@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= subject %></title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; border-bottom: 1px solid #eee; }
+    .logo { max-width: 150px; }
+    .shipping-info { 
+      background-color: #e8f4f8; 
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .tracking-box {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .btn {
+      display: inline-block; 
+      padding: 10px 20px; 
+      background: #2196F3; 
+      color: white;
+      text-decoration: none; 
+      border-radius: 4px; 
+      margin: 10px 0;
+    }
+    .footer { 
+      margin-top: 30px; 
+      text-align: center; 
+      font-size: 12px; 
+      color: #777; 
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="<%= process.env.APP_URL %>/logo.png" alt="Stylay" class="logo">
+      <h1>Your Order is on the Way!</h1>
+      <p>Order #<%= order.id %> has been shipped</p>
+    </div>
+
+    <div class="shipping-info">
+      <h2>Shipped!</h2>
+      <p>Your order has left our warehouse and is on its way to you.</p>
+      
+      <% if (order.tracking_number) { %>
+        <div class="tracking-box">
+          <p><strong>Tracking Number:</strong> <%= order.tracking_number %></p>
+          <% if (order.courier) { %>
+            <p><strong>Courier:</strong> <%= order.courier %></p>
+          <% } %>
+          <% if (order.estimated_delivery) { %>
+            <p><strong>Estimated Delivery:</strong> <%= new Date(order.estimated_delivery).toLocaleDateString() %></p>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+
+    <div>
+      <h3>What's in your package?</h3>
+      <% order.items.forEach(item => { %>
+        <div style="margin: 10px 0; padding: 10px; border-bottom: 1px solid #eee; display: flex;">
+          <div style="width: 80px; height: 80px; background: #f5f5f5; margin-right: 15px; display: flex; align-items: center; justify-content: center;">
+            <% if (item.product.image) { %>
+              <img src="<%= item.product.image %>" alt="<%= item.product.name %>" style="max-width: 100%; max-height: 100%;">
+            <% } else { %>
+              <span>No Image</span>
+            <% } %>
+          </div>
+          <div>
+            <p style="margin: 0 0 5px 0; font-weight: bold;"><%= item.product.name %></p>
+            <p style="margin: 0; color: #666;">Quantity: <%= item.quantity %></p>
+            <p style="margin: 5px 0 0 0;">$<%= (item.price * item.quantity).toFixed(2) %></p>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <% if (order.tracking_url) { %>
+        <a href="<%= order.tracking_url %>" class="btn">Track Your Package</a>
+      <% } else if (trackingUrl) { %>
+        <a href="<%= trackingUrl %>" class="btn">Track Your Order</a>
+      <% } %>
+    </div>
+
+    <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+      <h3>Shipping Address</h3>
+      <p>
+        <%= order.shipping_address?.name || '' %><br>
+        <%= order.shipping_address?.line1 || '' %><br>
+        <% if (order.shipping_address?.line2) { %>
+          <%= order.shipping_address.line2 %><br>
+        <% } %>
+        <%= order.shipping_address?.city %>, 
+        <%= order.shipping_address?.state %> 
+        <%= order.shipping_address?.postal_code %><br>
+        <%= order.shipping_address?.country %>
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>If you have any questions about your order, please contact our support team at <%= process.env.SUPPORT_EMAIL || 'support@stylay.com' %></p>
+      <p>© <%= new Date().getFullYear() %> Stylay. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

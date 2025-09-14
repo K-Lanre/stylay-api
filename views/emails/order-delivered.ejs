@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= subject %></title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; border-bottom: 1px solid #eee; }
+    .logo { max-width: 150px; }
+    .delivery-success { 
+      background-color: #e8f5e9; 
+      border-left: 4px solid #4CAF50;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .order-items { margin: 20px 0; }
+    .order-item { 
+      display: flex; 
+      margin-bottom: 15px; 
+      padding-bottom: 15px; 
+      border-bottom: 1px solid #eee;
+    }
+    .item-image { 
+      width: 80px; 
+      height: 80px; 
+      background: #f5f5f5; 
+      margin-right: 15px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .item-details { flex-grow: 1; }
+    .item-name { font-weight: bold; margin: 0 0 5px 0; }
+    .item-price { color: #e53935; font-weight: bold; }
+    .btn {
+      display: inline-block; 
+      padding: 12px 24px; 
+      background: #4CAF50; 
+      color: white;
+      text-decoration: none; 
+      border-radius: 4px; 
+      margin: 10px 5px;
+      font-weight: bold;
+    }
+    .btn.secondary {
+      background: #2196F3;
+    }
+    .footer { 
+      margin-top: 30px; 
+      text-align: center; 
+      font-size: 12px; 
+      color: #777; 
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .order-summary {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
+    }
+    .total-row {
+      font-weight: bold;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="<%= process.env.APP_URL %>/logo.png" alt="Stylay" class="logo">
+      <h1>Your Order Has Been Delivered!</h1>
+      <p>We hope you love your new items</p>
+    </div>
+
+    <div class="delivery-success">
+      <h2>Delivery Confirmed</h2>
+      <p>Your order #<%= order.id %> was delivered on <%= new Date().toLocaleDateString() %>.</p>
+      <p>We'd love to hear what you think!</p>
+    </div>
+
+  
+    <div class="order-summary">
+      <h3>Order Summary</h3>
+      <div class="order-items">
+        <% order.items.forEach(item => { %>
+          <div class="order-item">
+            <div class="item-image">
+              <% if (item.product.image) { %>
+                <img src="<%= item.product.image %>" alt="<%= item.product.name %>" style="max-width: 100%; max-height: 100%;">
+              <% } else { %>
+                <span>No Image</span>
+              <% } %>
+            </div>
+            <div class="item-details">
+              <div class="item-name"><%= item.product.name %></div>
+              <div>Quantity: <%= item.quantity %></div>
+              <div class="item-price">$<%= (item.price * item.quantity).toFixed(2) %></div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <div class="summary-row">
+          <span>Subtotal:</span>
+          <span>$<%= (order.subtotal || 0).toFixed(2) %></span>
+        </div>
+        <div class="summary-row">
+          <span>Shipping:</span>
+          <span>$<%= (order.shipping_cost || 0).toFixed(2) %></span>
+        </div>
+        <div class="summary-row">
+          <span>Tax:</span>
+          <span>$<%= (order.tax_amount || 0).toFixed(2) %></span>
+        </div>
+        <div class="summary-row total-row">
+          <span>Total:</span>
+          <span>$<%= (order.total_amount || 0).toFixed(2) %></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <% if (reviewUrl) { %>
+        <a href="<%= reviewUrl %>" class="btn">Write a Review</a>
+      <% } %>
+      <a href="<%= process.env.FRONTEND_URL || '#' %>" class="btn secondary">Continue Shopping</a>
+    </div>
+
+    <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+      <h3>Need Help?</h3>
+      <p>If you have any questions about your order or need to make a return, please visit our <a href="<%= process.env.FRONTEND_URL %>/help">Help Center</a> or contact our support team.</p>
+    </div>
+
+    <div class="footer">
+      <p>Thank you for shopping with us!</p>
+      <p>© <%= new Date().getFullYear() %> Stylay. All rights reserved.</p>
+      <p style="margin-top: 10px;">
+        <a href="<%= process.env.FRONTEND_URL %>/privacy" style="color: #2196F3; text-decoration: none; margin: 0 5px;">Privacy Policy</a> | 
+        <a href="<%= process.env.FRONTEND_URL %>/terms" style="color: #2196F3; text-decoration: none; margin: 0 5px;">Terms of Service</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

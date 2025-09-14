@@ -13,9 +13,13 @@ module.exports = {
         type: Sequelize.BIGINT.UNSIGNED,
         allowNull: false
       },
-      details: {
+      note: {
         type: Sequelize.TEXT,
         allowNull: true
+      },
+      address_id: {
+        type: Sequelize.BIGINT.UNSIGNED,
+        allowNull: false
       },
       created_at: {
         type: Sequelize.DATE,
@@ -25,6 +29,7 @@ module.exports = {
     });
 
     await queryInterface.addIndex('order_details', ['order_id'], { name: 'order_details_order_id_idx' });
+    await queryInterface.addIndex('order_details', ['address_id'], { name: 'order_details_address_id_idx' });
 
     await queryInterface.addConstraint('order_details', {
       type: 'foreign key',
@@ -35,6 +40,18 @@ module.exports = {
         field: 'id'
       },
       onDelete: 'CASCADE',
+      onUpdate: 'CASCADE'
+    });
+
+    await queryInterface.addConstraint('order_details', {
+      type: 'foreign key',
+      fields: ['address_id'],
+      name: 'order_details_ibfk_2',
+      references: {
+        table: 'addresses',
+        field: 'id'
+      },
+      onDelete: 'NO ACTION',
       onUpdate: 'CASCADE'
     });
   },

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= subject %></title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      line-height: 1.6; 
+      color: #333; 
+      margin: 0;
+      padding: 0;
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      padding: 20px;
+      background: #ffffff;
+    }
+    .header { 
+      text-align: center; 
+      padding: 20px 0; 
+      border-bottom: 1px solid #eee; 
+    }
+    .logo { 
+      max-width: 150px; 
+      margin-bottom: 15px;
+    }
+    .notification { 
+      background-color: #e3f2fd; 
+      border-left: 4px solid #2196F3;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .order-summary { 
+      background: #f9f9f9; 
+      padding: 15px; 
+      border-radius: 5px; 
+      margin: 20px 0;
+    }
+    .btn {
+      display: inline-block; 
+      padding: 10px 20px; 
+      background: #2196F3; 
+      color: white;
+      text-decoration: none; 
+      border-radius: 4px; 
+      margin: 10px 5px;
+      font-weight: bold;
+    }
+    .btn.secondary {
+      background: #666;
+    }
+    .footer { 
+      margin-top: 30px; 
+      text-align: center; 
+      font-size: 12px; 
+      color: #777; 
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .order-item {
+      display: flex;
+      margin: 10px 0;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .item-image {
+      width: 70px;
+      height: 70px;
+      background: #f0f0f0;
+      margin-right: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .item-details {
+      flex-grow: 1;
+    }
+    .item-name {
+      font-weight: bold;
+      margin: 0 0 5px 0;
+      color: #1976D2;
+    }
+    .item-sku {
+      color: #666;
+      font-size: 0.9em;
+      margin-bottom: 5px;
+    }
+    .item-price {
+      font-weight: bold;
+      color: #2E7D32;
+    }
+    .shipping-address {
+      background: #f0f7ff;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 15px 0;
+      border-left: 3px solid #1976D2;
+    }
+    .order-totals {
+      margin: 20px 0;
+      text-align: right;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      max-width: 300px;
+      margin-left: auto;
+      padding: 5px 0;
+    }
+    .total-label {
+      font-weight: bold;
+    }
+    .total-amount {
+      min-width: 100px;
+      text-align: right;
+    }
+    .grand-total {
+      font-size: 1.2em;
+      border-top: 1px solid #ddd;
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="<%= process.env.APP_URL %>/logo.png" alt="Stylay" class="logo">
+      <h1>New Order Received</h1>
+      <p>Order #<%= order.id %> requires your attention</p>
+    </div>
+
+    <div class="notification">
+      <h2>New Order Notification</h2>
+      <p>A new order has been placed that includes your products. Please review the order details and prepare the items for shipment.</p>
+      <p><strong>Order Date:</strong> <%= new Date(order.createdAt).toLocaleString() %></p>
+      <p><strong>Order Status:</strong> <span style="color: #1976D2; font-weight: bold;"><%= order.status %></span></p>
+    </div>
+
+    <div class="order-summary">
+      <h3>Order Items</h3>
+      <% order.items.forEach(item => { %>
+        <div class="order-item">
+          <div class="item-image">
+            <% if (item.product.image) { %>
+              <img src="<%= item.product.image %>" alt="<%= item.product.name %>" style="max-width: 100%; max-height: 100%;">
+            <% } else { %>
+              <span>No Image</span>
+            <% } %>
+          </div>
+          <div class="item-details">
+            <div class="item-name"><%= item.product.name %></div>
+            <% if (item.variant) { %>
+              <div class="item-sku">
+                <% Object.entries(item.variant).forEach(([key, value]) => { %>
+                  <span style="margin-right: 10px;"><%= key %>: <%= value %></span>
+                <% }); %>
+              </div>
+            <% } %>
+            <div>Quantity: <%= item.quantity %></div>
+            <div class="item-price">$<%= (item.price * item.quantity).toFixed(2) %></div>
+          </div>
+        </div>
+      <% }); %>
+
+      <div class="order-totals">
+        <div class="total-row">
+          <span class="total-label">Subtotal:</span>
+          <span class="total-amount">$<%= (order.subtotal || 0).toFixed(2) %></span>
+        </div>
+        <div class="total-row">
+          <span class="total-label">Shipping:</span>
+          <span class="total-amount">$<%= (order.shipping_cost || 0).toFixed(2) %></span>
+        </div>
+        <div class="total-row">
+          <span class="total-label">Tax:</span>
+          <span class="total-amount">$<%= (order.tax_amount || 0).toFixed(2) %></span>
+        </div>
+        <div class="total-row grand-total">
+          <span class="total-label">Total:</span>
+          <span class="total-amount">$<%= (order.total_amount || 0).toFixed(2) %></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="shipping-address">
+      <h3>Shipping Address</h3>
+      <p>
+        <%= order.shipping_address?.name || '' %><br>
+        <%= order.shipping_address?.line1 || '' %><br>
+        <% if (order.shipping_address?.line2) { %>
+          <%= order.shipping_address.line2 %><br>
+        <% } %>
+        <%= order.shipping_address?.city %>, 
+        <%= order.shipping_address?.state %> 
+        <%= order.shipping_address?.postal_code %><br>
+        <%= order.shipping_address?.country %><br>
+        <% if (order.shipping_address?.phone) { %>
+          <br>Phone: <%= order.shipping_address.phone %>
+        <% } %>
+      </p>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="<%= vendorDashboardUrl || '#' %>" class="btn">View Order in Dashboard</a>
+      <a href="mailto:<%= supportEmail || 'support@stylay.com' %>" class="btn secondary">Contact Support</a>
+    </div>
+
+    <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+      <h3>Next Steps</h3>
+      <ol>
+        <li>Review the order details above</li>
+        <li>Prepare the items for shipment within 1-2 business days</li>
+        <li>Update the order status in your vendor dashboard once shipped</li>
+        <li>Add tracking information if available</li>
+      </ol>
+    </div>
+
+    <div class="footer">
+      <p>Thank you for being a valued Stylay vendor!</p>
+      <p>© <%= new Date().getFullYear() %> Stylay. All rights reserved.</p>
+      <p style="margin-top: 10px;">
+        <a href="<%= process.env.VENDOR_PORTAL_URL || '#' %>/terms" style="color: #2196F3; text-decoration: none; margin: 0 5px;">Vendor Terms</a> | 
+        <a href="<%= process.env.VENDOR_PORTAL_URL || '#' %>/support" style="color: #2196F3; text-decoration: none; margin: 0 5px;">Vendor Support</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

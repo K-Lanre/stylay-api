@@ -91,11 +91,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(50),
       allowNull: true
     },
-    stock: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0
-    },
     status: {
       type: DataTypes.ENUM('active', 'inactive', 'apology'),
       allowNull: true,

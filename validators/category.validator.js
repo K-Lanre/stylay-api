@@ -1,4 +1,4 @@
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const { Category } = require('../models');
 const slugify = require('slugify');
 
@@ -104,6 +104,47 @@ exports.updateCategoryValidation = [
 exports.getCategoryValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid category ID')
+];
+
+// Validation rules for getting category products
+exports.getCategoryProductsValidation = [
+  param('id')
+    .isInt({ min: 1 }).withMessage('Invalid category ID')
+    .custom(async (value) => {
+      const category = await Category.findByPk(value);
+      if (!category) {
+        throw new Error('Category not found');
+      }
+      return true;
+    }),
+  query('page')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Page must be a positive integer')
+    .toInt(),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+    .toInt(),
+  query('minPrice')
+    .optional()
+    .isFloat({ min: 0 }).withMessage('Minimum price must be a positive number')
+    .toFloat(),
+  query('maxPrice')
+    .optional()
+    .isFloat({ min: 0 }).withMessage('Maximum price must be a positive number')
+    .toFloat()
+    .custom((value, { req }) => {
+      if (req.query.minPrice && value <= req.query.minPrice) {
+        throw new Error('Maximum price must be greater than minimum price');
+      }
+      return true;
+    }),
+  query('sortBy')
+    .optional()
+    .isIn(['price', 'createdAt', 'name']).withMessage('Invalid sort field'),
+  query('sortOrder')
+    .optional()
+    .isIn(['ASC', 'DESC']).withMessage('Sort order must be either ASC or DESC')
 ];
 
 // Validation rules for deleting a category

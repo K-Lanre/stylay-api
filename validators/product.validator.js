@@ -62,10 +62,6 @@ exports.createProductValidation = [
     .isString().withMessage(messages.string('SKU'))
     .isLength({ max: 100 }).withMessage(messages.maxLength('SKU', 100)),
     
-  body('stock')
-    .optional()
-    .isInt({ min: 0 }).withMessage('Stock must be a non-negative integer'),
-    
   // Variants validation
   body('variants')
     .optional()
