@@ -1,4 +1,4 @@
-
+// Import necessary models
 const {
   Order,
   OrderItem,
@@ -6,14 +6,16 @@ const {
   User,
   Product,
   Vendor,
+  Store,
   Address,
   Inventory,
   InventoryHistory,
   PaymentTransaction,
   Notification,
   sequelize,
+  ProductVariant, // Add ProductVariant import
 } = require("../models");
-const PaymentService = require("../services/payment.service");
+const paymentService = require("../services/payment.service");
 const emailService = require("../services/email.service");
 const logger = require("../utils/logger");
 const { v4: uuidv4 } = require("uuid");
@@ -60,6 +62,7 @@ async function createOrder(req, res) {
     const orderItems = [];
     const vendorItems = new Map(); // Track items by vendor for notifications
 
+    // First pass: Validate stock and calculate total amount
     for (const item of items) {
       const product = await Product.findByPk(item.productId, {
         include: [{ model: Inventory }],
@@ -67,18 +70,53 @@ async function createOrder(req, res) {
       });
 
       if (!product) throw new Error(`Product ${item.productId} not found`);
-      if (!product.inventory || product.inventory.stock < item.quantity) {
+
+      if (item.variantId) {
+        const variant = await ProductVariant.findByPk(item.variantId, { transaction });
+        if (!variant) throw new Error(`Product variant ${item.variantId} not found`);
+        if (variant.stock === null || variant.stock === undefined) {
+          throw new Error(`Variant stock is not defined for variant ${item.variantId}`);
+        }
+        if (variant.stock < item.quantity) {
+          throw new Error(`Insufficient stock for product variant: ${product.name} - ${variant.name}`);
+        }
+      } else if (!product.inventory || product.inventory.stock < item.quantity) {
         throw new Error(`Insufficient stock for product: ${product.name}`);
       }
 
       const itemPrice = product.discounted_price || product.price;
-      const itemTotal = item.quantity * itemPrice;
-      totalAmount += itemTotal;
+      totalAmount += item.quantity * itemPrice;
+    }
 
-      // Create order item
+    // Add shipping and tax to total
+    totalAmount += parseFloat(shippingCost || 0) + parseFloat(taxAmount || 0);
+
+    // Create the order first
+    let order = await Order.create(
+      {
+        user_id: userId,
+        order_date: orderDate,
+        total_amount: totalAmount,
+        payment_status: "pending",
+        payment_method: paymentMethod,
+        order_status: "pending",
+      },
+      { transaction }
+    );
+
+    // Second pass: Create order items and update stock
+    for (const item of items) {
+      const product = await Product.findByPk(item.productId, {
+        include: [{ model: Inventory }],
+        transaction,
+      });
+
+      const itemPrice = product.discounted_price || product.price;
+      const itemTotal = item.quantity * itemPrice;
+
       const orderItem = await OrderItem.create(
         {
-          order_id: null, // Will be set after order is created
+          order_id: order.id, // Now order.id is available
           product_id: product.id,
           vendor_id: product.vendor_id,
           variant_id: item.variantId || null,
@@ -88,8 +126,9 @@ async function createOrder(req, res) {
         },
         { transaction }
       );
+      orderItems.push(orderItem);
 
-      // Get current stock before update
+      // Update inventory and inventory history
       const inventory = await Inventory.findOne({
         where: { product_id: product.id },
         transaction,
@@ -102,22 +141,29 @@ async function createOrder(req, res) {
       const previousStock = inventory.stock;
       const newStock = previousStock - item.quantity;
 
-      // Update inventory
       await Inventory.decrement("stock", {
         by: item.quantity,
         where: { product_id: product.id },
         transaction,
       });
 
-      // Record inventory history
       await InventoryHistory.create({
         inventory_id: inventory.id,
-        adjustment: -item.quantity, // Negative for stock out
+        adjustment: -item.quantity,
         previous_stock: previousStock,
         new_stock: newStock,
-        note: `Order #${order?.id || 'N/A'}: Stock reduced for order placement`,
+        note: `Order #${order.id}: Stock reduced for order placement`,
         adjusted_by: userId,
       }, { transaction });
+
+      // Decrement variant stock if variantId is provided
+      if (item.variantId) {
+        await ProductVariant.decrement("stock", {
+          by: item.quantity,
+          where: { id: item.variantId },
+          transaction,
+        });
+      }
 
       // Track items by vendor for notifications
       if (product.vendor_id) {
@@ -129,32 +175,7 @@ async function createOrder(req, res) {
           product: product.toJSON(),
         });
       }
-
-      orderItems.push(orderItem);
     }
-
-    // Add shipping and tax to total
-    totalAmount += parseFloat(shippingCost || 0) + parseFloat(taxAmount || 0);
-
-    // Create order
-    const order = await Order.create(
-      {
-        user_id: userId,
-        order_date: orderDate,
-        total_amount: totalAmount,
-        payment_status: "pending",
-        payment_method: paymentMethod,
-        order_status: "pending",
-      },
-      { transaction }
-    );
-
-    // Update order items with order_id
-    await Promise.all(
-      orderItems.map((item) =>
-        item.update({ order_id: order.id }, { transaction })
-      )
-    );
 
     // Create order details
     await OrderDetail.create(
@@ -169,7 +190,6 @@ async function createOrder(req, res) {
     );
 
     // Initialize payment with Paystack
-    const paymentService = new PaymentService();
     const reference = `STYLAY-${Date.now()}-${order.id}`;
 
     const paymentData = await paymentService.initializePayment({
@@ -378,8 +398,8 @@ async function updateOrderStatus(req, res) {
     const { id } = req.params;
     const { status, notes } = req.body;
     const userId = req.user.id;
-    const isAdmin = req.user.role === "admin";
-    const isVendor = req.user.role === "vendor";
+    const isAdmin = req.user.roles.some((role) => role.name === "admin");
+    const isVendor = req.user.roles.some((role) => role.name === "vendor");
 
     // Validate status
     const validStatuses = ["processing", "shipped", "delivered", "cancelled"];
@@ -710,7 +730,6 @@ async function verifyPayment(req, res) {
     }
 
     // Verify with payment gateway
-    const paymentService = new PaymentService();
     const verification = await paymentService.verifyPayment(reference);
 
     if (verification.status !== "success") {
@@ -730,8 +749,7 @@ async function verifyPayment(req, res) {
     );
 
     // Update order status
-    const order = transactionRecord.order;
-    await order.update(
+    await transactionRecord.order.update(
       {
         payment_status: "paid",
         paid_at: new Date(),
@@ -813,7 +831,6 @@ async function handlePaymentWebhook(req, res) {
     const event = req.body;
 
     // Verify webhook signature
-    const paymentService = new PaymentService();
     const result = await paymentService.handleWebhook(event);
 
     await transaction.commit();
@@ -903,7 +920,19 @@ async function cancelOrder(req, res) {
         return true;
       })
     );
-
+    // Restore variant stock if variantId is provided
+    await Promise.all(
+      order.order_items.map(async (item) => {
+        if (item.variant_id) {
+          await ProductVariant.increment("stock", {
+            by: item.quantity,
+            where: { id: item.variant_id },
+            transaction,
+          });
+        }
+        return true;
+      })
+    );
     // If payment was made, process refund
     if (order.payment_status === "paid") {
       // Create refund transaction

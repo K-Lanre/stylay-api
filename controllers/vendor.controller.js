@@ -3,13 +3,22 @@ const bcrypt = require("bcryptjs");
 const logger = require("../utils/logger");
 const { Op } = require("sequelize");
 const { default: slugify } = require("slugify");
-const AppError = require('../utils/appError');
-const { sendWelcomeEmail } = require('../services/email.service');
+const { sendEmail, sendWelcomeEmail } = require("../services/email.service");
+const AppError = require("../utils/appError");
 
-// Generate random 6 digit token with math.random()
-generateRandomToken = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+// Generate a random 6-digit code and expiration time (10 minutes from now)
+const generateVerificationCode = () => {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expires = new Date();
+  expires.setMinutes(expires.getMinutes() + 10); // Token expires in 10 min
+  return { code, expires };
 };
+
+// Hash the verification code
+const hashVerificationCode =  (code) => {
+  return bcrypt.hashSync(code, 10);
+};
+
 
 /**
  * Register a new vendor
@@ -33,6 +42,7 @@ const registerVendor = async (req, res) => {
       join_reason,
     } = req.body;
     const password = process.env.DEFAULT_VENDOR_PASSWORD;
+    const hashedPassword = hashVerificationCode(password);
     // Check if email or phone already exists
     const existingUser = await User.findOne({
       where: {
@@ -51,7 +61,7 @@ const registerVendor = async (req, res) => {
 
     // Validate CAC number format if provided
     if (cac_number) {
-      const cacRegex = /^[A-Z]{2,3}\/\d{4,5}\d{5,7}$/i;
+      const cacRegex = /^(RC|BN)\/\d{7}$/;
       if (!cacRegex.test(cac_number)) {
         await transaction.rollback();
         return res.status(400).json({
@@ -64,7 +74,7 @@ const registerVendor = async (req, res) => {
       const existingStore = await Store.findOne({
         where: {
           cac_number: {
-            [Op.iLike]: cac_number
+            [Op.like]: cac_number
           }
         },
         transaction
@@ -95,12 +105,13 @@ const registerVendor = async (req, res) => {
       });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    const emailToken = generateRandomToken();
-    const hashedToken = await bcrypt.hash(emailToken, salt);
+    // Generate and store verification code with expiration
+    const { code: verificationCode, expires: tokenExpires } = generateVerificationCode();
+    const hashedCode = hashVerificationCode(verificationCode);
 
+    // Calculate minutes until expiration
+    const minutesUntilExpiry = Math.ceil((tokenExpires - new Date()) / (1000 * 60));
+    
     // Create user
     const user = await User.create(
       {
@@ -110,7 +121,8 @@ const registerVendor = async (req, res) => {
         phone,
         password: hashedPassword,
         email_verified_at: null, // Implement email verification
-        email_verification_token: hashedToken,
+        email_verification_token: hashedCode,
+        email_verification_token_expires: tokenExpires,
         is_active: false,
       },
       { transaction }
@@ -118,18 +130,17 @@ const registerVendor = async (req, res) => {
 
     // Send welcome email with verification code
     try {
-      await sendWelcomeEmail(email, `${first_name} ${last_name}`, emailToken);
+      await sendWelcomeEmail(email, `${first_name} ${last_name}`, verificationCode, minutesUntilExpiry);
     } catch (err) {
       logger.error(`Error sending welcome email: ${err.message}`);
       // Don't fail the registration if email sending fails
     }
 
     // Create store
-    const newStore = await Store.create(
-      {
-        business_name,
-        slug: storeSlug,
-        cac_number,
+    const newStore = await Store.create({
+      business_name,
+      slug: storeSlug,
+      cac_number: cac_number ? cac_number.trim() : null,
         instagram_handle,
         facebook_handle,
         twitter_handle,
@@ -165,13 +176,31 @@ const registerVendor = async (req, res) => {
     }
 
     // Assign vendor role to user
-    await user.addRole(vendorRole, { transaction });
+    console.log('User:', user);
+    console.log('VendorRole:', vendorRole);
+    
+    try {
+      // Use the correct method to add role through the belongsToMany association
+      await user.addRoles([vendorRole.id], { 
+        through: { 
+          user_id: user.id,
+          role_id: vendorRole.id,
+          created_at: new Date()
+        },
+        transaction 
+      });
+      
+      console.log('Successfully assigned role to user');
+    } catch (error) {
+      console.error('Error assigning role:', error);
+      throw error;
+    }
 
     // Commit transaction
     await transaction.commit();
 
     // TODO: Send notification to admin about new vendor registration
-    
+
     // Omit sensitive data from response
     const userJson = user.toJSON();
     delete userJson.password;
@@ -540,17 +569,16 @@ const approveVendor = async (req, res, next) => {
 
     // Send approval email to vendor
     try {
-      await sendEmail({
-        to: vendor.User.email,
-        subject: 'Your Vendor Account Has Been Approved!',
-        template: 'vendor-approved',
-        context: {
+      await sendEmail(
+        vendor.User.email,
+        'VENDOR_APPROVED',
+        {
           name: `${vendor.User.first_name} ${vendor.User.last_name}`,
           storeName: vendor.Store.business_name,
           loginUrl: `${process.env.FRONTEND_URL}/vendor/login`,
           supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.ng'
         }
-      });
+      );
     } catch (emailError) {
       logger.error('Error sending vendor approval email:', emailError);
       // Don't fail the request if email fails

@@ -46,17 +46,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT({ unsigned: true }),
       allowNull: false
     },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    }
+    // Timestamps are now handled automatically by Sequelize
   }, {
     sequelize,
     modelName: 'InventoryHistory',
     tableName: 'inventory_history',
-    timestamps: false,
+    timestamps: true,
     underscored: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         fields: ['inventory_id']

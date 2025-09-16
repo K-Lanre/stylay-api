@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     vendor_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false,
+      allowNull: true, // Changed to allow null, as product.vendor_id can be null
       references: {
         model: 'vendors',
         key: 'id'
@@ -88,17 +88,15 @@ module.exports = (sequelize, DataTypes) => {
         min: 0
       }
     },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    }
+    // Timestamps are now handled automatically by Sequelize
   }, {
     sequelize,
     modelName: 'OrderItem',
     tableName: 'order_items',
-    timestamps: false,
-    underscored: true
+    timestamps: true,
+    underscored: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   });
 
   return OrderItem;

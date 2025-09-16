@@ -1,6 +1,6 @@
 'use strict';
 
-const { Product, Vendor, Inventory, InventoryHistory, sequelize } = require('../models');
+const { Product, Vendor, Inventory, InventoryHistory, VendorProductTag, sequelize } = require('../models');
 const { faker } = require('@faker-js/faker');
 
 // Configuration
@@ -69,12 +69,13 @@ module.exports = {
       console.log('\nGenerating supply data...');
       const currentDate = new Date();
       const supplies = [];
-      
+      const vendorProductTagsToCreate = [];
+
       // Get all products from approved vendors
       const products = await Product.findAll({
         include: [{
           model: Vendor,
-          where: { 
+          where: {
             status: 'approved',
             id: { [Sequelize.Op.in]: vendors.map(v => v.id) }
           },
@@ -110,14 +111,34 @@ module.exports = {
         const productsToUse = vendorProducts.slice(0, CONFIG.SUPPLIES_PER_VENDOR);
         
         for (const product of productsToUse) {
-          const quantity = faker.number.int({ 
-            min: CONFIG.MIN_QUANTITY, 
-            max: CONFIG.MAX_QUANTITY 
+          // Ensure a VendorProductTag exists for this vendor-product pair
+          let vendorProductTag = await VendorProductTag.findOne({
+            where: {
+              vendor_id: vendorId,
+              product_id: product.id
+            },
+            transaction
+          });
+
+          if (!vendorProductTag) {
+            // If not found, create a new one
+            vendorProductTag = await VendorProductTag.create({
+              vendor_id: vendorId,
+              product_id: product.id,
+              tag_name: `tag-${vendorId}-${product.id}`, // Example tag name
+              created_at: new Date()
+            }, { transaction });
+          }
+
+          const quantity = faker.number.int({
+            min: CONFIG.MIN_QUANTITY,
+            max: CONFIG.MAX_QUANTITY
           });
           
           supplies.push({
             vendor_id: vendorId,
             product_id: product.id,
+            vendor_product_tag_id: vendorProductTag.id,
             quantity_supplied: quantity,
             supply_date: faker.date.between({
               from: new Date(currentDate.getFullYear(), 0, 1),
@@ -142,23 +163,27 @@ module.exports = {
           const batch = supplies.slice(i, i + CONFIG.BATCH_SIZE);
           
           // Insert batch of supplies
-          const createdSupplies = await queryInterface.bulkInsert('supply', batch, { 
-            transaction,
-            returning: true
+          await queryInterface.bulkInsert('supply', batch, {
+            transaction
           });
-          
-          // Process inventory for this batch in parallel
-          await Promise.all(batch.map(async (supply, index) => {
+
+          // For MySQL, we need to get the inserted IDs differently
+          // Since bulkInsert doesn't return IDs in MySQL, we'll process inventory without supply_id for now and update later
+          const insertedSupplies = await queryInterface.sequelize.query(
+            `SELECT id, product_id FROM supply WHERE product_id IN (${batch.map(s => s.product_id).join(',')})`,
+            { transaction, type: Sequelize.QueryTypes.SELECT }
+          );
+
+          const supplyMap = new Map(insertedSupplies.map(supply => [supply.product_id, supply.id]));
+
+          await Promise.all(batch.map(async (supply) => {
             const productId = supply.product_id;
             const quantity = supply.quantity_supplied;
-            
-            // Find or create inventory record
-            const supplyId = createdSupplies + index; // Generate supply ID
             const [inventory, created] = await Inventory.findOrCreate({
               where: { product_id: productId },
-              defaults: { 
+              defaults: {
                 product_id: productId,
-                supply_id: supplyId,
+                supply_id: supplyMap.get(productId) || null, // Update supply_id here
                 stock: quantity, // Set initial stock to the supplied quantity
                 restocked_at: new Date(),
                 created_at: new Date(),
@@ -183,15 +208,14 @@ module.exports = {
               const newStock = previousStock + quantity;
               
               await Inventory.update(
-                { 
+                {
                   stock: newStock,
-                  supply_id: supplyId,
                   restocked_at: new Date(),
                   updated_at: new Date()
                 },
-                { 
+                {
                   where: { id: inventory.id },
-                  transaction 
+                  transaction
                 }
               );
               
@@ -225,5 +249,6 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.bulkDelete('supply', null, {});
+    await queryInterface.bulkDelete('vendor_product_tags', null, {}); // Clean up associated tags
   }
 };

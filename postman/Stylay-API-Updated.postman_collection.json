@@ -1005,6 +1005,22 @@
                     }
                 },
                 {
+                    "name": "Get Products by Category",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": "{{base_url}}/api/v1/categories/:id/products",
+                        "pathVariables": [
+                            {
+                                "key": "id",
+                                "value": "1",
+                                "description": "Category ID"
+                            }
+                        ],
+                        "description": "Retrieve products associated with a specific category"
+                    }
+                },
+                {
                     "name": "Create Category (Admin)",
                     "request": {
                         "method": "POST",
@@ -2728,8 +2744,303 @@
                     }
                 }
             ]
+        },
+        {
+            "name": "Order Management",
+            "description": "Order processing and management endpoints",
+            "item": [
+                {
+                    "name": "Customer Order Endpoints",
+                    "description": "Endpoints for customers to manage their orders",
+                    "item": [
+                        {
+                            "name": "Create Order",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"addressId\": 1,\n    \"items\": [\n        {\n            \"productId\": 1,\n            \"quantity\": 2,\n            \"variantId\": 1\n        }\n    ],\n    \"shippingCost\": 1000,\n    \"taxAmount\": 500,\n    \"notes\": \"Please deliver after 5pm\",\n    \"paymentMethod\": \"paystack\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders"]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Get User Orders",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/my-orders?status=processing&page=1&limit=10",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "my-orders"],
+                                    "query": [
+                                        {
+                                            "key": "status",
+                                            "value": "processing"
+                                        },
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Get Order Details",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/1",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "1"]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Cancel Order",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"reason\": \"Changed my mind\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/1/cancel",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "1", "cancel"]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Vendor Order Endpoints",
+                    "description": "Endpoints for vendors to manage their orders",
+                    "item": [
+                        {
+                            "name": "Get Vendor Orders",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/vendor/orders?status=processing&page=1&limit=10",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "vendor", "orders"],
+                                    "query": [
+                                        {
+                                            "key": "status",
+                                            "value": "processing"
+                                        },
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Update Order Item Status",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_auth_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"status\": \"shipped\",\n    \"trackingNumber\": \"SHIP123456\",\n    \"carrier\": \"DHL\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/items/1/status",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "items", "1", "status"]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Admin Order Endpoints",
+                    "description": "Endpoints for admin to manage all orders",
+                    "item": [
+                        {
+                            "name": "Get All Orders (Admin)",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders?status=all&page=1&limit=10",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders"],
+                                    "query": [
+                                        {
+                                            "key": "status",
+                                            "value": "all"
+                                        },
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Update Order Status (Admin)",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_auth_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"status\": \"completed\",\n    \"notes\": \"Order marked as completed by admin\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/1/status",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "1", "status"]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Payment Endpoints",
+                    "description": "Endpoints for payment processing",
+                    "item": [
+                        {
+                            "name": "Verify Payment",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/orders/verify-payment/ref_123456789",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "v1", "orders", "verify-payment", "ref_123456789"]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Payment Webhook",
+                            "event": [
+                                {
+                                    "listen": "prerequest",
+                                    "script": {
+                                        "exec": [
+                                            "// This is a webhook endpoint that would be called by the payment gateway",
+                                            "// In Postman, you can simulate this by sending a POST request with the payment gateway's webhook payload"
+                                        ],
+                                        "type": "text/javascript"
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "x-paystack-signature",
+                                        "value": "{{paystack_signature}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"event\": \"charge.success\",\n    \"data\": {\n        \"reference\": \"ref_123456789\",\n        \"amount\": 10000,\n        \"status\": \"success\"\n    }\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/orders/webhook/payment",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "orders", "webhook", "payment"]
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     ],
+
     "variable": [
         {
             "key": "base_url",

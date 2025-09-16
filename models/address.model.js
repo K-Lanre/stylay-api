@@ -57,23 +57,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: 0
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
     }
   }, {
     sequelize,
     modelName: 'Address',
     tableName: 'addresses',
-    timestamps: false,
-    underscored: true
+    timestamps: true,
+    underscored: true,
+    updatedAt: 'updated_at',
+    createdAt: 'created_at'
   });
 
   return Address;

@@ -420,7 +420,7 @@ const getInventoryHistoryAdmin = async (req, res, next) => {
     const where = {};
     
     if (productId) where.inventory_id = productId;
-    if (vendorId) where['$product.vendor_id$'] = vendorId;
+    if (vendorId) where['$Inventory.Product.vendor_id$'] = vendorId;
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt[Op.gte] = new Date(startDate);

@@ -1,7 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const passport = require('passport');
-const { sequelize, Op } = require("sequelize");
 const { User, Role } = require("../models");
 const AppError = require("../utils/appError");
 const { sendWelcomeEmail } = require("../services/email.service");

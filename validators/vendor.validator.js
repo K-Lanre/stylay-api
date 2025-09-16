@@ -55,10 +55,8 @@ const registerVendorValidation = [
   body("cac_number")
     .optional({ checkFalsy: true })
     .trim()
-    .isLength({ min: 5, max: 50 })
-    .isAlphanumeric()
-    .isUppercase()
-    .withMessage("CAC number must be between 5 and 50 characters"),
+    .matches(/^(RC|BN)\/\d{7}$/)
+    .withMessage("Invalid CAC number format. Expected format: RC/1234567 or BN/1234567"),
 
   body("instagram_handle")
     .optional({ checkFalsy: true })

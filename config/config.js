@@ -99,4 +99,4 @@ const config = {
 // Set the environment specific database config
 config.db = config.database[config.env] || config.database.development;
 
-module.exports = config;
+module.exports = config.database;

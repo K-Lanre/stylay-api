@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const AppError = require('../utils/appError');
+const storage = require('../config/storage');
 
 // File validation function
 const validateFile = (file) => {
@@ -26,7 +27,7 @@ const generateUniqueFilename = (originalName, fieldname) => {
 };
 
 // Middleware factory function
-const uploadFiles = (fieldName = 'files', maxCount = 11) => {
+const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => {
   return async (req, res, next) => {
     try {
       // Set timeout to prevent hanging
@@ -58,12 +59,6 @@ const uploadFiles = (fieldName = 'files', maxCount = 11) => {
       if (files.length > maxCount) {
         return next(new AppError(`Maximum ${maxCount} files are allowed.`, 400));
       }
-      
-      // Determine upload folder
-      const uploadFolder = req.vendorId || 'temp';
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'stores', uploadFolder);
-      fs.mkdirSync(uploadDir, { recursive: true });
-      
       // Process and save files
       for (const file of files) {
         try {
@@ -72,10 +67,11 @@ const uploadFiles = (fieldName = 'files', maxCount = 11) => {
           
           // Validate file
           validateFile(file);
-          
+          const disk = storage.getDisk(diskName);
           const filename = generateUniqueFilename(file.name, fieldName);
+          const uploadDir = path.join(process.cwd(), disk.root);
           const filepath = path.join(uploadDir, filename);
-          
+
           // Create upload directory if it doesn't exist
           if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -94,7 +90,7 @@ const uploadFiles = (fieldName = 'files', maxCount = 11) => {
             destination: uploadDir,
             filename: filename,
             path: filepath,
-            url: `${process.env.APP_URL || 'http://localhost:3000'}/uploads/stores/${uploadFolder}/${filename}`
+            url: `${process.env.APP_URL || 'http://localhost:3000'}/uploads/${diskName}/${filename}`
           };
           
           // Initialize uploadedFiles array if it doesn't exist

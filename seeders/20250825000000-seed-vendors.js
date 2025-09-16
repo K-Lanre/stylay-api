@@ -5,11 +5,9 @@ const { sequelize } = require('../models');
 // Configure faker to use the new API paths
 const { 
   person, 
-  internet, 
   finance, 
   helpers, 
   number: { int: randomNumber },
-  string,
   image,
   commerce,
   location
@@ -101,6 +99,16 @@ module.exports = {
     if (!role) {
       throw new Error('Vendor role not found. Please run the roles seeder first.');
     }
+
+    // Get the admin user ID
+    const [adminUsers] = await queryInterface.sequelize.query(
+      "SELECT id FROM users WHERE email = 'admin@stylay.com'"
+    );
+
+    if (!adminUsers || adminUsers.length === 0) {
+      throw new Error('Admin user with email "admin@stylay.com" not found. Please ensure the admin user seeder (20250824020000-seed-admin-user.js) has been run successfully.');
+    }
+    const adminId = adminUsers[0].id;
 
     // Get the next available IDs
     const [maxUserResult] = await queryInterface.sequelize.query(
@@ -216,12 +224,23 @@ module.exports = {
         id: currentVendorId,
         user_id: currentUserId,
         store_id: currentStoreId,
-        join_reason: faker.lorem.sentence(),
+        join_reason: faker.helpers.arrayElement([
+          'Expand customer reach',
+          'Increase sales volume',
+          'Access new markets',
+          'Benefit from platform marketing',
+          'Streamline online operations',
+          'Leverage existing customer base',
+          'Reduce operational costs',
+          'Gain brand visibility',
+          'Easy setup and management',
+          'Competitive commission rates'
+        ]),
         total_sales: 0,
         total_earnings: 0,
         status: 'approved',
         approved_at: now,
-        approved_by: 1, // Assuming admin with ID 1
+        approved_by: adminId,
         created_at: now,
         updated_at: now
       });

@@ -55,6 +55,33 @@ if (process.env.NODE_ENV === 'development') {
 // Initialize Passport and restore authentication state, if any
 app.use(passport.initialize());
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve API docs if they exist
+  app.use(express.static(path.join(__dirname, 'public')));
+} else {
+  // In development, serve uploaded files from the Upload directory
+  app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
+}
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve API docs if they exist
+  app.use(express.static(path.join(__dirname, 'public')));
+} else {
+  // In development, serve uploaded files from the Upload directory
+  app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
+}
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve API docs if they exist
+  app.use(express.static(path.join(__dirname, 'public')));
+} else {
+  // In development, serve uploaded files from the Upload directory
+  app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
+}
+
 // File upload middleware
 const fileUpload = require('express-fileupload');
 app.use(fileUpload({
@@ -225,13 +252,7 @@ app.use('/api/v1/webhooks', webhookRoutes);
 // app.use('/api/v1/reviews', reviewRoutes);
 
 // Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  // Serve API docs if they exist
-  app.use(express.static(path.join(__dirname, 'public')));
-} else {
-  // In development, serve uploaded files
-  app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
-}
+
 
 // Error handling middleware
 app.use(errorHandler);

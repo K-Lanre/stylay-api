@@ -64,6 +64,10 @@ const emailTemplates = {
     template: "vendor-order.ejs",
     subject: "New Order #%s - Action Required",
   },
+  VENDOR_APPROVED: {
+    template: "vendor-approved.ejs",
+    subject: "Your Vendor Account Has Been Approved!",
+  },
 };
 
 /**

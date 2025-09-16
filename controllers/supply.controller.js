@@ -1,4 +1,4 @@
-const { Supply, Product, Vendor, Store, Inventory, sequelize } = require('../models');
+const { Supply, Product, Vendor, Store, Inventory, VendorProductTag, sequelize } = require('../models');
 const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 
@@ -11,7 +11,7 @@ const createSupply = async (req, res, next) => {
   const transaction = await Supply.sequelize.transaction();
   
   try {
-    const { product_id, quantity, supply_date = new Date() } = req.body;
+    const { product_id, quantity, vendor_product_tag_id, supply_date = new Date() } = req.body;
     
     // Get the vendor record for the authenticated user
     const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
@@ -40,6 +40,7 @@ const createSupply = async (req, res, next) => {
     const supply = await Supply.create({
       vendor_id: vendor.id,
       product_id,
+      vendor_product_tag_id,
       quantity_supplied: quantity,
       supply_date,
       created_at: new Date()
@@ -117,7 +118,7 @@ const createBulkSupply = async (req, res, next) => {
     const supplies = [];
     
     for (const item of items) {
-      const { product_id, quantity } = item;
+      const { product_id, quantity, vendor_product_tag_id } = item;
       const productId = String(product_id); // Ensure consistent type
       const quantitySupplied = Number(quantity); // Ensure quantity is a number
       
@@ -127,6 +128,7 @@ const createBulkSupply = async (req, res, next) => {
       const supplyData = {
         vendor_id: vendorId,
         product_id: productId,
+        vendor_product_tag_id,
         quantity_supplied: quantitySupplied,
         supply_date: new Date(),
         created_at: new Date() // Explicitly set created_at
@@ -135,9 +137,9 @@ const createBulkSupply = async (req, res, next) => {
       console.log('Creating supply record with data:', JSON.stringify(supplyData, null, 2));
       
       // Create the supply record with raw: true to bypass any potential hooks
-      const supply = await Supply.create(supplyData, { 
+      const supply = await Supply.create(supplyData, {
         transaction,
-        fields: ['vendor_id', 'product_id', 'quantity_supplied', 'supply_date', 'created_at']
+        fields: ['vendor_id', 'product_id', 'vendor_product_tag_id', 'quantity_supplied', 'supply_date', 'created_at']
       });
       
       supplies.push(supply);
@@ -166,6 +168,7 @@ const createBulkSupply = async (req, res, next) => {
         supplies: supplies.map(supply => ({
           id: supply.id,
           product_id: supply.product_id,
+          vendor_product_tag_id: supply.vendor_product_tag_id,
           product_name: productDetails.find(p => p.id === supply.product_id)?.name || 'Unknown',
           sku: productDetails.find(p => p.id === supply.product_id)?.sku || 'N/A',
           quantity: supply.quantity,
@@ -205,13 +208,14 @@ const createBulkSupply = async (req, res, next) => {
  */
 const getAllSupplies = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, vendor_id, product_id, start_date, end_date } = req.query;
+    const { page = 1, limit = 10, vendor_id, product_id, vendor_product_tag_id, start_date, end_date } = req.query;
     const offset = (page - 1) * limit;
     
     const where = {};
     
     if (vendor_id) where.vendor_id = vendor_id;
     if (product_id) where.product_id = product_id;
+    if (vendor_product_tag_id) where.vendor_product_tag_id = vendor_product_tag_id;
     if (start_date || end_date) {
       where.supply_date = {};
       if (start_date) where.supply_date[Op.gte] = new Date(start_date);
@@ -229,7 +233,8 @@ const getAllSupplies = async (req, res, next) => {
             attributes: ['id', 'business_name']
           }]
         },
-        { model: Product, attributes: ['id', 'name', 'sku'] }
+        { model: Product, attributes: ['id', 'name', 'sku'] },
+        { model: VendorProductTag, as: 'vendorProductTag', attributes: ['id'] }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -257,11 +262,11 @@ const getAllSupplies = async (req, res, next) => {
  */
 const getVendorSupplies = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, product_id, start_date, end_date } = req.query;
+    const { page = 1, limit = 10, product_id, vendor_product_tag_id, start_date, end_date } = req.query;
     const offset = (page - 1) * limit;
     
     // Get the vendor ID for the authenticated user
-    const vendor = await Vendor.findOne({ 
+    const vendor = await Vendor.findOne({
       where: { user_id: req.user.id },
       attributes: ['id']
     });
@@ -273,6 +278,7 @@ const getVendorSupplies = async (req, res, next) => {
     const where = { vendor_id: vendor.id };
     
     if (product_id) where.product_id = product_id;
+    if (vendor_product_tag_id) where.vendor_product_tag_id = vendor_product_tag_id;
     if (start_date || end_date) {
       where.supply_date = {};
       if (start_date) where.supply_date[Op.gte] = new Date(start_date);
@@ -282,10 +288,11 @@ const getVendorSupplies = async (req, res, next) => {
     const { count, rows: supplies } = await Supply.findAndCountAll({
       where,
       include: [
-        { 
-          model: Product, 
-          attributes: ['id', 'name', 'sku'] 
-        }
+        {
+          model: Product,
+          attributes: ['id', 'name', 'sku']
+        },
+        { model: VendorProductTag, as: 'vendorProductTag', attributes: ['id'] }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -316,7 +323,8 @@ const getSupplyById = async (req, res, next) => {
     const supply = await Supply.findByPk(req.params.id, {
       include: [
         { model: Vendor, attributes: ['id', 'business_name'] },
-        { model: Product, attributes: ['id', 'name', 'sku'] }
+        { model: Product, attributes: ['id', 'name', 'sku'] },
+        { model: VendorProductTag, as: 'vendorProductTag', attributes: ['id'] }
       ]
     });
     
@@ -356,7 +364,7 @@ const updateInventory = async (productId, quantity, transaction, supplyId = null
       });
       
       await existingInventory.update(
-        { 
+        {
           restocked_at: new Date(),
           supply_id: supplyId || existingInventory.supply_id
         },
@@ -410,12 +418,13 @@ const getSuppliesByVendor = async (req, res, next) => {
         },
         {
           model: Vendor,
-          attributes: ['id'], 
+          attributes: ['id'],
           include: [{
             model: Store,
             attributes: ['id', 'business_name']
           }]
-        }
+        },
+        { model: VendorProductTag, as: 'vendorProductTag', attributes: ['id'] }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -465,7 +474,8 @@ const getProductSupplyHistory = async (req, res, next) => {
         {
           model: Product,
           attributes: ['id', 'name', 'sku']
-        }
+        },
+        { model: VendorProductTag, as: 'vendorProductTag', attributes: ['id'] }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -554,7 +564,8 @@ const getSupplySummary = async (req, res, next) => {
         {
           model: Product,
           attributes: ['name', 'sku']
-        }
+        },
+        { model: VendorProductTag, as: 'vendorProductTag', attributes: ['id'] }
       ],
       where,
       group: ['product_id'],

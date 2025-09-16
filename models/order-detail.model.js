@@ -61,17 +61,15 @@ module.exports = (sequelize, DataTypes) => {
         min: 0
       }
     },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    }
+    // Timestamps are now handled automatically by Sequelize
   }, {
     sequelize,
     modelName: 'OrderDetail',
     tableName: 'order_details',
-    timestamps: false,
-    underscored: true
+    timestamps: true,
+    underscored: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   });
 
   return OrderDetail;

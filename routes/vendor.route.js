@@ -77,8 +77,8 @@ router.patch(
   },
   // Handle file uploads for both logo and business images in parallel
   (req, res, next) => {
-    const logoMiddleware = uploadFiles("logo", 1);
-    const businessImagesMiddleware = uploadFiles("business_images", 10);
+    const logoMiddleware = uploadFiles("logo", 1, 'vendor-assets');
+    const businessImagesMiddleware = uploadFiles("business_images", 10, 'vendor-assets');
 
     // Run both middlewares in sequence
     logoMiddleware(req, res, (err) => {

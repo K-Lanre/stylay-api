@@ -270,7 +270,9 @@ const getCategoryProducts = async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 12, minPrice, maxPrice, sortBy = 'createdAt', sortOrder = 'DESC' } = req.query;
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
 
     // Check if category exists
     const category = await Category.findByPk(id);
@@ -281,33 +283,58 @@ const getCategoryProducts = async (req, res) => {
       });
     }
 
+    // Get category IDs: always include self; for parent categories, include direct children
+    let categoryIds = [parseInt(id)];
+    if (category.parent_id === null) {
+      const directChildren = await Category.findAll({
+        where: { parent_id: id },
+        attributes: ['id'],
+        raw: true
+      });
+      categoryIds = [...categoryIds, ...directChildren.map(c => c.id)];
+    }
+
     // Build where clause
     const whereClause = {
-      category_id: id,
+      category_id: { [Op.in]: categoryIds },
       status: 'active' // Only show active products
     };
 
     // Price filtering
-    if (minPrice) whereClause.price = { ...whereClause.price, [Op.gte]: parseFloat(minPrice) };
-    if (maxPrice) whereClause.price = { ...whereClause.price, [Op.lte]: parseFloat(maxPrice) };
+    const priceFilter = {};
+    if (minPrice) {
+      priceFilter[Op.gte] = parseFloat(minPrice);
+    }
+    if (maxPrice) {
+      priceFilter[Op.lte] = parseFloat(maxPrice);
+    }
+    if (Object.keys(priceFilter).length > 0) {
+      whereClause.price = priceFilter;
+    }
 
     // Sorting
-    const order = [];
-    const validSortFields = ['price', 'created_at', 'name'];
+    const sortFieldMap = {
+      'createdAt': 'created_at',
+      'price': 'price',
+      'name': 'name'
+    };
+    let actualSortBy = sortFieldMap[sortBy] || 'created_at';
+    const actualSortOrder = sortOrder.toUpperCase();
+    const validSortFields = Object.values(sortFieldMap);
     const validSortOrders = ['ASC', 'DESC'];
-    
-    if (validSortFields.includes(sortBy) && validSortOrders.includes(sortOrder.toUpperCase())) {
-      order.push([sortBy, sortOrder]);
+    const order = [];
+    if (validSortFields.includes(actualSortBy) && validSortOrders.includes(actualSortOrder)) {
+      order.push([actualSortBy, actualSortOrder]);
     } else {
       order.push(['created_at', 'DESC']); // Default sort
     }
 
-    // First, get the total count of products for pagination
+    // Get the total count of products for pagination
     const totalCount = await Product.count({
       where: whereClause
     });
 
-    // Then get the products with their related data
+    // Get the products with their related data (removed Review include to avoid duplicates; fetch stats separately)
     const products = await Product.findAll({
       where: whereClause,
       include: [
@@ -324,38 +351,22 @@ const getCategoryProducts = async (req, res) => {
         },
         {
           model: Category,
-          attributes: ['id', 'name', 'slug']
+          attributes: ['id', 'name', 'slug', 'parent_id']
         },
         {
           model: ProductImage,
           attributes: ['id', 'image_url', 'is_featured'],
+          where: { is_featured: true }, // Only include featured image to avoid duplicates
           required: false
-        },
-        {
-          model: Review,
-          attributes: [],
-          required: false,
-          duplicating: false
         }
       ],
       attributes: [
         'id', 'name', 'slug', 'description', 'price', 'discounted_price',
-        'status', 'created_at',
-        [
-          sequelize.fn('IFNULL', 
-            sequelize.fn('AVG', sequelize.col('Reviews.rating')), 
-            0
-          ), 
-          'average_rating'
-        ],
-        [
-          sequelize.fn('COUNT', sequelize.col('Reviews.id')), 
-          'review_count'
-        ]
+        'status', 'created_at', 'category_id'
       ],
       order,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: limitNum,
+      offset,
       subQuery: false,
       group: ['Product.id', 'Vendor.id', 'Vendor->Store.id', 'Category.id', 'ProductImages.id']
     });
@@ -369,7 +380,7 @@ const getCategoryProducts = async (req, res) => {
         [sequelize.fn('COUNT', sequelize.col('id')), 'review_count']
       ],
       where: {
-        product_id: productIds
+        product_id: { [Op.in]: productIds }
       },
       group: ['product_id'],
       raw: true
@@ -384,15 +395,33 @@ const getCategoryProducts = async (req, res) => {
       return acc;
     }, {});
 
-    // Add review stats to each product
+    // Add review stats and category info to each product
     const productsWithReviews = products.map(product => {
       const stats = reviewStatsMap[product.id] || { average_rating: 0, review_count: 0 };
+      const productData = product.get({ plain: true });
+      
       return {
-        ...product.get({ plain: true }),
+        ...productData,
         average_rating: stats.average_rating,
-        review_count: stats.review_count
+        review_count: stats.review_count,
+        category: {
+          id: product.Category.id,
+          name: product.Category.name,
+          slug: product.Category.slug,
+          is_parent: product.Category.parent_id === null
+        }
       };
     });
+
+    // Get child categories if this is a parent category
+    let childCategories = [];
+    if (category.parent_id === null) {
+      childCategories = await Category.findAll({
+        where: { parent_id: category.id },
+        attributes: ['id', 'name', 'slug'],
+        raw: true
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -400,14 +429,16 @@ const getCategoryProducts = async (req, res) => {
         category: {
           id: category.id,
           name: category.name,
-          slug: category.slug
+          slug: category.slug,
+          is_parent: category.parent_id === null,
+          child_categories: childCategories
         },
         products: productsWithReviews,
         pagination: {
           total: totalCount,
-          page: parseInt(page),
-          pages: Math.ceil(totalCount / limit),
-          limit: parseInt(limit)
+          page: pageNum,
+          pages: Math.ceil(totalCount / limitNum),
+          limit: limitNum
         }
       }
     });

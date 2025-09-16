@@ -1,5 +1,5 @@
 const { body, param, query } = require("express-validator");
-const { Product, Vendor, Sequelize } = require("../models");
+const { Product, Vendor, VendorProductTag, Sequelize } = require("../models");
 const { Op } = Sequelize;
 
 // Validation for creating a new supply
@@ -8,16 +8,32 @@ exports.createSupplyValidation = [
     .notEmpty()
     .withMessage("Product ID is required")
     .isInt({ min: 1 })
-    .withMessage("Invalid product ID")
-    .custom(async (value) => {
-      const product = await Product.findByPk(value);
-      if (!product) {
-        throw new Error("Product not found");
+    .withMessage("Invalid product ID"),
+
+  body("vendor_product_tag_id")
+    .notEmpty()
+    .withMessage("Vendor Product Tag ID is required")
+    .isInt({ min: 1 })
+    .withMessage("Invalid Vendor Product Tag ID")
+    .custom(async (value, { req }) => {
+      const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
+      if (!vendor) {
+        throw new Error('Vendor account not found');
+      }
+
+      const vendorProductTag = await VendorProductTag.findOne({
+        where: {
+          id: value,
+          vendor_id: vendor.id,
+          product_id: req.body.product_id
+        }
+      });
+
+      if (!vendorProductTag) {
+        throw new Error('Vendor Product Tag not found or does not match vendor/product');
       }
       return true;
     }),
-
-  // vendor_id is obtained from the authenticated user's session
 
   body("quantity")
     .notEmpty()
@@ -42,29 +58,44 @@ exports.createBulkSupplyValidation = [
 
       // 1. Basic validation
       const productIds = [];
+      const vendorProductTagIds = [];
       const validationErrors = [];
-      const uniqueIds = new Set();
+      const uniqueProductIds = new Set();
+      const uniqueVendorProductTagIds = new Set();
 
       items.forEach((item, index) => {
-        // Convert product_id to string for consistent comparison
         const productId = String(item.product_id).trim();
-        
+        const vendorProductTagId = String(item.vendor_product_tag_id).trim();
+
         // Validate product_id
         if (!productId || isNaN(Number(productId)) || Number(productId) <= 0) {
           validationErrors.push(`Item at index ${index} has an invalid product_id.`);
         }
         
+        // Validate vendor_product_tag_id
+        if (!vendorProductTagId || isNaN(Number(vendorProductTagId)) || Number(vendorProductTagId) <= 0) {
+          validationErrors.push(`Item at index ${index} has an invalid vendor_product_tag_id.`);
+        }
+
         // Validate quantity
         if (!item.quantity || !Number.isInteger(item.quantity) || item.quantity <= 0) {
           validationErrors.push(`Item at index ${index} has an invalid quantity.`);
         }
         
-        // Check for duplicates using string comparison
-        if (uniqueIds.has(productId)) {
-          validationErrors.push(`Duplicate product ID found: ${productId}.`);
+        // Check for duplicate product IDs within the bulk request
+        if (uniqueProductIds.has(productId)) {
+          validationErrors.push(`Duplicate product ID found in bulk request: ${productId}.`);
         } else if (productId) {
-          uniqueIds.add(productId);
+          uniqueProductIds.add(productId);
           productIds.push(productId);
+        }
+
+        // Check for duplicate vendor_product_tag IDs within the bulk request
+        if (uniqueVendorProductTagIds.has(vendorProductTagId)) {
+          validationErrors.push(`Duplicate vendor_product_tag ID found in bulk request: ${vendorProductTagId}.`);
+        } else if (vendorProductTagId) {
+          uniqueVendorProductTagIds.add(vendorProductTagId);
+          vendorProductTagIds.push(vendorProductTagId);
         }
       });
 
@@ -73,76 +104,64 @@ exports.createBulkSupplyValidation = [
       }
 
       // 2. Get vendor info
-      console.log('User ID from request:', req.user.id);
-      const vendor = await Vendor.findOne({ 
+      const vendor = await Vendor.findOne({
         where: { user_id: req.user.id },
         attributes: ['id', 'status', 'user_id'],
         raw: true
       });
       
       if (!vendor) {
-        console.log('No vendor found for user ID:', req.user.id);
         throw new Error('Vendor account not found');
       }
       
-      console.log('Found vendor:', JSON.stringify(vendor, null, 2));
-      
       if (vendor.status !== 'approved') {
-        console.log('Vendor not approved:', vendor.status);
         throw new Error('Only approved vendors can supply products');
       }
 
-      // 3. Get all products in one query
-      // Convert productIds to numbers for the database query
+      // 3. Get all products and vendor product tags in one query
       const numericProductIds = productIds.map(id => Number(id));
-      
+      const numericVendorProductTagIds = vendorProductTagIds.map(id => Number(id));
+
       const products = await Product.findAll({
-        where: { 
+        where: {
           id: { [Op.in]: numericProductIds }
         },
         attributes: ['id', 'vendor_id', 'name'],
         raw: true
       });
-      
-      // Log the products and vendor ID for debugging
-      console.log('Found products:', JSON.stringify(products, null, 2));
-      console.log('Vendor ID from request:', vendor.id);
 
-      // 4. Check for missing or unauthorized products
-      // Convert all IDs to strings for consistent comparison
-      const validProductIds = new Set(products.map(p => String(p.id)));
-      const missingProducts = productIds.filter(id => !validProductIds.has(id));
-      
-      console.log('Vendor ID in validation:', vendor.id, 'Type:', typeof vendor.id);
-      console.log('Products and their vendor IDs:');
-      products.forEach(p => {
-        console.log(`- Product ID: ${p.id}, Vendor ID: ${p.vendor_id}, Type: ${typeof p.vendor_id}`);
+      const vendorProductTags = await VendorProductTag.findAll({
+        where: {
+          id: { [Op.in]: numericVendorProductTagIds },
+          vendor_id: vendor.id,
+          product_id: { [Op.in]: numericProductIds }
+        },
+        attributes: ['id', 'vendor_id', 'product_id'],
+        raw: true
       });
       
-      // Check for unauthorized products (assigned to other vendors)
-      const unauthorizedProducts = products
-        .filter(p => {
-          // Convert both IDs to strings for comparison
-          const productVendorId = String(p.vendor_id);
-          const currentVendorId = String(vendor.id);
-          const isUnauthorized = p.vendor_id !== null && productVendorId !== currentVendorId;
-          
-          if (isUnauthorized) {
-            console.log(`Unauthorized product found - ID: ${p.id}, Vendor ID: ${p.vendor_id} (${typeof p.vendor_id}), Expected Vendor ID: ${vendor.id} (${typeof vendor.id})`);
-          }
-          return isUnauthorized;
-        })
-        .map(p => `${p.name} (ID: ${p.id})`);
-      
-      // Check for missing products
+      // 4. Check for missing or unauthorized products/vendor_product_tags
+      const validProductIds = new Set(products.map(p => String(p.id)));
+      const validVendorProductTagIds = new Set(vendorProductTags.map(vpt => String(vpt.id)));
+
       const errors = [];
-      if (missingProducts.length > 0) {
-        errors.push(`Products not found: ${missingProducts.join(', ')}`);
-      }
-      
-      if (unauthorizedProducts.length > 0) {
-        errors.push(`Not authorized to supply these products: ${unauthorizedProducts.join(', ')}`);
-      }
+      items.forEach(item => {
+        const productId = String(item.product_id);
+        const vendorProductTagId = String(item.vendor_product_tag_id);
+
+        if (!validProductIds.has(productId)) {
+          errors.push(`Product with ID ${productId} not found.`);
+        }
+
+        if (!validVendorProductTagIds.has(vendorProductTagId)) {
+          errors.push(`Vendor Product Tag with ID ${vendorProductTagId} not found or does not match vendor/product.`);
+        }
+
+        const product = products.find(p => String(p.id) === productId);
+        if (product && product.vendor_id !== null && String(product.vendor_id) !== String(vendor.id)) {
+          errors.push(`Not authorized to supply product ${product.name} (ID: ${product.id}) as it belongs to another vendor.`);
+        }
+      });
       
       if (errors.length > 0) {
         throw new Error(errors.join('; '));

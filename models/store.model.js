@@ -38,7 +38,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       validate: {
         isCACNumber(value) {
-          if (value && !/^[A-Z]{2,3}\/\d{4,5}\d{5,7}$/i.test(value)) {
+          if (value && !/^(RC|BN)\/\d{7}$/.test(value)) {
             throw new Error('Invalid CAC number format. Expected format: RC/1234567 or BN/1234567');
           }
         }

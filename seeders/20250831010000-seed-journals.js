@@ -43,11 +43,16 @@ module.exports = {
       
       // Create journal entries for each product
       for (const [index, product] of formattedProducts.entries()) {
+ 
         const productName = product.name;
         const vendorName = product.vendor_name;
-        
-        // Create 1-2 journal entries per product
-        const entryCount = faker.number.int({ min: 1, max: 2 });
+
+        // Simulate real-time events
+        const impressions = faker.number.int({ min: 10, max: 100 });
+        const soldUnits = faker.number.int({ min: 1, max: 5 });
+
+        // Create 1-3 journal entries per product
+        const entryCount = faker.number.int({ min: 1, max: 3 });
         
         for (let i = 0; i < entryCount; i++) {
           const entryDate = faker.date.between({ 
@@ -58,24 +63,40 @@ module.exports = {
           // Different types of journal entries for products
           const entryTemplates = [
             {
-              title: `The Story Behind ${productName}`,
-              content: `When ${vendorName} first envisioned ${productName}, they wanted to create something truly special. ${faker.lorem.paragraphs(2)}`
+              title: `${productName} - Price Update`,
+              content: `The price of ${productName} has been updated to $${faker.commerce.price()}.`
             },
             {
-              title: `Crafting ${productName}: A Labor of Love`,
-              content: `Creating ${productName} requires meticulous attention to detail. ${faker.lorem.paragraphs(3)}`
+              title: `${productName} - Discount Alert!`,
+              content: `Get ${productName} now at a discounted price of $${faker.commerce.price()}! Limited time offer.`
             },
             {
-              title: `Meet the Maker: The Artisans Behind ${productName}`,
-              content: `Behind every ${productName} are the skilled hands of our artisans. ${faker.lorem.paragraphs(2)}`
+              title: `${productName} - Trending Now`,
+              content: `People are loving ${productName}! It's currently trending with ${faker.number.int({ min: 100, max: 500 })} views today.`
             },
             {
-              title: `The Inspiration for ${productName}`,
-              content: `The journey to creating ${productName} began with a simple idea. ${faker.lorem.paragraphs(3)}`
+              title: `${productName} - Sold Out`,
+              content: `Unfortunately, ${productName} is currently sold out. We're working hard to restock it soon!`
             },
             {
-              title: `Caring for Your ${productName}`,
-              content: `To ensure your ${productName} lasts for years to come, follow these care instructions. ${faker.lorem.paragraphs(2)}`
+              title: `${productName} - Back in Stock!`,
+              content: `Great news! ${productName} is back in stock. Order now before it sells out again.`
+            },
+            {
+              title: `${productName} - New Review`,
+              content: `A customer just posted a glowing review about ${productName}: "${faker.lorem.sentence()}"`
+            },
+            {
+              title: `${productName} - Low Stock Alert`,
+              content: `Hurry! Only a few units of ${productName} left in stock.`
+            },
+            {
+              title: `${productName} - New Order`,
+              content: `Someone just ordered ${faker.number.int({ min: 1, max: 5 })} units of ${productName}!`
+            },
+            {
+              title: `${productName} - Added to Wishlist`,
+              content: `Someone just added ${productName} to their wishlist!`
             }
           ];
           
@@ -157,8 +178,13 @@ module.exports = {
     }
   },
 
-  async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('journals', null, {});
-    console.log('🗑️  Removed all journal entries.');
+  down: async (queryInterface, Sequelize) => {
+    try {
+      await queryInterface.sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { raw: true });
+      await queryInterface.bulkDelete('journals', null, {});
+      console.log('🗑️  Removed all journal entries.');
+    } finally {
+      await queryInterface.sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { raw: true });
+    }
   }
 };
