@@ -1,4 +1,4 @@
-const { User, Role, Vendor, Store, UserRole } = require("../models");
+const { User, Role, Vendor, Store, UserRole, VendorFollower } = require("../models");
 const bcrypt = require("bcryptjs");
 const logger = require("../utils/logger");
 const { Op } = require("sequelize");
@@ -684,6 +684,269 @@ const rejectVendor = async (req, res, next) => {
   }
 };
 
+/**
+ * Follow a vendor
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const followVendor = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const userId = req.user.id;
+
+    // Check if vendor exists
+    const vendor = await Vendor.findByPk(vendorId);
+    if (!vendor) {
+      return next(new AppError('Vendor not found', 404));
+    }
+
+    // Check if user is trying to follow themselves
+    if (vendor.user_id === userId) {
+      return next(new AppError('You cannot follow yourself', 400));
+    }
+
+    // Check if already following
+    const existingFollow = await VendorFollower.findOne({
+      where: {
+        user_id: userId,
+        vendor_id: vendorId
+      }
+    });
+
+    if (existingFollow) {
+      return next(new AppError('You are already following this vendor', 400));
+    }
+
+    // Create follow relationship
+    await VendorFollower.create({
+      user_id: userId,
+      vendor_id: vendorId
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Successfully followed vendor'
+    });
+  } catch (error) {
+    logger.error('Follow vendor error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Unfollow a vendor
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const unfollowVendor = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const userId = req.user.id;
+
+    // Check if follow relationship exists
+    const follow = await VendorFollower.findOne({
+      where: {
+        user_id: userId,
+        vendor_id: vendorId
+      }
+    });
+
+    if (!follow) {
+      return next(new AppError('You are not following this vendor', 400));
+    }
+
+    // Remove follow relationship
+    await follow.destroy();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Successfully unfollowed vendor'
+    });
+  } catch (error) {
+    logger.error('Unfollow vendor error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Get followers of a vendor
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getVendorFollowers = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Check if vendor exists
+    const vendor = await Vendor.findByPk(vendorId);
+    if (!vendor) {
+      return next(new AppError('Vendor not found', 404));
+    }
+
+    const { count, rows: followers } = await VendorFollower.findAndCountAll({
+      where: { vendor_id: vendorId },
+      include: [
+        {
+          model: User,
+          as: 'follower',
+          attributes: ['id', 'first_name', 'last_name', 'email', 'profile_image']
+        }
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['created_at', 'DESC']]
+    });
+
+    res.status(200).json({
+      status: 'success',
+      results: followers.length,
+      total: count,
+      data: followers
+    });
+  } catch (error) {
+    logger.error('Get vendor followers error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Get vendors followed by a user
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getUserFollowing = async (req, res, next) => {
+  try {
+    const userId = req.params.userId || req.user.id;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const { count, rows: following } = await VendorFollower.findAndCountAll({
+      where: { user_id: userId },
+      include: [
+        {
+          model: Vendor,
+          as: 'vendor',
+          include: [
+            {
+              model: User,
+              as: 'User',
+              attributes: ['id', 'first_name', 'last_name']
+            },
+            {
+              model: Store,
+              as: 'store',
+              attributes: ['business_name', 'slug', 'logo']
+            }
+          ]
+        }
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['created_at', 'DESC']]
+    });
+
+    res.status(200).json({
+      status: 'success',
+      results: following.length,
+      total: count,
+      data: following
+    });
+  } catch (error) {
+    logger.error('Get user following error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Check if user is following a vendor
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const checkFollowStatus = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const userId = req.user.id;
+
+    const follow = await VendorFollower.findOne({
+      where: {
+        user_id: userId,
+        vendor_id: vendorId
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        isFollowing: !!follow
+      }
+    });
+  } catch (error) {
+    logger.error('Check follow status error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Get followers of the authenticated vendor (Vendor only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getMyFollowers = async (req, res, next) => {
+  try {
+    const vendorId = req.user.id;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Get vendor details to ensure it exists
+    const vendor = await Vendor.findOne({
+      where: { user_id: vendorId },
+      include: [
+        {
+          model: Store,
+          as: 'Store',
+          attributes: ['business_name']
+        }
+      ]
+    });
+
+    if (!vendor) {
+      return next(new AppError('Vendor profile not found', 404));
+    }
+
+    const { count, rows: followers } = await VendorFollower.findAndCountAll({
+      where: { vendor_id: vendor.id },
+      include: [
+        {
+          model: User,
+          as: 'follower',
+          attributes: ['id', 'first_name', 'last_name', 'email', 'profile_image', 'created_at']
+        }
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['created_at', 'DESC']]
+    });
+
+    res.status(200).json({
+      status: 'success',
+      results: followers.length,
+      total: count,
+      data: {
+        vendor: {
+          id: vendor.id,
+          business_name: vendor.Store.business_name
+        },
+        followers: followers
+      }
+    });
+  } catch (error) {
+    logger.error('Get my followers error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   registerVendor,
   getVendorProfile,
@@ -691,5 +954,11 @@ module.exports = {
   getAllVendors,
   getVendor,
   approveVendor,
-  rejectVendor
+  rejectVendor,
+  followVendor,
+  unfollowVendor,
+  getVendorFollowers,
+  getUserFollowing,
+  checkFollowStatus,
+  getMyFollowers
 };

@@ -30,6 +30,7 @@ const journalRoutes = require('./routes/journal.route');
 const addressRoutes = require('./routes/address.route');
 const orderRoutes = require('./routes/order.route');
 const webhookRoutes = require('./routes/webhook.route');
+const dashboardRoutes = require('./routes/dashboard.route');
 // const reviewRoutes = require('./routes/reviews');
 
 // Initialize express app
@@ -249,6 +250,7 @@ app.use('/api/v1/journals', journalRoutes);
 app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 // app.use('/api/v1/reviews', reviewRoutes);
 
 // Serve static files in production

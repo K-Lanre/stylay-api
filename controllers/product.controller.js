@@ -5,6 +5,7 @@ const {
   Vendor,
   Category,
   Store,
+  sequelize,
 } = require("../models");
 const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
@@ -71,7 +72,6 @@ const createProduct = async (req, res, next) => {
       sku,
       status: "active",
       impressions: 0,
-      viewers: 0,
       sold_units: 0,
     });
 
@@ -100,15 +100,16 @@ const createProduct = async (req, res, next) => {
     const createdProduct = await Product.findByPk(product.id, {
       include: [
         { model: ProductVariant },
-        { model: ProductImage },
+        { model: ProductImage, as: 'productImages' },
         { model: Category, attributes: ["id", "name", "slug"] },
         {
           model: Vendor,
           attributes: ["id", "status"],
+          as: "vendor",
           include: [
             {
               model: Store,
-              as: "Store",
+              as: "store",
               attributes: ["id", "business_name"],
             },
           ],
@@ -164,8 +165,9 @@ const getProducts = async (req, res, next) => {
         {
           model: Vendor,
           attributes: ["id"],
+          as: "vendor",
         },
-        { model: ProductImage, limit: 1 }, // Only get first image for listing
+        { model: ProductImage, limit: 1, as: 'images' }, // Only get first image for listing
       ],
       order: [["created_at", "DESC"]],
     });
@@ -194,20 +196,37 @@ const getProductById = async (req, res, next) => {
         {
           model: Vendor,
           attributes: ["id", "status"],
+          as: "vendor",
           include: [
             {
               model: Store,
+              as: "store",
               attributes: ["business_name"],
             },
           ],
         },
         { model: ProductVariant },
-        { model: ProductImage },
+        { model: ProductImage, as: "images" },
       ],
     });
 
     if (!product) {
       return next(new AppError("Product not found", 404));
+    }
+
+    // Increment impression count for analytics
+    await Product.increment('impressions', {
+      by: 1,
+      where: { id: req.params.id }
+    });
+
+    // Track unique viewers (simplified - in production, use sessions/cookies)
+    // For now, we'll increment viewers on each view, but you could implement
+    // more sophisticated tracking based on user sessions
+    const userId = req.user?.id;
+    if (userId) {
+      // Optional: Implement unique viewer tracking logic here
+      // This could involve a separate table to track user-product views
     }
 
     res.status(200).json({
@@ -238,6 +257,7 @@ const updateProduct = async (req, res, next) => {
       // Just verify the vendor exists and is approved
       const vendor = await Vendor.findByPk(product.vendor_id, {
         attributes: ["id", "status"],
+        as: "vendor",
       });
 
       if (!vendor) {
@@ -260,6 +280,7 @@ const updateProduct = async (req, res, next) => {
         id: product.vendor_id,
       },
       attributes: ["id", "status"],
+      as: "vendor",
     });
 
     if (!vendor) {
@@ -328,17 +349,18 @@ const updateProduct = async (req, res, next) => {
     const updatedProduct = await Product.findByPk(product.id, {
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { 
-          model: Vendor, 
+        {
+          model: Vendor,
           attributes: ["id"],
+          as: "vendor",
           include: [{
             model: Store,
-            as: 'Store',
+            as: 'store',
             attributes: ["id", "business_name"]
           }]
         },
         { model: ProductVariant },
-        { model: ProductImage },
+        { model: ProductImage, as: 'productImages' },
       ],
     });
 
@@ -402,7 +424,7 @@ const getVendorProducts = async (req, res, next) => {
       offset: parseInt(offset),
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { model: ProductImage, limit: 1 }, // Only get first image for listing
+        { model: ProductImage, limit: 1 , as: "images"}, // Only get first image for listing
       ],
       order: [["created_at", "DESC"]],
     });
@@ -448,8 +470,8 @@ const getAllProducts = async (req, res, next) => {
       offset: parseInt(offset),
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { model: Vendor, attributes: ["id", "business_name", "status"] },
-        { model: ProductImage, limit: 1 },
+        { model: Vendor, attributes: ["id", "business_name", "status"], as: "vendor" },
+        { model: ProductImage, limit: 1, as: "images" },
         { model: ProductVariant },
       ],
       order: [["created_at", "DESC"]],
@@ -476,9 +498,9 @@ const adminUpdateProduct = async (req, res, next) => {
     const product = await Product.findByPk(req.params.id, {
       include: [
         { model: Category, attributes: ["id", "name"] },
-        { model: Vendor, attributes: ["id", "business_name"] },
+        { model: Vendor, attributes: ["id", "business_name"], as: "vendor" },
         { model: ProductVariant },
-        { model: ProductImage },
+        { model: ProductImage, as: "images" },
       ],
     });
 
@@ -527,17 +549,18 @@ const adminUpdateProduct = async (req, res, next) => {
     const updatedProduct = await Product.findByPk(product.id, {
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { 
-          model: Vendor, 
+        {
+          model: Vendor,
           attributes: ["id"],
+          as: "vendor",
           include: [{
             model: Store,
-            as: 'Store',
+            as: 'store',
             attributes: ["id", "business_name"]
           }]
         },
         { model: ProductVariant },
-        { model: ProductImage },
+        { model: ProductImage, as: "images" },
       ],
     });
 
@@ -585,7 +608,7 @@ const updateProductStatus = async (req, res, next) => {
 
     const product = await Product.findByPk(req.params.id, {
       include: [
-        { model: Vendor, attributes: ["id", "business_name"] },
+        { model: Vendor, attributes: ["id", "business_name"], as: "vendor" },
         { model: Category, attributes: ["id", "name"] },
       ],
     });
@@ -635,8 +658,8 @@ const getProductsByStatus = async (req, res, next) => {
       offset: parseInt(offset),
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { model: Vendor, attributes: ["id", "business_name", "status"] },
-        { model: ProductImage, limit: 1 },
+        { model: Vendor, attributes: ["id", "business_name", "status"], as: "vendor" },
+        { model: ProductImage, limit: 1 , as: "images"},
       ],
       order: [["created_at", "DESC"]],
     });
@@ -652,6 +675,188 @@ const getProductsByStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get product analytics/metrics
+ * @route   GET /api/v1/products/:id/analytics
+ * @access  Private (Vendor/Admin)
+ */
+const getProductAnalytics = async (req, res, next) => {
+  try {
+    const productId = req.params.id;
+    const isAdmin = req.user.roles && req.user.roles.some(role => role.name === 'admin');
+
+    // Find the product
+    const product = await Product.findByPk(productId, {
+      include: [
+        { model: Vendor, attributes: ["id", "user_id"], as: "vendor" },
+        { model: Category, attributes: ["id", "name"] },
+      ],
+    });
+
+    if (!product) {
+      return next(new AppError("Product not found", 404));
+    }
+
+    // Check if user owns this product or is admin
+    if (!isAdmin && product.vendor.user_id !== req.user.id) {
+      return next(new AppError("Not authorized to view this product's analytics", 403));
+    }
+
+    // Get order statistics for this product
+    const orderStats = await sequelize.query(`
+      SELECT
+        COUNT(DISTINCT oi.order_id) as total_orders,
+        SUM(oi.quantity) as total_units_sold,
+        AVG(oi.price) as average_sale_price,
+        SUM(oi.sub_total) as total_revenue,
+        MIN(o.order_date) as first_sale_date,
+        MAX(o.order_date) as last_sale_date
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      WHERE oi.product_id = :productId
+      AND o.payment_status = 'paid'
+      AND o.order_status IN ('processing', 'shipped', 'delivered')
+    `, {
+      replacements: { productId },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    // Get monthly sales data for the last 12 months
+    const monthlySales = await sequelize.query(`
+      SELECT
+        DATE_FORMAT(o.order_date, '%Y-%m') as month,
+        COUNT(DISTINCT oi.order_id) as orders_count,
+        SUM(oi.quantity) as units_sold,
+        SUM(oi.sub_total) as revenue
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      WHERE oi.product_id = :productId
+      AND o.payment_status = 'paid'
+      AND o.order_status IN ('processing', 'shipped', 'delivered')
+      AND o.order_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+      GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
+      ORDER BY month DESC
+    `, {
+      replacements: { productId },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    // Calculate conversion rate (orders per impression)
+    const stats = orderStats[0] || {};
+    const conversionRate = stats.total_orders && product.impressions
+      ? (stats.total_orders / product.impressions) * 100
+      : 0;
+
+    // Calculate average order value for this product
+    const avgOrderValue = stats.total_revenue && stats.total_orders
+      ? stats.total_revenue / stats.total_orders
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        product: {
+          id: product.id,
+          name: product.name,
+          impressions: product.impressions,
+          sold_units: product.sold_units,
+          status: product.status,
+        },
+        analytics: {
+          total_orders: parseInt(stats.total_orders) || 0,
+          total_units_sold: parseInt(stats.total_units_sold) || 0,
+          total_revenue: parseFloat(stats.total_revenue) || 0,
+          average_sale_price: parseFloat(stats.average_sale_price) || 0,
+          average_order_value: parseFloat(avgOrderValue),
+          conversion_rate: parseFloat(conversionRate.toFixed(2)),
+          first_sale_date: stats.first_sale_date,
+          last_sale_date: stats.last_sale_date,
+          monthly_sales: monthlySales,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get vendor's products analytics summary
+ * @route   GET /api/v1/products/vendor/analytics
+ * @access  Private (Vendor)
+ */
+const getVendorAnalytics = async (req, res, next) => {
+  try {
+    const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
+    if (!vendor) {
+      return next(new AppError("Vendor account not found", 404));
+    }
+
+    // Get overall vendor analytics
+    const vendorStats = await sequelize.query(`
+      SELECT
+        COUNT(DISTINCT p.id) as total_products,
+        SUM(p.impressions) as total_impressions,
+        SUM(p.sold_units) as total_sold_units,
+        COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) as active_products,
+        AVG(p.impressions) as avg_impressions_per_product,
+        AVG(p.sold_units) as avg_sales_per_product
+      FROM products p
+      WHERE p.vendor_id = :vendorId
+    `, {
+      replacements: { vendorId: vendor.id },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    // Get top performing products
+    const topProducts = await sequelize.query(`
+      SELECT
+        p.id,
+        p.name,
+        p.impressions,
+        p.sold_units,
+        COALESCE(SUM(oi.sub_total), 0) as total_revenue,
+        COALESCE(COUNT(DISTINCT oi.order_id), 0) as total_orders
+      FROM products p
+      LEFT JOIN order_items oi ON p.id = oi.product_id
+      LEFT JOIN orders o ON oi.order_id = o.id AND o.payment_status = 'paid'
+      WHERE p.vendor_id = :vendorId
+      GROUP BY p.id, p.name, p.impressions, p.sold_units
+      ORDER BY total_revenue DESC
+      LIMIT 10
+    `, {
+      replacements: { vendorId: vendor.id },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    const stats = vendorStats[0] || {};
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          total_products: parseInt(stats.total_products) || 0,
+          active_products: parseInt(stats.active_products) || 0,
+          total_impressions: parseInt(stats.total_impressions) || 0,
+          total_sold_units: parseInt(stats.total_sold_units) || 0,
+          avg_impressions_per_product: parseFloat(stats.avg_impressions_per_product) || 0,
+          avg_sales_per_product: parseFloat(stats.avg_sales_per_product) || 0,
+        },
+        top_products: topProducts.map(product => ({
+          id: product.id,
+          name: product.name,
+          impressions: parseInt(product.impressions) || 0,
+          sold_units: parseInt(product.sold_units) || 0,
+          total_revenue: parseFloat(product.total_revenue) || 0,
+          total_orders: parseInt(product.total_orders) || 0,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
@@ -659,6 +864,8 @@ module.exports = {
   updateProduct,
   deleteProduct,
   getVendorProducts,
+  getProductAnalytics,
+  getVendorAnalytics,
   // Admin methods
   getAllProducts,
   adminUpdateProduct,

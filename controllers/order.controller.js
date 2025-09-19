@@ -12,8 +12,10 @@ const {
   InventoryHistory,
   PaymentTransaction,
   Notification,
+  NotificationItem,
   sequelize,
-  ProductVariant, // Add ProductVariant import
+  ProductVariant,
+  ProductImage, // Add ProductImage import
 } = require("../models");
 const paymentService = require("../services/payment.service");
 const emailService = require("../services/email.service");
@@ -34,7 +36,7 @@ async function createOrder(req, res) {
       shippingCost = 0,
       taxAmount = 0,
       notes,
-      paymentMethod = "paystack",// Only support Paystack payments
+      paymentMethod = "paystack", // Only support Paystack payments
     } = req.body;
     const userId = req.user.id;
     const orderDate = new Date();
@@ -62,36 +64,66 @@ async function createOrder(req, res) {
     const orderItems = [];
     const vendorItems = new Map(); // Track items by vendor for notifications
 
-    // First pass: Validate stock and calculate total amount
+    // First pass: Validate stock, get prices, and calculate total amount
+    const itemsWithDetails = [];
     for (const item of items) {
       const product = await Product.findByPk(item.productId, {
-        include: [{ model: Inventory }],
+        include: [{ model: Inventory }, { model: Vendor, as: "vendor" }],
         transaction,
       });
 
       if (!product) throw new Error(`Product ${item.productId} not found`);
+      if (!product.vendor)
+        throw new Error(`Vendor not found for product ${product.id}`);
+
+      let itemPrice = product.discounted_price || product.price;
+      let variant = null;
 
       if (item.variantId) {
-        const variant = await ProductVariant.findByPk(item.variantId, { transaction });
-        if (!variant) throw new Error(`Product variant ${item.variantId} not found`);
+        variant = await ProductVariant.findByPk(item.variantId, {
+          where: { product_id: item.productId },
+          transaction,
+        });
+
+        if (!variant)
+          throw new Error(
+            `Product variant ${item.variantId} not found for product ${product.id}`
+          );
         if (variant.stock === null || variant.stock === undefined) {
-          throw new Error(`Variant stock is not defined for variant ${item.variantId}`);
+          throw new Error(
+            `Variant stock is not defined for variant ${item.variantId}`
+          );
         }
         if (variant.stock < item.quantity) {
-          throw new Error(`Insufficient stock for product variant: ${product.name} - ${variant.name}`);
+          throw new Error(
+            `Insufficient stock for product variant: ${product.name} - ${variant.name}`
+          );
         }
-      } else if (!product.inventory || product.inventory.stock < item.quantity) {
+
+        // Use variant price if available, otherwise use product price
+        itemPrice = variant.price || itemPrice;
+      } else if (
+        !product.inventory ||
+        product.inventory.stock < item.quantity
+      ) {
         throw new Error(`Insufficient stock for product: ${product.name}`);
       }
 
-      const itemPrice = product.discounted_price || product.price;
+      itemsWithDetails.push({
+        ...item,
+        price: itemPrice,
+        vendorId: product.vendor.id,
+      });
+
       totalAmount += item.quantity * itemPrice;
     }
+    console.log(itemsWithDetails);
 
     // Add shipping and tax to total
     totalAmount += parseFloat(shippingCost || 0) + parseFloat(taxAmount || 0);
+    console.log(totalAmount);
 
-    // Create the order first
+    // Create the order with its associations
     let order = await Order.create(
       {
         user_id: userId,
@@ -100,33 +132,36 @@ async function createOrder(req, res) {
         payment_status: "pending",
         payment_method: paymentMethod,
         order_status: "pending",
+        items: itemsWithDetails.map((item) => ({
+          product_id: item.productId,
+          vendor_id: item.vendorId,
+          variant_id: item.variantId || null,
+          quantity: item.quantity,
+          price: item.price,
+          sub_total: item.quantity * item.price,
+        })),
+        details: {
+          address_id: addressId,
+          shipping_cost: shippingCost,
+          tax_amount: taxAmount,
+          note: notes,
+        },
       },
-      { transaction }
+      {
+        include: [
+          { model: OrderItem, as: "items" },
+          { model: OrderDetail, as: "details" },
+        ],
+        transaction,
+      }
     );
 
-    // Second pass: Create order items and update stock
-    for (const item of items) {
+    // Update inventory for all items in the order
+    for (const item of itemsWithDetails) {
       const product = await Product.findByPk(item.productId, {
         include: [{ model: Inventory }],
         transaction,
       });
-
-      const itemPrice = product.discounted_price || product.price;
-      const itemTotal = item.quantity * itemPrice;
-
-      const orderItem = await OrderItem.create(
-        {
-          order_id: order.id, // Now order.id is available
-          product_id: product.id,
-          vendor_id: product.vendor_id,
-          variant_id: item.variantId || null,
-          quantity: item.quantity,
-          price: itemPrice,
-          sub_total: itemTotal,
-        },
-        { transaction }
-      );
-      orderItems.push(orderItem);
 
       // Update inventory and inventory history
       const inventory = await Inventory.findOne({
@@ -147,14 +182,17 @@ async function createOrder(req, res) {
         transaction,
       });
 
-      await InventoryHistory.create({
-        inventory_id: inventory.id,
-        adjustment: -item.quantity,
-        previous_stock: previousStock,
-        new_stock: newStock,
-        note: `Order #${order.id}: Stock reduced for order placement`,
-        adjusted_by: userId,
-      }, { transaction });
+      await InventoryHistory.create(
+        {
+          inventory_id: inventory.id,
+          adjustment: -item.quantity,
+          previous_stock: previousStock,
+          new_stock: newStock,
+          note: `Order #${order.id}: Stock reduced for order placement`,
+          adjusted_by: userId,
+        },
+        { transaction }
+      );
 
       // Decrement variant stock if variantId is provided
       if (item.variantId) {
@@ -171,23 +209,22 @@ async function createOrder(req, res) {
           vendorItems.set(product.vendor_id, []);
         }
         vendorItems.get(product.vendor_id).push({
-          ...orderItem.toJSON(),
+          product_id: product.id,
+          vendor_id: product.vendor_id,
+          variant_id: item.variantId || null,
+          quantity: item.quantity,
+          price: item.price,
           product: product.toJSON(),
         });
       }
-    }
 
-    // Create order details
-    await OrderDetail.create(
-      {
-        order_id: order.id,
-        address_id: addressId,
-        shipping_cost: shippingCost,
-        tax_amount: taxAmount,
-        note: notes,
-      },
-      { transaction }
-    );
+      // Update sold_units for the product
+      await Product.increment('sold_units', {
+        by: item.quantity,
+        where: { id: item.productId },
+        transaction,
+      });
+    }
 
     // Initialize payment with Paystack
     const reference = `STYLAY-${Date.now()}-${order.id}`;
@@ -196,7 +233,7 @@ async function createOrder(req, res) {
       email: user.email,
       amount: totalAmount * 100, // Convert to kobo
       reference,
-      callbackUrl: `${process.env.FRONTEND_URL}/orders/${order.id}/verify`,
+      callbackUrl: `${process.env.PAYSTACK_CALLBACK_URL}`, // Use frontend URL for callback
       metadata: {
         orderId: order.id,
         userId: user.id,
@@ -223,54 +260,132 @@ async function createOrder(req, res) {
       {
         user_id: userId,
         order_id: order.id,
-        reference: paymentData?.data?.reference || `PAY-${uuidv4()}`,
+        type: "payment",
         amount: totalAmount,
-        currency: "NGN",
-        status: "initiated",
-        payment_method: "card",
-        payment_gateway: "paystack",
-        metadata: {
-          paymentData: paymentData?.data || null,
-        },
+        status: "pending",
+        transaction_id: paymentData?.data?.reference || `PAY-${uuidv4()}`,
+        description: `Payment for order #${order.id}`,
       },
       { transaction }
     );
 
-    // Send order confirmation email
-    await emailService.sendOrderConfirmation(order, userId);
+    // Commit the transaction before sending emails and notifications
+    await transaction.commit();
 
-    // Notify vendors about the new order
-    await emailService.notifyVendors(order.id);
+    // Refetch the order with proper associations for email
+    const orderWithItems = await Order.findByPk(order.id, {
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          required: false, // Ensure items are included even if empty
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: [
+                "id",
+                "name",
+                "price",
+                "discounted_price",
+                "thumbnail",
+              ],
+              include: [
+                {
+                  model: ProductImage,
+                  as: "images",
+                  attributes: ["id", "image_url", "is_featured"],
+                  required: false,
+                },
+              ],
+            },
+            {
+              model: Vendor,
+              as: "vendor",
+              attributes: ["id"],
+              required: false,
+              include: [
+                {
+                  model: Store,
+                  as: "store",
+                  attributes: ["id", "business_name"],
+                  required: false,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: OrderDetail,
+          as: "details",
+          include: [
+            {
+              model: Address,
+              as: "address",
+              attributes: { exclude: ["created_at", "updated_at"] },
+            },
+          ],
+        },
+      ],
+    });
 
-    // Create notification
-    await Notification.create(
-      {
+    // Send order confirmation email (outside transaction)
+    try {
+      await emailService.sendOrderConfirmation(orderWithItems, userId);
+    } catch (emailError) {
+      logger.error("Error sending order confirmation email:", emailError);
+      // Don't fail the whole request if email fails
+    }
+
+    // Notify vendors about the new order (outside transaction)
+    try {
+      await emailService.notifyVendors(order.id);
+    } catch (notificationError) {
+      logger.error("Error notifying vendors:", notificationError);
+      // Don't fail the whole request if vendor notification fails
+    }
+
+    // Create notification (outside transaction)
+    try {
+      const now = new Date();
+      await Notification.create({
         user_id: userId,
         type: "order_created",
+        title: `Order #${order.id} Received`,
         message: `Your order #${order.id} has been received and is being processed`,
+        is_read: false,
         metadata: {
           orderId: order.id,
           status: "pending",
         },
-      },
-      { transaction }
-    );
-
-    await transaction.commit();
+        created_at: now,
+        updated_at: now,
+      });
+    } catch (notificationError) {
+      logger.error("Error creating notification:", notificationError);
+      // Don't fail the whole request if notification creation fails
+    }
 
     res.status(201).json({
       status: "success",
       data: {
         order: {
-          ...order.toJSON(),
-          items: orderItems,
+          ...orderWithItems.toJSON(),
           paymentData:
             paymentMethod !== "cash_on_delivery" ? paymentData?.data : null,
         },
       },
     });
   } catch (error) {
-    await transaction.rollback();
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
     logger.error("Order creation failed:", error);
     res.status(400).json({
       status: "error",
@@ -555,7 +670,15 @@ async function updateOrderStatus(req, res) {
       },
     });
   } catch (error) {
-    await transaction.rollback();
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
     logger.error("Error updating order status:", error);
     res.status(400).json({
       status: "error",
@@ -705,14 +828,23 @@ async function getUserOrders(req, res) {
  */
 async function verifyPayment(req, res) {
   const transaction = await sequelize.transaction();
+  let transactionRecord;
+
   try {
     const { reference } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Make optional for webhook calls
 
-    // Find the payment transaction
-    const transactionRecord = await PaymentTransaction.findOne({
-      where: { reference, user_id: userId },
-      include: [Order],
+    // Find the payment transaction by reference
+    transactionRecord = await PaymentTransaction.findOne({
+      where: { transaction_id: reference },
+      include: [
+        {
+          model: Order,
+          as: "order",
+          where: userId ? { user_id: userId } : undefined,
+          required: true,
+        },
+      ],
       transaction,
     });
 
@@ -720,12 +852,19 @@ async function verifyPayment(req, res) {
       throw new Error("Transaction not found");
     }
 
+    const { order } = transactionRecord;
+
     // Skip if already verified
     if (transactionRecord.status === "success") {
       return res.status(200).json({
         status: "success",
         message: "Payment already verified",
-        data: { orderId: transactionRecord.order_id },
+        data: {
+          orderId: order.id,
+          status: order.order_status,
+          paymentStatus: order.payment_status,
+          reference: transactionRecord.transaction_id,
+        },
       });
     }
 
@@ -749,59 +888,77 @@ async function verifyPayment(req, res) {
     );
 
     // Update order status
-    await transactionRecord.order.update(
+    await order.update(
       {
         payment_status: "paid",
         paid_at: new Date(),
-        order_status: "processing", // Move to processing now that payment is confirmed
+        order_status: "processing",
       },
       { transaction }
     );
 
-    // Send payment confirmation email
-    await emailService.sendPaymentReceived(order, userId, {
-      amount: order.total_amount,
-      paymentMethod: order.payment_method,
-      transactionDate: new Date(),
-      reference: verification.data.reference,
-    });
+    // Commit the transaction before sending emails
+    await transaction.commit();
 
-    // Notify vendors
-    await emailService.notifyVendors(order.id);
+    // Send notifications after successful commit
+    try {
+      // Send payment confirmation email
+      await emailService.sendPaymentReceived(order, order.user_id, {
+        amount: order.total_amount,
+        paymentMethod: order.payment_method,
+        transactionDate: new Date(),
+        reference: verification.data.reference,
+      });
 
-    // Create notification
-    await Notification.create(
-      {
-        user_id: userId,
-        type: "payment_received",
+      // Notify vendors
+      await emailService.notifyVendors(order.id);
+
+      // Create notification
+      const now = new Date();
+      await Notification.create({
+        user_id: order.user_id,
+        type: "order_received",
+        title: `Payment Received for Order #${order.id}`,
         message: `Payment of ₦${order.total_amount.toLocaleString()} for order #${
           order.id
         } was successful`,
+        is_read: false,
         metadata: {
           orderId: order.id,
           amount: order.total_amount,
           paymentMethod: order.payment_method,
         },
-      },
-      { transaction }
-    );
-
-    await transaction.commit();
+        created_at: now,
+        updated_at: now,
+      });
+    } catch (emailError) {
+      logger.error("Error sending notifications:", emailError);
+      // Don't fail the request if notifications fail
+    }
 
     res.status(200).json({
       status: "success",
       message: "Payment verified successfully",
       data: {
         orderId: order.id,
-        status: order.order_status,
-        paymentStatus: order.payment_status,
+        status: "processing",
+        paymentStatus: "paid",
+        reference: transactionRecord.transaction_id,
       },
     });
   } catch (error) {
-    await transaction.rollback();
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
     logger.error("Payment verification failed:", error);
 
-    // Update transaction as failed
+    // Update transaction as failed if it exists
     if (transactionRecord) {
       await transactionRecord.update({
         status: "failed",
@@ -836,7 +993,15 @@ async function handlePaymentWebhook(req, res) {
     await transaction.commit();
     res.status(200).json(result);
   } catch (error) {
-    await transaction.rollback();
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
     logger.error("Webhook processing failed:", error);
     res.status(400).json({
       status: "error",
@@ -908,31 +1073,46 @@ async function cancelOrder(req, res) {
           });
 
           // Record inventory history for restoration
-          await sequelize.models.InventoryHistory.create({
-            inventory_id: inventory.id,
-            adjustment: item.quantity, // Positive for stock in
-            previous_stock: previousStock,
-            new_stock: newStock,
-            note: `Order #${order.id} cancelled: Stock restored`,
-            adjusted_by: req.user.id,
-          }, { transaction });
+          await sequelize.models.InventoryHistory.create(
+            {
+              inventory_id: inventory.id,
+              adjustment: item.quantity, // Positive for stock in
+              previous_stock: previousStock,
+              new_stock: newStock,
+              note: `Order #${order.id} cancelled: Stock restored`,
+              adjusted_by: req.user.id,
+            },
+            { transaction }
+          );
         }
         return true;
       })
     );
-    // Restore variant stock if variantId is provided
-    await Promise.all(
-      order.order_items.map(async (item) => {
-        if (item.variant_id) {
-          await ProductVariant.increment("stock", {
+      // Restore variant stock if variantId is provided
+      await Promise.all(
+        order.order_items.map(async (item) => {
+          if (item.variant_id) {
+            await ProductVariant.increment("stock", {
+              by: item.quantity,
+              where: { id: item.variant_id },
+              transaction,
+            });
+          }
+          return true;
+        })
+      );
+
+      // Decrement sold_units for cancelled products since they weren't actually sold
+      await Promise.all(
+        order.order_items.map(async (item) => {
+          await Product.decrement('sold_units', {
             by: item.quantity,
-            where: { id: item.variant_id },
+            where: { id: item.product_id },
             transaction,
           });
-        }
-        return true;
-      })
-    );
+          return true;
+        })
+      );
     // If payment was made, process refund
     if (order.payment_status === "paid") {
       // Create refund transaction
@@ -940,18 +1120,11 @@ async function cancelOrder(req, res) {
         {
           user_id: userId,
           order_id: order.id,
-          reference: `REFUND-${Date.now()}-${order.id}`,
-          amount: order.total_amount,
-          currency: "NGN",
-          status: "pending",
-          payment_method: order.payment_method,
-          payment_gateway: "paystack",
           type: "refund",
-          metadata: {
-            reason: "Order cancellation",
-            cancelled_by: userId,
-            cancelled_at: new Date(),
-          },
+          amount: order.total_amount,
+          status: "pending",
+          transaction_id: `REFUND-${Date.now()}-${order.id}`,
+          description: `Refund for cancelled order #${order.id}`,
         },
         { transaction }
       );
@@ -994,7 +1167,15 @@ async function cancelOrder(req, res) {
       },
     });
   } catch (error) {
-    await transaction.rollback();
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
     logger.error("Error cancelling order:", error);
     res.status(400).json({
       status: "error",
@@ -1151,7 +1332,15 @@ async function updateOrderItemStatus(req, res) {
       },
     });
   } catch (error) {
-    await transaction.rollback();
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
     logger.error("Error updating order item status:", error);
     res.status(400).json({
       status: "error",

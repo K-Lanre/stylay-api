@@ -7,6 +7,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Product.belongsTo(models.Vendor, {
         foreignKey: 'vendor_id',
+        as: 'vendor', // Add alias to match the query
         allowNull: true // Explicitly allow null since the schema allows it
       });
       Product.belongsTo(models.Category, {
@@ -30,7 +31,8 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'product_id'
       });
       Product.hasMany(models.ProductImage, {
-        foreignKey: 'product_id'
+        foreignKey: 'product_id',
+        as: 'images'
       });
       Product.hasMany(models.ProductVariant, {
         foreignKey: 'product_id'
@@ -97,11 +99,6 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'active'
     },
     impressions: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      defaultValue: 0
-    },
-    viewers: {
       type: DataTypes.INTEGER,
       allowNull: true,
       defaultValue: 0

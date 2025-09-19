@@ -1,8 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const AppError = require('../utils/appError');
-
-
+require('dotenv').config();
 class PaymentService {
   constructor() {
     this.paystack = axios.create({
@@ -11,7 +10,7 @@ class PaymentService {
         'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
         'Content-Type': 'application/json',
       },
-      timeout: 30000, // 30 seconds timeout
+      timeout: 60000, // 60 seconds timeout
     });
     
     // Initialize sub-services
@@ -49,8 +48,39 @@ class PaymentService {
 
       return response.data;
     } catch (error) {
-      console.error('PayStack initialization error:', error.response?.data || error.message);
+      console.error('PayStack initialization error:', error);
+      // console.error('PayStack initialization error - data:', error.response?.data);
+      console.error('PayStack initialization error - message:', error.message);
       throw new AppError('Payment initialization failed', 400);
+    }
+  }
+
+  /**
+   * Initialize a new payment transaction with retry mechanism
+   * @param {Object} paymentData - Payment details
+   * @param {number} retries - Number of retries
+   * @returns {Promise<Object>} Payment initialization response
+   */
+  async initializePaymentWithRetry(paymentData, retries = 3) {
+    try {
+      let attempt = 0;
+      while (attempt < retries) {
+        try {
+          const response = await this.initializePayment(paymentData);
+          return response;
+        } catch (error) {
+          attempt++;
+          console.error(`Attempt ${attempt} failed:`, error.message);
+          if (attempt === retries) {
+            throw error;
+          }
+          // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
+      }
+    } catch (error) {
+      console.error('Payment initialization failed after multiple retries:', error);
+      throw new AppError('Payment initialization failed after multiple retries', 400);
     }
   }
 
@@ -455,3 +485,4 @@ class DedicatedAccountService {
 }
 
 module.exports = new PaymentService();
+

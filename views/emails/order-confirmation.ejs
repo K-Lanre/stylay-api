@@ -30,13 +30,36 @@
       <p><strong>Order Date:</strong> <%= orderDate %></p>
       <p>We've received your order and are getting it ready for shipment. You'll receive a notification when it's on its way.</p>
       
-      <h3>Order Summary</h3>
-      <% order.items.forEach(item => { %>
-        <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
-          <p><strong><%= item.product.name %></strong> x <%= item.quantity %></p>
-          <p><%= (item.price * item.quantity).toFixed(2) %></p>
+      <h3>Shipping Address</h3>
+      <% if (order.details?.address) { %>
+        <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
+          <p><strong><%= order.details.address.label || 'N/A' %></strong></p>
+          <p><%= order.details.address.address_line %></p>
+          <p><%= order.details.address.city %>, <%= order.details.address.state %> <%= order.details.address.postal_code %></p>
+          <p><%= order.details.address.country %></p>
+          <p>Phone: <%= order.details.address.phone || 'N/A' %></p>
         </div>
-      <% }); %>
+      <% } %>
+
+      <h3>Order Summary</h3>
+      <% if (Array.isArray(order.items) && order.items.length > 0) { %>
+        <% order.items.forEach(item => { %>
+          <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
+            <div class="item-image">
+              <% if (item.product && item.product.images && item.product.images.length > 0) { %>
+                <img src="<%= item.product.images[0] %>" alt="<%= item.product.name || 'Product' %>" style="max-width: 100px; height: auto;">
+              <% } %>
+            </div>
+            <div class="item-details">
+              <p><strong><%= item.product ? item.product.name : 'Unknown Product' %></strong> x <%= item.quantity || 1 %></p>
+              <p>Price: $<%= (item.price || 0).toFixed(2) %> each</p>
+              <p>Subtotal: $<%= ((item.price || 0) * (item.quantity || 1)).toFixed(2) %></p>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <p>No items found in this order.</p>
+      <% } %>
       
       <div style="margin-top: 20px; text-align: right;">
         <p><strong>Subtotal:</strong> $<%= (order.subtotal || 0).toFixed(2) %></p>

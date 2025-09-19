@@ -49,22 +49,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    }
+    // Timestamps are now handled automatically by Sequelize
   }, {
     sequelize,
     modelName: 'PaymentTransaction',
     tableName: 'payment_transactions',
-    timestamps: false,
-    underscored: true
+    timestamps: true,
+    underscored: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   });
 
   return PaymentTransaction;

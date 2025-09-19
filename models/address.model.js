@@ -8,9 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       Address.belongsTo(models.User, {
         foreignKey: 'user_id'
       });
-      Address.hasMany(models.Order, {
-        foreignKey: 'address_id'
-      });
+      // Address is now associated through OrderDetail, not directly with Order
     }
   }
 

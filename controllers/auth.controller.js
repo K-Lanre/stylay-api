@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const passport = require('passport');
-const { User, Role } = require("../models");
+const { User, Role, Op } = require("../models");
 const AppError = require("../utils/appError");
 const { sendWelcomeEmail } = require("../services/email.service");
 const logger = require("../utils/logger");
@@ -496,16 +496,22 @@ exports.updatePassword = async (req, res, next) => {
     // 1) Get user from collection
     const user = await User.findByPk(req.user.id);
 
-    // 2) Check if POSTed current password is correct
+    // 2) Check if phone change is pending verification
+    if (user.isPhoneChangePending() && !user.isPhoneChangeVerificationExpired()) {
+      return next(new AppError("You cannot change your password while a phone number change is pending verification. Please wait for admin approval or cancel the phone change request.", 400));
+    }
+
+    // 3) Check if POSTed current password is correct
     if (!(await bcrypt.compare(currentPassword, user.password))) {
       return next(new AppError("Your current password is wrong.", 401));
     }
 
-    // 3) If so, update password
+    // 4) If so, update password
     user.password = await bcrypt.hash(newPassword, 12);
+    user.password_changed_at = new Date();
     await user.save();
 
-    // 4) Log user in, send JWT
+    // 5) Log user in, send JWT
     createSendToken(user, 200, res);
   } catch (err) {
     next(err);
@@ -649,6 +655,278 @@ exports.resetPassword = async (req, res, next) => {
     res.status(200).json({
       status: "success",
       message: "Password updated successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Request phone number change
+exports.requestPhoneChange = async (req, res, next) => {
+  try {
+    const { newPhone } = req.body;
+    const userId = req.user.id;
+
+    if (!newPhone) {
+      return next(new AppError("New phone number is required", 400));
+    }
+
+    // Validate phone format
+    const phoneRegex = /^\+234(70|80|81|90|91)[0-9]{8}$/;
+    if (!phoneRegex.test(newPhone)) {
+      return next(new AppError("Phone number must be in the format +234[70|80|81|90|91]XXXXXXXX (e.g., +2348012345678)", 400));
+    }
+
+    const user = await User.findByPk(userId);
+
+    // Check if phone is already in use
+    const existingUser = await User.findOne({ where: { phone: newPhone } });
+    if (existingUser && existingUser.id !== userId) {
+      return next(new AppError("This phone number is already in use", 400));
+    }
+
+    // Check if user already has a pending phone change
+    if (user.isPhoneChangePending() && !user.isPhoneChangeVerificationExpired()) {
+      return next(new AppError("You already have a pending phone change request. Please wait for admin approval or cancel the current request.", 400));
+    }
+
+    // Generate verification token (24 hours expiry)
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenExpires = new Date();
+    tokenExpires.setHours(tokenExpires.getHours() + 24);
+
+    // Update user with pending phone change
+    await user.update({
+      pending_phone_number: newPhone,
+      phone_change_requested_at: new Date(),
+      phone_change_token: token,
+      phone_change_token_expires: tokenExpires
+    });
+
+    // TODO: Send admin notification
+    // For now, we'll log it
+    logger.info(`Phone change requested by user ${userId}: ${user.phone} -> ${newPhone}`);
+
+    // Send user notification email
+    try {
+      await sendPhoneChangeNotificationEmail(
+        user.email,
+        `${user.first_name} ${user.last_name}`,
+        newPhone,
+        token
+      );
+    } catch (emailErr) {
+      logger.error(`Error sending phone change notification email: ${emailErr.message}`);
+      // Don't fail the request if email fails
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Phone change request submitted successfully. Please check your email for verification instructions.",
+      data: {
+        pending_phone: newPhone,
+        requested_at: user.phone_change_requested_at,
+        verification_expires_at: tokenExpires
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Verify phone change (user clicks verification link)
+exports.verifyPhoneChange = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return next(new AppError("Verification token is required", 400));
+    }
+
+    const user = await User.findOne({
+      where: {
+        phone_change_token: token
+      }
+    });
+
+    if (!user) {
+      return next(new AppError("Invalid verification token", 400));
+    }
+
+    // Check if token is expired
+    const tokenStatus = user.getPhoneChangeTokenStatus();
+    if (tokenStatus.isExpired) {
+      return next(new AppError(tokenStatus.message, 400));
+    }
+
+    // Check if verification period has expired
+    if (user.isPhoneChangeVerificationExpired()) {
+      return next(new AppError("Phone change verification period has expired. Please submit a new request.", 400));
+    }
+
+    // Clear the verification token but keep pending phone for admin approval
+    await user.update({
+      phone_change_token: null,
+      phone_change_token_expires: null
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Phone change request verified successfully. Your request is now pending admin approval.",
+      data: {
+        pending_phone: user.pending_phone_number,
+        requested_at: user.phone_change_requested_at
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Cancel phone change request (user)
+exports.cancelPhoneChange = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findByPk(userId);
+
+    if (!user.isPhoneChangePending()) {
+      return next(new AppError("No pending phone change request found", 400));
+    }
+
+    // Clear pending phone change
+    await user.update({
+      pending_phone_number: null,
+      phone_change_requested_at: null,
+      phone_change_token: null,
+      phone_change_token_expires: null
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Phone change request cancelled successfully"
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Admin approve phone change
+exports.approvePhoneChange = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    if (!user.isPhoneChangePending()) {
+      return next(new AppError("No pending phone change request for this user", 400));
+    }
+
+    if (user.isPhoneChangeVerificationExpired()) {
+      return next(new AppError("Phone change verification period has expired", 400));
+    }
+
+    // Check if new phone is still available
+    const existingUser = await User.findOne({
+      where: { phone: user.pending_phone_number }
+    });
+    if (existingUser && existingUser.id !== userId) {
+      return next(new AppError("The requested phone number is no longer available", 400));
+    }
+
+    // Update phone number and clear pending fields
+    await user.update({
+      phone: user.pending_phone_number,
+      pending_phone_number: null,
+      phone_change_requested_at: null,
+      phone_change_token: null,
+      phone_change_token_expires: null
+    });
+
+    // Log the approval
+    logger.info(`Phone change approved for user ${userId}: ${user.phone}`);
+
+    res.status(200).json({
+      status: "success",
+      message: "Phone change approved successfully",
+      data: {
+        user_id: userId,
+        new_phone: user.phone
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Admin reject phone change
+exports.rejectPhoneChange = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    if (!user.isPhoneChangePending()) {
+      return next(new AppError("No pending phone change request for this user", 400));
+    }
+
+    // Clear pending phone change
+    await user.update({
+      pending_phone_number: null,
+      phone_change_requested_at: null,
+      phone_change_token: null,
+      phone_change_token_expires: null
+    });
+
+    // Log the rejection
+    logger.info(`Phone change rejected for user ${userId}`);
+
+    res.status(200).json({
+      status: "success",
+      message: "Phone change request rejected",
+      data: {
+        user_id: userId
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Get pending phone changes (admin)
+exports.getPendingPhoneChanges = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const { count, rows: users } = await User.findAndCountAll({
+      where: {
+        pending_phone_number: { [require('sequelize').Op.ne]: null },
+        phone_change_requested_at: { [require('sequelize').Op.ne]: null }
+      },
+      attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'pending_phone_number', 'phone_change_requested_at'],
+      limit,
+      offset,
+      order: [['phone_change_requested_at', 'ASC']]
+    });
+
+    res.status(200).json({
+      status: 'success',
+      results: users.length,
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      data: users
     });
   } catch (err) {
     next(err);

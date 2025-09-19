@@ -271,6 +271,32 @@ exports.updateProfileValidation = [
     })
 ];
 
+// Validation rules for requesting phone change
+exports.requestPhoneChangeValidation = [
+  body('newPhone')
+    .trim()
+    .notEmpty()
+    .withMessage('New phone number is required')
+    .custom((value) => {
+      if (!isValidPhoneNumber(value)) {
+        throw new Error('Please provide a valid Nigerian phone number (e.g., +2348012345678)');
+      }
+      return true;
+    })
+    .custom(async (phone, { req }) => {
+      const user = await User.findOne({ where: { phone } });
+      if (user && user.id !== req.user.id) {
+        throw new Error('This phone number is already in use');
+      }
+      return true;
+    })
+];
+
+// Validation rules for canceling phone change
+exports.cancelPhoneChangeValidation = [
+  // No specific validation needed for cancel request
+];
+
 // Middleware to handle validation errors
 exports.validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -281,9 +307,9 @@ exports.validate = (req, res, next) => {
       value: err.value,
       location: err.location
     }));
-    
-    
-    
+
+
+
     return res.status(400).json({
       status: 'error',
       message: 'Validation failed',

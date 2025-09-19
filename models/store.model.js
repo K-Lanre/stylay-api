@@ -6,7 +6,8 @@ module.exports = (sequelize, DataTypes) => {
   class Store extends Model {
     static associate(models) {
       Store.hasOne(models.Vendor, {
-        foreignKey: 'store_id'
+        foreignKey: 'store_id',
+        as: 'vendor' // Add alias for consistency
       });
     }
   }

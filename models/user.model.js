@@ -48,6 +48,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'userRoles'
       });
+      User.hasMany(models.VendorFollower, {
+        foreignKey: 'user_id',
+        as: 'following'
+      });
     }
 
   }
@@ -121,6 +125,22 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true,
       field: 'password_changed_at'
+    },
+    pending_phone_number: {
+      type: DataTypes.STRING(20),
+      allowNull: true
+    },
+    phone_change_requested_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    phone_change_token: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    phone_change_token_expires: {
+      type: DataTypes.DATE,
+      allowNull: true
     },
     is_active: {
       type: DataTypes.BOOLEAN,
@@ -207,6 +227,65 @@ module.exports = (sequelize, DataTypes) => {
   // For backward compatibility
   User.prototype.isVerificationTokenExpired = function() {
     return this.getTokenStatus().isExpired;
+  };
+
+  /**
+   * Check if phone change token is expired
+   * @returns {Object} Returns an object with status and message
+   * @property {boolean} isExpired - Whether the token is expired
+   * @property {string} message - Human-readable message about token status
+   * @property {Date|null} expiresAt - When the token expires (null if no expiration set)
+   */
+  User.prototype.getPhoneChangeTokenStatus = function() {
+    if (!this.phone_change_token_expires) {
+      return {
+        isExpired: true,
+        message: 'No phone change token found.',
+        expiresAt: null
+      };
+    }
+
+    const now = new Date();
+    const isExpired = now > this.phone_change_token_expires;
+
+    if (isExpired) {
+      return {
+        isExpired: true,
+        message: 'Phone change verification link has expired.',
+        expiresAt: this.phone_change_token_expires
+      };
+    }
+
+    // Calculate remaining time in hours
+    const remainingHours = Math.ceil((this.phone_change_token_expires - now) / (1000 * 60 * 60));
+
+    return {
+      isExpired: false,
+      message: `Phone change verification link is valid for ${remainingHours} more hour${remainingHours !== 1 ? 's' : ''}.`,
+      expiresAt: this.phone_change_token_expires
+    };
+  };
+
+  /**
+   * Check if phone change is in verification period
+   * @returns {boolean} True if phone change is pending verification
+   */
+  User.prototype.isPhoneChangePending = function() {
+    return !!(this.pending_phone_number && this.phone_change_requested_at);
+  };
+
+  /**
+   * Check if verification period has expired (24 hours)
+   * @returns {boolean} True if verification period has expired
+   */
+  User.prototype.isPhoneChangeVerificationExpired = function() {
+    if (!this.phone_change_requested_at) return false;
+
+    const now = new Date();
+    const verificationPeriod = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    const timeSinceRequest = now - this.phone_change_requested_at;
+
+    return timeSinceRequest > verificationPeriod;
   };
 
   return User;

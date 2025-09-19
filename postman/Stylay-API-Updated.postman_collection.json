@@ -74,7 +74,7 @@
                                 "login"
                             ]
                         },
-                        "description": "Authenticate user and get JWT token"
+                        "description": "Log in with email and password"
                     }
                 },
                 {
@@ -107,8 +107,7 @@
                                 "auth",
                                 "verify-email"
                             ]
-                        },
-                        "description": "Verify user's email with verification code"
+                        }
                     }
                 },
                 {
@@ -141,8 +140,7 @@
                                 "auth",
                                 "resend-verification"
                             ]
-                        },
-                        "description": "Resend email verification code"
+                        }
                     }
                 },
                 {
@@ -175,8 +173,7 @@
                                 "auth",
                                 "forgot-password"
                             ]
-                        },
-                        "description": "Request password reset code"
+                        }
                     }
                 },
                 {
@@ -209,8 +206,7 @@
                                 "auth",
                                 "reset-password"
                             ]
-                        },
-                        "description": "Reset password using verification code"
+                        }
                     }
                 },
                 {
@@ -247,39 +243,13 @@
                                 "auth",
                                 "update-password"
                             ]
-                        },
-                        "description": "Update user's password (requires authentication)"
+                        }
                     }
                 },
                 {
                     "name": "Get Current User",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/auth/me",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "auth",
-                                "me"
-                            ]
-                        },
-                        "description": "Get current authenticated user's profile"
-                    }
-                },
-                {
-                    "name": "Update Profile",
-                    "request": {
-                        "method": "PUT",
                         "header": [
                             {
                                 "key": "Authorization",
@@ -291,15 +261,6 @@
                                 "value": "application/json"
                             }
                         ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"User\",\n    \"phone\": \"+1234567890\",\n    \"gender\": \"other\",\n    \"date_of_birth\": \"1990-01-01\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
                         "url": {
                             "raw": "{{base_url}}/api/v1/auth/me",
                             "host": [
@@ -312,7 +273,15 @@
                                 "me"
                             ]
                         },
-                        "description": "Update the authenticated user's profile information"
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"User\",\n    \"phone\": \"+1234567890\",\n    \"gender\": \"other\",\n    \"date_of_birth\": \"1990-01-01\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
                     }
                 },
                 {
@@ -376,8 +345,7 @@
                                     "value": "10"
                                 }
                             ]
-                        },
-                        "description": "Get all users with pagination (Admin only)"
+                        }
                     }
                 },
                 {
@@ -401,8 +369,7 @@
                                 "users",
                                 "1"
                             ]
-                        },
-                        "description": "Get a specific user by ID (Admin only)"
+                        }
                     }
                 },
                 {
@@ -438,8 +405,7 @@
                                 "v1",
                                 "users"
                             ]
-                        },
-                        "description": "Create a new user (Admin only)"
+                        }
                     }
                 },
                 {
@@ -476,8 +442,7 @@
                                 "users",
                                 "1"
                             ]
-                        },
-                        "description": "Update a user's information (Admin only)"
+                        }
                     }
                 },
                 {
@@ -501,8 +466,7 @@
                                 "users",
                                 "1"
                             ]
-                        },
-                        "description": "Delete a user (Admin only)"
+                        }
                     }
                 },
                 {
@@ -828,23 +792,28 @@
                                 },
                                 {
                                     "key": "bank_account_name",
-                                    "value": "Vendor One"
+                                    "value": "Vendor One",
+                                    "type": "text"
                                 },
                                 {
                                     "key": "bank_account_number",
-                                    "value": "1234567890"
+                                    "value": "1234567890",
+                                    "type": "text"
                                 },
                                 {
                                     "key": "bank_name",
-                                    "value": "Example Bank"
+                                    "value": "Example Bank",
+                                    "type": "text"
                                 },
                                 {
                                     "key": "description",
-                                    "value": "A great store with amazing products"
+                                    "value": "A great store with amazing products",
+                                    "type": "text"
                                 },
                                 {
                                     "key": "cac_number",
-                                    "value": "RC123456"
+                                    "value": "RC123456",
+                                    "type": "text"
                                 }
                             ]
                         },
@@ -963,6 +932,199 @@
                         },
                         "description": "Reject a vendor with a reason (Admin only)"
                     }
+                },
+                {
+                    "name": "Customer Follower Endpoints",
+                    "description": "Endpoints for customers to manage vendor following",
+                    "item": [
+                        {
+                            "name": "Follow Vendor",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/1/follow",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "1",
+                                        "follow"
+                                    ]
+                                },
+                                "description": "Follow a vendor (Authenticated users only)"
+                            }
+                        },
+                        {
+                            "name": "Unfollow Vendor",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/1/follow",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "1",
+                                        "follow"
+                                    ]
+                                },
+                                "description": "Unfollow a vendor (Authenticated users only)"
+                            }
+                        },
+                        {
+                            "name": "Check Follow Status",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/1/follow-status",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "1",
+                                        "follow-status"
+                                    ]
+                                },
+                                "description": "Check if current user is following a specific vendor (Authenticated users only)"
+                            }
+                        },
+                        {
+                            "name": "Get User Following List",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/user/following?page=1&limit=10",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "user",
+                                        "following"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10"
+                                        }
+                                    ]
+                                },
+                                "description": "Get list of vendors followed by current user (Authenticated users only)"
+                            }
+                        },
+                        {
+                            "name": "Get Specific User Following List",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/user/1/following?page=1&limit=10",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "user",
+                                        "1",
+                                        "following"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10"
+                                        }
+                                    ]
+                                },
+                                "description": "Get list of vendors followed by a specific user (Authenticated users only)"
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Followers",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/1/followers?page=1&limit=10",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "1",
+                                        "followers"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10"
+                                        }
+                                    ]
+                                },
+                                "description": "Get list of users following a vendor (Any authenticated user)"
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -975,7 +1137,17 @@
                     "request": {
                         "method": "GET",
                         "header": [],
-                        "url": "{{base_url}}/api/v1/categories",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories"
+                            ]
+                        },
                         "description": "Retrieve all categories with optional pagination and filtering"
                     }
                 },
@@ -984,7 +1156,18 @@
                     "request": {
                         "method": "GET",
                         "header": [],
-                        "url": "{{base_url}}/api/v1/categories/tree",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories/tree",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories",
+                                "tree"
+                            ]
+                        },
                         "description": "Retrieve categories in a hierarchical tree structure"
                     }
                 },
@@ -993,14 +1176,25 @@
                     "request": {
                         "method": "GET",
                         "header": [],
-                        "url": "{{base_url}}/api/v1/categories/:id",
-                        "pathVariables": [
-                            {
-                                "key": "id",
-                                "value": "1",
-                                "description": "Category ID"
-                            }
-                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories/:id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "1",
+                                    "description": "Category ID"
+                                }
+                            ]
+                        },
                         "description": "Retrieve a specific category by ID"
                     }
                 },
@@ -1009,14 +1203,26 @@
                     "request": {
                         "method": "GET",
                         "header": [],
-                        "url": "{{base_url}}/api/v1/categories/:id/products",
-                        "pathVariables": [
-                            {
-                                "key": "id",
-                                "value": "1",
-                                "description": "Category ID"
-                            }
-                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories/:id/products",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories",
+                                ":id",
+                                "products"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "1",
+                                    "description": "Category ID"
+                                }
+                            ]
+                        },
                         "description": "Retrieve products associated with a specific category"
                     }
                 },
@@ -1045,7 +1251,17 @@
                                 }
                             }
                         },
-                        "url": "{{base_url}}/api/v1/categories",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories"
+                            ]
+                        },
                         "description": "Create a new category (Admin only)"
                     }
                 },
@@ -1074,14 +1290,18 @@
                                 }
                             }
                         },
-                        "url": "{{base_url}}/api/v1/categories/1",
-                        "pathVariables": [
-                            {
-                                "key": "id",
-                                "value": "1",
-                                "description": "Category ID"
-                            }
-                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories",
+                                "1"
+                            ]
+                        },
                         "description": "Update an existing category (Admin only)"
                     }
                 },
@@ -1096,14 +1316,18 @@
                                 "type": "text"
                             }
                         ],
-                        "url": "{{base_url}}/api/v1/categories/1",
-                        "pathVariables": [
-                            {
-                                "key": "id",
-                                "value": "1",
-                                "description": "Category ID"
-                            }
-                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/categories/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "categories",
+                                "1"
+                            ]
+                        },
                         "description": "Delete a category (Admin only)"
                     }
                 }
@@ -1146,8 +1370,7 @@
                                 }
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Get Collection by ID",
@@ -1166,8 +1389,7 @@
                                 "1"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Create Collection",
@@ -1201,8 +1423,7 @@
                                 "collections"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Update Collection",
@@ -1236,8 +1457,7 @@
                                 "1"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Add Products to Collection",
@@ -1272,8 +1492,7 @@
                                 "products"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Remove Products from Collection",
@@ -1308,8 +1527,7 @@
                                 "products"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Delete Collection",
@@ -1334,8 +1552,7 @@
                                 "1"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 }
             ],
             "variable": [
@@ -1699,6 +1916,93 @@
                             }
                         }
                     ]
+                },
+                {
+                    "name": "Product Analytics",
+                    "description": "Product impression and viewer metrics endpoints",
+                    "item": [
+                        {
+                            "name": "Get Product Analytics",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/products/1/analytics",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "products",
+                                        "1",
+                                        "analytics"
+                                    ]
+                                },
+                                "description": "Get detailed analytics for a specific product including impressions, viewers, sales data, conversion rate, and monthly trends. (Vendor/Admin only)"
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Analytics Summary",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/products/vendor/analytics",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "products",
+                                        "vendor",
+                                        "analytics"
+                                    ]
+                                },
+                                "description": "Get comprehensive analytics summary for all vendor products including total impressions, viewers, sales, and top performing products. (Vendor only)"
+                            }
+                        },
+                        {
+                            "name": "Get Product Analytics (Admin)",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/products/1/analytics",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "products",
+                                        "1",
+                                        "analytics"
+                                    ]
+                                },
+                                "description": "Get detailed analytics for any product including impressions, sales data, conversion rate, and monthly trends. (Admin only - can view any product's analytics)"
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -1976,10 +2280,10 @@
                                         "vendor",
                                         ":vendor_id"
                                     ],
-                                    "params": [
+                                    "variable": [
                                         {
                                             "key": "vendor_id",
-                                            "value": ":vendor_id"
+                                            "value": ""
                                         }
                                     ],
                                     "query": [
@@ -2157,10 +2461,10 @@
                                         "vendor",
                                         ":vendor_id"
                                     ],
-                                    "params": [
+                                    "variable": [
                                         {
                                             "key": "vendor_id",
-                                            "value": ":vendor_id"
+                                            "value": ""
                                         }
                                     ],
                                     "query": [
@@ -2210,10 +2514,10 @@
                                         "product",
                                         ":product_id"
                                     ],
-                                    "params": [
+                                    "variable": [
                                         {
                                             "key": "product_id",
-                                            "value": ":product_id"
+                                            "value": ""
                                         }
                                     ],
                                     "query": [
@@ -2312,8 +2616,7 @@
                                 }
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Get Journal by ID",
@@ -2332,8 +2635,7 @@
                                 "1"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Create Journal (Admin)",
@@ -2364,8 +2666,7 @@
                                 "journals"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Update Journal (Admin)",
@@ -2397,8 +2698,7 @@
                                 "1"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Delete Journal (Admin)",
@@ -2422,8 +2722,7 @@
                                 "1"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 }
             ]
         },
@@ -2773,8 +3072,14 @@
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders"
+                                    ]
                                 }
                             }
                         },
@@ -2790,8 +3095,15 @@
                                 ],
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/my-orders?status=processing&page=1&limit=10",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "my-orders"],
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "my-orders"
+                                    ],
                                     "query": [
                                         {
                                             "key": "status",
@@ -2821,8 +3133,15 @@
                                 ],
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/1",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "1"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "1"
+                                    ]
                                 }
                             }
                         },
@@ -2846,8 +3165,16 @@
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/1/cancel",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "1", "cancel"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "1",
+                                        "cancel"
+                                    ]
                                 }
                             }
                         }
@@ -2864,13 +3191,21 @@
                                 "header": [
                                     {
                                         "key": "Authorization",
-                                        "value": "Bearer {{vendor_auth_token}}"
+                                        "value": "Bearer {{vendor_token}}"
                                     }
                                 ],
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/vendor/orders?status=processing&page=1&limit=10",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "vendor", "orders"],
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "vendor",
+                                        "orders"
+                                    ],
                                     "query": [
                                         {
                                             "key": "status",
@@ -2899,7 +3234,7 @@
                                     },
                                     {
                                         "key": "Authorization",
-                                        "value": "Bearer {{vendor_auth_token}}"
+                                        "value": "Bearer {{vendor_token}}"
                                     }
                                 ],
                                 "body": {
@@ -2908,8 +3243,17 @@
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/items/1/status",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "items", "1", "status"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "items",
+                                        "1",
+                                        "status"
+                                    ]
                                 }
                             }
                         }
@@ -2926,13 +3270,19 @@
                                 "header": [
                                     {
                                         "key": "Authorization",
-                                        "value": "Bearer {{admin_auth_token}}"
+                                        "value": "Bearer {{admin_token}}"
                                     }
                                 ],
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders?status=all&page=1&limit=10",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders"],
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders"
+                                    ],
                                     "query": [
                                         {
                                             "key": "status",
@@ -2961,7 +3311,7 @@
                                     },
                                     {
                                         "key": "Authorization",
-                                        "value": "Bearer {{admin_auth_token}}"
+                                        "value": "Bearer {{admin_token}}"
                                     }
                                 ],
                                 "body": {
@@ -2970,8 +3320,16 @@
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/1/status",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "1", "status"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "1",
+                                        "status"
+                                    ]
                                 }
                             }
                         }
@@ -2993,8 +3351,16 @@
                                 ],
                                 "url": {
                                     "raw": "{{base_url}}/api/v1/orders/verify-payment/ref_123456789",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "v1", "orders", "verify-payment", "ref_123456789"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "orders",
+                                        "verify-payment",
+                                        "ref_123456789"
+                                    ]
                                 }
                             }
                         },
@@ -3030,9 +3396,337 @@
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/orders/webhook/payment",
-                                    "host": ["{{base_url}}"],
-                                    "path": ["api", "orders", "webhook", "payment"]
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "orders",
+                                        "webhook",
+                                        "payment"
+                                    ]
                                 }
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Dashboard Management",
+            "description": "Dashboard endpoints for public, vendor, and admin users",
+            "item": [
+                {
+                    "name": "Public Dashboard Endpoints",
+                    "description": "Publicly accessible dashboard data",
+                    "item": [
+                        {
+                            "name": "Get New Arrivals",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/new-arrivals?page=1&limit=20",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "new-arrivals"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "20",
+                                            "description": "Number of items per page"
+                                        }
+                                    ]
+                                },
+                                "description": "Retrieve products sorted by supply creation date (new arrivals)"
+                            }
+                        },
+                        {
+                            "name": "Get Trending Now",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/trending-now",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "trending-now"
+                                    ]
+                                },
+                                "description": "Get 12 most recently updated products (trending now)"
+                            }
+                        },
+                        {
+                            "name": "Get Latest Journal",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/latest-journal?page=1&limit=20",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "latest-journal"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "20",
+                                            "description": "Number of items per page"
+                                        }
+                                    ]
+                                },
+                                "description": "Get recent journal entries ordered by updated date"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Vendor Dashboard Endpoints",
+                    "description": "Dashboard endpoints for authenticated vendors",
+                    "item": [
+                        {
+                            "name": "Get Vendor Dashboard Overview",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/vendor/dashboard",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "vendor",
+                                        "dashboard"
+                                    ]
+                                },
+                                "description": "Get vendor dashboard overview with live products, sales, units sold, and views"
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Products",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/vendor/products?page=1&limit=20",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "vendor",
+                                        "products"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "20",
+                                            "description": "Number of items per page"
+                                        }
+                                    ]
+                                },
+                                "description": "Get paginated list of vendor's products with details"
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Earnings Overview",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/vendor/earnings",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "vendor",
+                                        "earnings"
+                                    ]
+                                },
+                                "description": "Get vendor earnings overview with total earnings, monthly sales, payouts, and products sold"
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Earnings Breakdown",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/vendor/earnings-breakdown?page=1&limit=20",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "vendor",
+                                        "earnings-breakdown"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "20",
+                                            "description": "Number of items per page"
+                                        }
+                                    ]
+                                },
+                                "description": "Get detailed breakdown of vendor earnings with pagination"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Admin Dashboard Endpoints",
+                    "description": "Dashboard endpoints for admin users",
+                    "item": [
+                        {
+                            "name": "Get Admin Dashboard Overview",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/dashboard",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "admin",
+                                        "dashboard"
+                                    ]
+                                },
+                                "description": "Get admin dashboard overview with total vendors, monthly income, products, sales, and pending orders"
+                            }
+                        },
+                        {
+                            "name": "Get Admin Sales Statistics",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/sales-stats",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "admin",
+                                        "sales-stats"
+                                    ]
+                                },
+                                "description": "Get monthly sales statistics for the current year"
+                            }
+                        },
+                        {
+                            "name": "Get Admin Top Categories",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/top-categories",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "admin",
+                                        "top-categories"
+                                    ]
+                                },
+                                "description": "Get top performing product categories with monthly metrics"
                             }
                         }
                     ]
@@ -3040,7 +3734,6 @@
             ]
         }
     ],
-
     "variable": [
         {
             "key": "base_url",

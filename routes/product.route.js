@@ -20,6 +20,23 @@ router.get('/:id', getProductByIdValidation, validate, productController.getProd
 // Protected routes (require authentication)
 router.use(protect);
 
+/**
+ * @desc    Get product analytics
+ * @route   GET /api/v1/products/:id/analytics
+ * @access  Private (Vendor/Admin)
+ */
+router.get('/:id/analytics', [
+  param('id').isInt({ min: 1 }).withMessage('Invalid product ID'),
+  validate,
+], productController.getProductAnalytics);
+
+/**
+ * @desc    Get vendor analytics summary
+ * @route   GET /api/v1/products/vendor/analytics
+ * @access  Private (Vendor)
+ */
+router.get('/vendor/analytics', isVendor, productController.getVendorAnalytics);
+
 // Vendor-only routes
 router.post('/', isVendor, createProductValidation, validate, productController.createProduct);
 router.put('/:id', isVendor, productController.updateProduct);

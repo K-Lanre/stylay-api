@@ -169,6 +169,19 @@ router.patch(
   vendorController.completeOnboarding
 );
 
+// Follower routes (authenticated users)
+router.post("/:vendorId/follow", vendorController.followVendor);
+router.delete("/:vendorId/follow", vendorController.unfollowVendor);
+router.get("/:vendorId/followers", vendorController.getVendorFollowers);
+router.get("/:vendorId/follow-status", vendorController.checkFollowStatus);
+
+// User following routes
+router.get("/user/:userId/following", vendorController.getUserFollowing);
+router.get("/user/following", vendorController.getUserFollowing);
+
+// Vendor-specific follower routes (vendor only)
+router.get("/profile/followers", restrictTo("vendor"), vendorController.getMyFollowers);
+
 // Admin routes
 
 // Approve vendor

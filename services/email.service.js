@@ -4,7 +4,17 @@ const ejs = require("ejs");
 const { promisify } = require("util");
 const fs = require("fs");
 const logger = require("../utils/logger");
-const { User, PaymentTransaction } = require("../models");
+const {
+  User,
+  PaymentTransaction,
+  Order,
+  OrderItem,
+  OrderDetail,
+  Address,
+  Product,
+  Vendor,
+  Store,
+} = require("../models");
 
 // Promisify fs.readFile
 const readFile = promisify(fs.readFile);
@@ -35,6 +45,10 @@ const emailTemplates = {
   PASSWORD_RESET: {
     template: "password-reset.ejs",
     subject: "Password Reset Request",
+  },
+  PHONE_CHANGE: {
+    template: "phone-change.ejs",
+    subject: "Phone Number Change Verification Required",
   },
   ORDER_CONFIRMATION: {
     template: "order-confirmation.ejs",
@@ -79,7 +93,21 @@ const emailTemplates = {
 const renderTemplate = async (templateName, data = {}) => {
   try {
     const templatePath = path.join(templatesDir, templateName);
+
+    // Clear EJS cache and delete any cached version of this specific template
+    ejs.clearCache();
+    delete require.cache[require.resolve(templatePath)];
+
     const template = await readFile(templatePath, "utf-8");
+
+    // Log template content for debugging (remove in production)
+    if (templateName === "order-confirmation.ejs") {
+      logger.info(
+        "Template content loaded:",
+        template.includes("item.product.images") ? "NEW VERSION" : "OLD VERSION"
+      );
+    }
+
     return ejs.render(template, {
       ...data,
       appName: "Stylay",
@@ -106,14 +134,25 @@ const sendEmail = async (to, templateType, context = {}) => {
       throw new Error(`Email template ${templateType} not found`);
     }
 
-    const html = await renderTemplate(templateConfig.template, context);
+    const html = await renderTemplate(templateConfig.template, {
+      ...context,
+      subject: context.subject || "Notification from Stylay", // Ensure subject is defined
+    });
+
+    const subject =
+      typeof templateConfig.subject === "function"
+        ? templateConfig.subject(context)
+        : templateConfig.subject.replace(
+            /%s/g,
+            context.orderId || context.id || ""
+          );
 
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME || "Stylay"}" <${
         process.env.EMAIL_FROM
       }>`,
       to,
-      subject: templateConfig.subject,
+      subject,
       html,
     };
 
@@ -195,17 +234,17 @@ const sendPasswordResetEmail = async (to, name, code) => {
 const getUserEmail = async (userId) => {
   try {
     const user = await User.findByPk(userId, {
-      attributes: ['email'],
-      raw: true
+      attributes: ["email"],
+      raw: true,
     });
-    
+
     if (!user || !user.email) {
       throw new Error(`User with ID ${userId} not found or has no email`);
     }
-    
+
     return user.email;
   } catch (error) {
-    logger.error('Error fetching user email:', error);
+    logger.error("Error fetching user email:", error);
     throw error;
   }
 };
@@ -219,15 +258,53 @@ const getUserEmail = async (userId) => {
 const sendOrderConfirmation = async (order, userId) => {
   try {
     const userEmail = await getUserEmail(userId);
-    return await sendEmail(userEmail, 'ORDER_CONFIRMATION', { 
-      order,
+    const subject = `Order Confirmation - #${order.id}`;
+
+    // Ensure order.items is always an array
+    const orderData = order.get ? order.get({ plain: true }) : order;
+    const items = Array.isArray(orderData.items) ? orderData.items : [];
+
+    // Format the order data for the template
+    const formattedOrder = {
+      ...orderData,
+      items: items.map((item) => ({
+        ...item,
+        product: item.product || { name: "Unknown Product" },
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+      })),
+      subtotal: parseFloat(orderData.subtotal) || 0,
+      shipping_cost: orderData.details?.shipping_cost
+        ? parseFloat(orderData.details.shipping_cost)
+        : 0,
+      tax_amount: orderData.details?.tax_amount
+        ? parseFloat(orderData.details.tax_amount)
+        : 0,
+      total_amount: parseFloat(orderData.total_amount) || 0,
+      details: orderData.details
+        ? {
+            ...orderData.details,
+            address: orderData.details.address || {},
+          }
+        : { address: {} },
+    };
+
+    return await sendEmail(userEmail, "ORDER_CONFIRMATION", {
+      subject,
+      order: formattedOrder,
       user: { id: userId },
-      orderDate: new Date().toLocaleDateString(),
+      orderDate: new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
       trackingUrl: `${process.env.FRONTEND_URL}/orders/${order.id}/track`,
-      supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.com'
     });
   } catch (error) {
-    logger.error('Error sending order confirmation email:', error);
+    logger.error(
+      `Error sending order confirmation email for order ${order.id}:`,
+      error
+    );
     throw error;
   }
 };
@@ -242,16 +319,16 @@ const logPaymentTransaction = async (transactionData) => {
     const transaction = await PaymentTransaction.create({
       user_id: transactionData.userId,
       order_id: transactionData.orderId,
-      type: transactionData.type || 'payment', // payment, payout, refund, commission, adjustment
+      type: transactionData.type || "payment", // payment, payout, refund, commission, adjustment
       amount: transactionData.amount,
-      status: transactionData.status || 'completed',
+      status: transactionData.status || "completed",
       transaction_id: transactionData.transactionId,
-      description: transactionData.description
+      description: transactionData.description,
     });
-    
+
     return transaction;
   } catch (error) {
-    logger.error('Error logging payment transaction:', error);
+    logger.error("Error logging payment transaction:", error);
     throw error;
   }
 };
@@ -265,34 +342,34 @@ const logPaymentTransaction = async (transactionData) => {
  */
 const sendPaymentReceived = async (order, userId, paymentDetails) => {
   let emailResponse;
-  
+
   try {
     // Get user email
     const userEmail = await getUserEmail(userId);
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
-    
+
     // Log the payment transaction
     await logPaymentTransaction({
       userId,
       orderId: order.id,
-      type: 'payment',
+      type: "payment",
       amount: paymentDetails.amount,
-      status: 'completed',
+      status: "completed",
       transactionId: paymentDetails.transactionId,
-      description: `Payment received for order #${order.id}`
+      description: `Payment received for order #${order.id}`,
     });
-    
+
     // Send the email
-    emailResponse = await sendEmail(userEmail, 'PAYMENT_RECEIVED', { 
+    emailResponse = await sendEmail(userEmail, "PAYMENT_RECEIVED", {
       order,
       user: { id: userId },
       payment: paymentDetails,
       paymentDate: new Date().toLocaleDateString(),
-      orderUrl: `${process.env.FRONTEND_URL}/orders/${order.id}`
+      orderUrl: `${process.env.FRONTEND_URL}/orders/${order.id}`,
     });
-    
+
     return emailResponse;
   } catch (error) {
     // Log the failed transaction if we have the details
@@ -301,18 +378,18 @@ const sendPaymentReceived = async (order, userId, paymentDetails) => {
         await logPaymentTransaction({
           userId,
           orderId: order.id,
-          type: 'payment',
+          type: "payment",
           amount: paymentDetails.amount,
-          status: 'failed',
+          status: "failed",
           transactionId: paymentDetails.transactionId,
-          description: `Failed to process payment email for order #${order.id}: ${error.message}`
+          description: `Failed to process payment email for order #${order.id}: ${error.message}`,
         });
       } catch (logError) {
-        logger.error('Error logging failed payment transaction:', logError);
+        logger.error("Error logging failed payment transaction:", logError);
       }
     }
-    
-    logger.error('Error in sendPaymentReceived:', error);
+
+    logger.error("Error in sendPaymentReceived:", error);
     throw error;
   }
 };
@@ -330,31 +407,33 @@ const sendPaymentFailed = async (order, userId, paymentDetails = {}) => {
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
-    
+
     // Log the failed payment transaction
     if (paymentDetails.amount) {
       await logPaymentTransaction({
         userId,
         orderId: order?.id,
-        type: 'payment',
+        type: "payment",
         amount: paymentDetails.amount,
-        status: 'failed',
+        status: "failed",
         transactionId: paymentDetails.transactionId,
-        description: `Payment failed: ${paymentDetails.error || 'Unknown error'}`
+        description: `Payment failed: ${
+          paymentDetails.error || "Unknown error"
+        }`,
       });
     }
-    
-    return await sendEmail(userEmail, 'PAYMENT_FAILED', { 
+
+    return await sendEmail(userEmail, "PAYMENT_FAILED", {
       order,
       user: { id: userId },
       payment: paymentDetails,
-      errorMessage: paymentDetails.error || 'Payment processing failed',
+      errorMessage: paymentDetails.error || "Payment processing failed",
       retryUrl: `${process.env.FRONTEND_URL}/orders/${order?.id}/retry-payment`,
-      supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.com',
-      supportPhone: process.env.SUPPORT_PHONE || '+1 (555) 123-4567'
+      supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
+      supportPhone: process.env.SUPPORT_PHONE || "+1 (555) 123-4567",
     });
   } catch (error) {
-    logger.error('Error in sendPaymentFailed:', error);
+    logger.error("Error in sendPaymentFailed:", error);
     throw error;
   }
 };
@@ -372,14 +451,16 @@ const sendOrderShipped = async (orderId, userId, trackingInfo) => {
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
-    
-    return await sendEmail(userEmail, 'ORDER_SHIPPED', { 
+
+    return await sendEmail(userEmail, "ORDER_SHIPPED", {
       order: { id: orderId, ...trackingInfo },
       user: { id: userId },
-      trackingUrl: trackingInfo?.trackingUrl || `${process.env.FRONTEND_URL}/orders/${orderId}/track`
+      trackingUrl:
+        trackingInfo?.trackingUrl ||
+        `${process.env.FRONTEND_URL}/orders/${orderId}/track`,
     });
   } catch (error) {
-    logger.error('Error sending order shipped email:', error);
+    logger.error("Error sending order shipped email:", error);
     throw error;
   }
 };
@@ -396,15 +477,15 @@ const sendOrderDelivered = async (orderId, userId) => {
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
-    
-    return await sendEmail(userEmail, 'ORDER_DELIVERED', { 
+
+    return await sendEmail(userEmail, "ORDER_DELIVERED", {
       order: { id: orderId },
       user: { id: userId },
       reviewUrl: `${process.env.FRONTEND_URL}/orders/${orderId}/review`,
-      supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.com'
+      supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
     });
   } catch (error) {
-    logger.error('Error sending order delivered email:', error);
+    logger.error("Error sending order delivered email:", error);
     throw error;
   }
 };
@@ -422,15 +503,15 @@ const sendOrderCancelled = async (order, userId, reason) => {
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
-    
-    return await sendEmail(userEmail, 'ORDER_CANCELLED', { 
+
+    return await sendEmail(userEmail, "ORDER_CANCELLED", {
       order,
       user: { id: userId },
-      reason: reason || 'Not specified',
-      supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.com'
+      reason: reason || "Not specified",
+      supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
     });
   } catch (error) {
-    logger.error('Error sending order cancellation email:', error);
+    logger.error("Error sending order cancellation email:", error);
     throw error;
   }
 };
@@ -441,53 +522,69 @@ const sendOrderCancelled = async (order, userId, reason) => {
  * @returns {Promise<Array>} - Array of sent email promises
  */
 const notifyVendors = async (orderId) => {
-  const { Order, Vendor } = require('../models');
-  
   try {
     // Find the order with its items and include vendor information
     const order = await Order.findByPk(orderId, {
       include: [
         {
-          association: 'items',
+          model: OrderItem,
+          as: "items",
+          required: false, // Ensure items are included even if empty
           include: [
             {
-              model: Vendor,
-              as: 'vendor',
+              model: Product,
+              as: "product", // Add this alias to match the association
               include: [
                 {
-                  model: User,
-                  attributes: ['email', 'first_name', 'last_name']
+                  model: Vendor,
+                  as: "vendor",
+                  required: false,
+                  include: [
+                    {
+                      model: User,
+                      as: "User", // Ensure this matches the association
+                      attributes: ["id", "email", "first_name", "last_name"],
+                      required: false,
+                    },
+                    {
+                      model: Store,
+                      as: "store", // Changed from 'Store' to 'store' to match association
+                      attributes: ["id", "business_name"],
+                      required: false,
+                    },
+                  ],
                 },
-                {
-                  model: Store,
-                  attributes: ['business_name']
-                }
               ],
-              attributes: ['id']
-            }
-          ]
-        }
-      ]
+            },
+          ],
+        },
+      ],
     });
 
     if (!order) {
-      throw new Error(`Order with ID ${orderId} not found`);
+      throw new Error(`Order ${orderId} not found`);
     }
+
+    // Ensure items is an array
+    const items = Array.isArray(order.items) ? order.items : [];
+    order.items = items;
 
     // Extract unique vendors from order items
     const vendorMap = new Map();
-    
-    order.items.forEach(item => {
-      if (item.vendor) {
-        const vendor = item.vendor;
+
+    order.items.forEach((item) => {
+      if (item.product?.vendor) {
+        const vendor = item.product.vendor;
         if (!vendorMap.has(vendor.id)) {
           const vendorData = {
             id: vendor.id,
-            email: vendor.User?.email,
-            name: vendor.User?.first_name ? 
-              `${vendor.User.first_name} ${vendor.User.last_name || ''}`.trim() : 
-              vendor.Store?.business_name || 'Vendor',
-            storeName: vendor.Store?.business_name
+            email: vendor.User?.email || vendor.email,
+            name: vendor.User?.first_name
+              ? `${vendor.User.first_name} ${
+                  vendor.User.last_name || ""
+                }`.trim()
+              : vendor.Store?.business_name || vendor.Store?.name || "Vendor",
+            storeName: vendor.Store?.business_name || vendor.Store?.name,
           };
           vendorMap.set(vendor.id, vendorData);
         }
@@ -495,37 +592,87 @@ const notifyVendors = async (orderId) => {
     });
 
     const vendors = Array.from(vendorMap.values());
-    
+
     if (vendors.length === 0) {
       logger.warn(`No vendors found for order ${orderId}`);
       return [];
     }
 
     // Send notifications to all vendors
-    const sendPromises = vendors.map(vendor => {
+    const sendPromises = vendors.map((vendor) => {
       if (!vendor.email) {
         logger.warn(`Vendor ${vendor.id} has no email address`);
         return Promise.resolve();
       }
-      
-      return sendEmail(vendor.email, 'VENDOR_ORDER', {
-        orderId,
+
+      // Get items for this vendor
+      const vendorItems = order.items
+        .filter((item) => item.product?.vendor?.id === vendor.id)
+        .map((item) => item.product.toJSON());
+      console.log("vendorItems", vendorItems);
+      // Prepare order data for the template
+      const orderData = {
+        id: order.id,
+        order_date: order.order_date,
+        total_amount: Number(order.total_amount).toFixed(2),
+        payment_status: order.payment_status,
+        order_status: order.order_status,
+        // Include any other order fields needed in the template
+      };
+      console.log("orderData", orderData);
+
+      return sendEmail(vendor.email, "VENDOR_ORDER", {
+        order: orderData, // Pass the order object that the template expects
+        orderId: order.id, // Keep for backward compatibility
         vendor,
-        orderUrl: `${process.env.VENDOR_PORTAL_URL}/orders/${orderId}`
+        items: vendorItems,
+        orderDate: new Date(order.order_date).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        orderUrl: `${process.env.VENDOR_PORTAL_URL}/orders/${orderId}`,
+        appUrl: process.env.APP_URL || "https://stylay.com",
+        supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
+        vendorDashboardUrl: process.env.VENDOR_PORTAL_URL || "https://vendor.stylay.com",
       });
     });
-    
+
     return Promise.all(sendPromises);
   } catch (error) {
-    logger.error('Error notifying vendors:', error);
+    logger.error("Error notifying vendors:", error);
     throw error;
   }
+};
+
+/**
+ * Send phone change notification email
+ * @param {string} to - Recipient email address
+ * @param {string} name - User's name
+ * @param {string} newPhone - New phone number
+ * @param {string} token - Verification token
+ * @returns {Promise} - Promise that resolves when email is sent
+ */
+const sendPhoneChangeNotificationEmail = async (to, name, newPhone, token) => {
+  const verificationUrl = `${
+    process.env.FRONTEND_URL || "https://stylay.com"
+  }/verify-phone-change/${token}`;
+
+  return sendEmail(to, "PHONE_CHANGE", {
+    name,
+    newPhone,
+    verificationUrl,
+    appName: process.env.APP_NAME || "Stylay",
+    frontendUrl: process.env.FRONTEND_URL || "https://stylay.com",
+    year: new Date().getFullYear(),
+  });
 };
 
 module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendPhoneChangeNotificationEmail,
   sendOrderConfirmation,
   sendPaymentReceived,
   sendPaymentFailed,

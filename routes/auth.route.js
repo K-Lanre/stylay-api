@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/auth.controller");
 const { validate } = require("../validators/auth.validator");
-const { protect, localAuth } = require("../middlewares/auth");
+const { protect, localAuth, restrictTo } = require("../middlewares/auth");
 const {
   registerValidation,
   loginValidation,
@@ -11,7 +11,9 @@ const {
   resendVerificationValidation,
   forgotPasswordValidation,
   resetPasswordValidation,
-  updateProfileValidation
+  updateProfileValidation,
+  requestPhoneChangeValidation,
+  cancelPhoneChangeValidation
 } = require("../validators/auth.validator");
 
 // Public routes
@@ -50,15 +52,21 @@ router.post(
   validate,
   authController.resetPassword
 );
-router.get("/logout", authController.logout);
+
+// Phone change verification (public route)
+router.get("/verify-phone-change/:token", authController.verifyPhoneChange);
 
 // Protected routes (require authentication)
 router.use(protect);
 
-// Get current user
+// User routes
 router.get("/me", authController.getMe);
-
-// Update password
+router.put(
+  '/me',
+  updateProfileValidation,
+  validate,
+  authController.updateProfile
+);
 router.patch(
   "/update-password",
   updatePasswordValidation,
@@ -66,29 +74,29 @@ router.patch(
   authController.updatePassword
 );
 
-// Protected routes (require authentication)
-router.use(protect);
-
-// Update user profile
-router.put(
-  '/me',
-  updateProfileValidation,
+// Phone change routes
+router.post(
+  "/request-phone-change",
+  requestPhoneChangeValidation,
   validate,
-  authController.updateProfile
+  authController.requestPhoneChange
+);
+router.post(
+  "/cancel-phone-change",
+  cancelPhoneChangeValidation,
+  validate,
+  authController.cancelPhoneChange
 );
 
-// Get current user
-router.get('/me', authController.getMe);
+// Admin routes (require admin role)
+router.use(restrictTo('admin'));
 
-// Update password
-router.put(
-  '/update-password',
-  updatePasswordValidation,
-  validate,
-  authController.updatePassword
-);
+// Phone change admin routes
+router.get("/pending-phone-changes", authController.getPendingPhoneChanges);
+router.patch("/approve-phone-change/:userId", authController.approvePhoneChange);
+router.patch("/reject-phone-change/:userId", authController.rejectPhoneChange);
 
-// Logout user
-router.get('/logout', authController.logout);
+// Logout (public but typically called by authenticated users)
+router.get("/logout", authController.logout);
 
 module.exports = router;

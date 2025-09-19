@@ -10,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       });
       Vendor.belongsTo(models.Store, {
         foreignKey: "store_id",
+        as: "store" // Add alias to match the query
       });
       Vendor.belongsTo(models.User, {
         foreignKey: "approved_by",
@@ -17,11 +18,12 @@ module.exports = (sequelize, DataTypes) => {
       });
       Vendor.hasMany(models.Product, {
         foreignKey: "vendor_id",
+        as: "products" // Add alias for consistency
       });
       Vendor.hasMany(models.Supply, {
         foreignKey: "vendor_id",
       });
-      Vendor.hasMany(models.Order, {
+      Vendor.hasMany(models.OrderItem, {
         foreignKey: "vendor_id",
       });
       Vendor.hasMany(models.Payout, {
@@ -29,6 +31,10 @@ module.exports = (sequelize, DataTypes) => {
       });
       Vendor.hasMany(models.VendorProductTag, {
         foreignKey: "vendor_id",
+      });
+      Vendor.hasMany(models.VendorFollower, {
+        foreignKey: "vendor_id",
+        as: "followers"
       });
     }
   }
@@ -73,8 +79,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.ENUM(
           "pending",
           "approved",
-          "rejected",
-          "registration_complete"
+          "rejected"
         ),
         allowNull: false,
         defaultValue: "pending",

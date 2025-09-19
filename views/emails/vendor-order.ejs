@@ -137,6 +137,8 @@
       <p>Order #<%= order.id %> requires your attention</p>
     </div>
 
+    <span>Order items: <%= items.length %></span>
+
     <div class="notification">
       <h2>New Order Notification</h2>
       <p>A new order has been placed that includes your products. Please review the order details and prepare the items for shipment.</p>
@@ -146,17 +148,17 @@
 
     <div class="order-summary">
       <h3>Order Items</h3>
-      <% order.items.forEach(item => { %>
+      <% items.forEach(item => { %>
         <div class="order-item">
           <div class="item-image">
-            <% if (item.product.image) { %>
-              <img src="<%= item.product.image %>" alt="<%= item.product.name %>" style="max-width: 100%; max-height: 100%;">
+            <% if (item.thumbnail) { %>
+              <img src="<%= item.thumbnail %>" alt="<%= item.name %>" style="max-width: 100%; max-height: 100%;">
             <% } else { %>
               <span>No Image</span>
             <% } %>
           </div>
           <div class="item-details">
-            <div class="item-name"><%= item.product.name %></div>
+            <div class="item-name"><%= item.name %></div>
             <% if (item.variant) { %>
               <div class="item-sku">
                 <% Object.entries(item.variant).forEach(([key, value]) => { %>
@@ -173,19 +175,19 @@
       <div class="order-totals">
         <div class="total-row">
           <span class="total-label">Subtotal:</span>
-          <span class="total-amount">$<%= (order.subtotal || 0).toFixed(2) %></span>
+          <span class="total-amount">$<%= (order.subtotal || 0) %></span>
         </div>
         <div class="total-row">
           <span class="total-label">Shipping:</span>
-          <span class="total-amount">$<%= (order.shipping_cost || 0).toFixed(2) %></span>
+          <span class="total-amount">$<%= (order.shipping_cost || 0) %></span>
         </div>
         <div class="total-row">
           <span class="total-label">Tax:</span>
-          <span class="total-amount">$<%= (order.tax_amount || 0).toFixed(2) %></span>
+          <span class="total-amount">$<%= (order.tax_amount || 0) %></span>
         </div>
         <div class="total-row grand-total">
           <span class="total-label">Total:</span>
-          <span class="total-amount">$<%= (order.total_amount || 0).toFixed(2) %></span>
+          <span class="total-amount">$<%= (order.total_amount || 0) %></span>
         </div>
       </div>
     </div>

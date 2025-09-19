@@ -291,7 +291,7 @@ const getCategoryProducts = async (req, res) => {
         attributes: ['id'],
         raw: true
       });
-      categoryIds = [...categoryIds, ...directChildren.map(c => c.id)];
+      categoryIds = [...categoryIds, ...directChildren.map(c => parseInt(c.id))]; // Ensure all IDs are integers
     }
 
     // Build where clause
@@ -329,9 +329,11 @@ const getCategoryProducts = async (req, res) => {
       order.push(['created_at', 'DESC']); // Default sort
     }
 
-    // Get the total count of products for pagination
+    // Get the total count of products for pagination using Sequelize's count method
     const totalCount = await Product.count({
-      where: whereClause
+      where: whereClause,
+      distinct: true,
+      col: 'id'
     });
 
     // Get the products with their related data (removed Review include to avoid duplicates; fetch stats separately)
@@ -340,11 +342,12 @@ const getCategoryProducts = async (req, res) => {
       include: [
         {
           model: Vendor,
+          as: 'vendor', // Use the same alias as defined in the Product model
           attributes: ['id', 'user_id'],
           include: [
             {
               model: Store,
-              as: 'Store',
+              as: 'store', // Use the same alias as defined in the Vendor model
               attributes: ['id', 'business_name', 'logo']
             }
           ]
@@ -355,6 +358,7 @@ const getCategoryProducts = async (req, res) => {
         },
         {
           model: ProductImage,
+          as: 'images', // Added the required alias to match the association
           attributes: ['id', 'image_url', 'is_featured'],
           where: { is_featured: true }, // Only include featured image to avoid duplicates
           required: false
@@ -362,13 +366,13 @@ const getCategoryProducts = async (req, res) => {
       ],
       attributes: [
         'id', 'name', 'slug', 'description', 'price', 'discounted_price',
-        'status', 'created_at', 'category_id'
+        'status', 'created_at', 'category_id', 'thumbnail'
       ],
       order,
       limit: limitNum,
       offset,
       subQuery: false,
-      group: ['Product.id', 'Vendor.id', 'Vendor->Store.id', 'Category.id', 'ProductImages.id']
+      group: ['Product.id', 'Vendor.id', 'Vendor.store.id', 'Category.id', 'images.id']
     });
 
     // Get review stats for all products in one query
