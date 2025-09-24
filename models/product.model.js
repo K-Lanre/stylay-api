@@ -108,21 +108,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: 0
     },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW
-    }
   }, {
     sequelize,
     modelName: 'Product',
     tableName: 'products',
-    timestamps: false,
+    timestamps: true,
     underscored: true
   });
 

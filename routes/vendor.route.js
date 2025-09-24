@@ -8,7 +8,6 @@ const {
   validate,
 } = require("../validators/vendor.validator");
 const { protect, restrictTo, isAdmin } = require("../middlewares/auth");
-const uploadFiles = require("../middlewares/fileUpload");
 const {
   setVendorId,
   handleOnboardingUploads,
@@ -26,7 +25,6 @@ router.post(
   vendorController.registerVendor
 );
 
-// Public routes
 router.get("/", vendorController.getAllVendors);
 router.get("/:id", vendorController.getVendor);
 
@@ -58,7 +56,7 @@ router.get(
   "/:id/products",
   getVendorProductsValidation,
   validate,
-  productController.getVendorProducts
+  vendorController.getVendorProducts
 );
 
 

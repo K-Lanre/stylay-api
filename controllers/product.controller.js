@@ -26,13 +26,29 @@ const createProduct = async (req, res, next) => {
       sku,
       variants = [],
       images = [],
+      vendor_id: vendorId // Optional vendor_id for admin
     } = req.body;
 
-    // Check if vendor exists and is approved
-    const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-    if (!vendor) {
-      return next(new AppError("Vendor account not found", 404));
+    let vendor;
+    
+    // If vendor_id is provided in request (admin case)
+    if (vendorId) {
+      // Check if user is admin
+      if (req.user.role !== 'admin') {
+        return next(new AppError("Only admins can create products for other vendors", 403));
+      }
+      
+      vendor = await Vendor.findByPk(vendorId);
+    } else {
+      // Regular vendor creating their own product
+      vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
+      
+      if (!vendor) {
+        return next(new AppError("Vendor account not found", 404));
+      }
     }
+
+    // Check if vendor is approved
     if (vendor.status !== "approved") {
       return next(
         new AppError("Only approved vendors can create products", 403)
@@ -100,7 +116,7 @@ const createProduct = async (req, res, next) => {
     const createdProduct = await Product.findByPk(product.id, {
       include: [
         { model: ProductVariant },
-        { model: ProductImage, as: 'productImages' },
+        { model: ProductImage, as: "images" },
         { model: Category, attributes: ["id", "name", "slug"] },
         {
           model: Vendor,
@@ -133,7 +149,7 @@ const createProduct = async (req, res, next) => {
  */
 const getProducts = async (req, res, next) => {
   try {
-    const { page = 1, limit =12, category, vendor, search } = req.query;
+    const { page = 1, limit = 12, category, vendor, search } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {};
@@ -151,9 +167,9 @@ const getProducts = async (req, res, next) => {
           where: {
             [Op.or]: [
               { name: { [Op.like]: `%${category}%` } },
-              { slug: category }
-            ]
-          }
+              { slug: category },
+            ],
+          },
         });
 
         if (categoryRecord) {
@@ -190,7 +206,7 @@ const getProducts = async (req, res, next) => {
           attributes: ["id"],
           as: "vendor",
         },
-        { model: ProductImage, limit: 1, as: 'images' }, // Only get first image for listing
+        { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
       ],
       order: [["created_at", "DESC"]],
     });
@@ -251,9 +267,9 @@ const getProductByIdentifier = async (req, res, next) => {
     }
 
     // Increment impression count for analytics
-    await Product.increment('impressions', {
+    await Product.increment("impressions", {
       by: 1,
-      where: { id: product.id }
+      where: { id: product.id },
     });
 
     // Track unique viewers (simplified - in production, use sessions/cookies)
@@ -274,8 +290,6 @@ const getProductByIdentifier = async (req, res, next) => {
   }
 };
 
-
-
 /**
  * @desc    Update product
  * @route   PUT /api/v1/products/:id
@@ -289,8 +303,9 @@ const updateProduct = async (req, res, next) => {
       return next(new AppError("Product not found", 404));
     }
     // For admins, skip ownership check but still verify the product exists
-    const isAdmin = req.user.roles && req.user.roles.some(role => role.name === 'admin');
-    
+    const isAdmin =
+      req.user.roles && req.user.roles.some((role) => role.name === "admin");
+
     if (isAdmin) {
       // Just verify the vendor exists and is approved
       const vendor = await Vendor.findByPk(product.vendor_id, {
@@ -331,8 +346,7 @@ const updateProduct = async (req, res, next) => {
 
     // Prepare update data
     const updateData = {};
-    const { name, description, price, category_id, sku, status } =
-      req.body;
+    const { name, description, price, category_id, sku, status } = req.body;
 
     // Handle category update
     if (category_id) {
@@ -391,14 +405,16 @@ const updateProduct = async (req, res, next) => {
           model: Vendor,
           attributes: ["id"],
           as: "vendor",
-          include: [{
-            model: Store,
-            as: 'store',
-            attributes: ["id", "business_name"]
-          }]
+          include: [
+            {
+              model: Store,
+              as: "store",
+              attributes: ["id", "business_name"],
+            },
+          ],
         },
         { model: ProductVariant },
-        { model: ProductImage, as: 'productImages' },
+        { model: ProductImage, as: "images" },
       ],
     });
 
@@ -442,12 +458,12 @@ const deleteProduct = async (req, res, next) => {
 
 /**
  * @desc    Get products by vendor
- * @route   GET /api/v1/vendors/:id/products
+ * @route   GET /api/v1/products/vendors/:id
  * @access  Public
  */
-const getVendorProducts = async (req, res, next) => {
+const getProductsByVendor = async (req, res, next) => {
   try {
-    const { page = 1, limit =12 } = req.query;
+    const { page = 1, limit = 12 } = req.query;
     const offset = (page - 1) * limit;
 
     const vendor = await Vendor.findByPk(req.params.id);
@@ -462,7 +478,7 @@ const getVendorProducts = async (req, res, next) => {
       offset: parseInt(offset),
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { model: ProductImage, limit: 1 , as: "images"}, // Only get first image for listing
+        { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
       ],
       order: [["created_at", "DESC"]],
     });
@@ -485,7 +501,7 @@ const getVendorProducts = async (req, res, next) => {
  */
 const getAllProducts = async (req, res, next) => {
   try {
-    const { page = 1, limit =12, search, category, vendor } = req.query;
+    const { page = 1, limit = 12, search, category, vendor } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {};
@@ -508,7 +524,11 @@ const getAllProducts = async (req, res, next) => {
       offset: parseInt(offset),
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { model: Vendor, attributes: ["id", "business_name", "status"], as: "vendor" },
+        {
+          model: Vendor,
+          attributes: ["id", "business_name", "status"],
+          as: "vendor",
+        },
         { model: ProductImage, limit: 1, as: "images" },
         { model: ProductVariant },
       ],
@@ -528,7 +548,7 @@ const getAllProducts = async (req, res, next) => {
 
 /**
  * @desc    Update any product (Admin)
- * @route   PUT /api/v1/products/admin/:id
+ * @route   PUT /api/v1/products/:id/admin
  * @access  Private/Admin
  */
 const adminUpdateProduct = async (req, res, next) => {
@@ -536,7 +556,16 @@ const adminUpdateProduct = async (req, res, next) => {
     const product = await Product.findByPk(req.params.id, {
       include: [
         { model: Category, attributes: ["id", "name"] },
-        { model: Vendor, attributes: ["id", "business_name"], as: "vendor" },
+        {
+          model: Vendor,
+          attributes: ["id", "user_id"],
+          as: "vendor",
+          include: {
+            model: Store,
+            as: "store",
+            attributes: ["id", "business_name"],
+          },
+        },
         { model: ProductVariant },
         { model: ProductImage, as: "images" },
       ],
@@ -547,8 +576,7 @@ const adminUpdateProduct = async (req, res, next) => {
     }
 
     // Update product fields
-    const { name, description, price, category_id, sku, status } =
-      req.body;
+    const { name, description, price, category_id, sku, status } = req.body;
 
     if (category_id) {
       const category = await Category.findByPk(category_id);
@@ -591,11 +619,13 @@ const adminUpdateProduct = async (req, res, next) => {
           model: Vendor,
           attributes: ["id"],
           as: "vendor",
-          include: [{
-            model: Store,
-            as: 'store',
-            attributes: ["id", "business_name"]
-          }]
+          include: [
+            {
+              model: Store,
+              as: "store",
+              attributes: ["id", "business_name"],
+            },
+          ],
         },
         { model: ProductVariant },
         { model: ProductImage, as: "images" },
@@ -613,7 +643,7 @@ const adminUpdateProduct = async (req, res, next) => {
 
 /**
  * @desc    Delete any product (Admin)
- * @route   DELETE /api/v1/products/admin/:id
+ * @route   DELETE /api/v1/products/:id/admin
  * @access  Private/Admin
  */
 const adminDeleteProduct = async (req, res, next) => {
@@ -637,7 +667,7 @@ const adminDeleteProduct = async (req, res, next) => {
 
 /**
  * @desc    Update product status (Admin)
- * @route   PATCH /api/v1/products/admin/:id/status
+ * @route   PATCH /api/v1/products/:id/admin/status
  * @access  Private/Admin
  */
 const updateProductStatus = async (req, res, next) => {
@@ -680,7 +710,7 @@ const updateProductStatus = async (req, res, next) => {
 const getProductsByStatus = async (req, res, next) => {
   try {
     const { status } = req.params;
-    const { page = 1, limit =12 } = req.query;
+    const { page = 1, limit = 12 } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {};
@@ -696,8 +726,12 @@ const getProductsByStatus = async (req, res, next) => {
       offset: parseInt(offset),
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
-        { model: Vendor, attributes: ["id", "business_name", "status"], as: "vendor" },
-        { model: ProductImage, limit: 1 , as: "images"},
+        {
+          model: Vendor,
+          attributes: ["id", "business_name", "status"],
+          as: "vendor",
+        },
+        { model: ProductImage, limit: 1, as: "images" },
       ],
       order: [["created_at", "DESC"]],
     });
@@ -721,7 +755,10 @@ const getProductsByStatus = async (req, res, next) => {
 const getProductAnalytics = async (req, res, next) => {
   try {
     const productId = req.params.id;
-    const isAdmin = req.user.roles && req.user.roles.some(role => role.name === 'admin');
+    const isAdmin =
+      req.user.roles && req.user.roles.some((role) => role.name === "admin");
+    const isVendor =
+      req.user.roles && req.user.roles.some((role) => role.name === "vendor");
 
     // Find the product
     const product = await Product.findByPk(productId, {
@@ -736,12 +773,15 @@ const getProductAnalytics = async (req, res, next) => {
     }
 
     // Check if user owns this product or is admin
-    if (!isAdmin && product.vendor.user_id !== req.user.id) {
-      return next(new AppError("Not authorized to view this product's analytics", 403));
+    if (!isAdmin && !isVendor && product.vendor.user_id !== req.user.id) {
+      return next(
+        new AppError("Not authorized to view this product's analytics", 403)
+      );
     }
 
     // Get order statistics for this product
-    const orderStats = await sequelize.query(`
+    const orderStats = await sequelize.query(
+      `
       SELECT
         COUNT(DISTINCT oi.order_id) as total_orders,
         SUM(oi.quantity) as total_units_sold,
@@ -754,13 +794,16 @@ const getProductAnalytics = async (req, res, next) => {
       WHERE oi.product_id = :productId
       AND o.payment_status = 'paid'
       AND o.order_status IN ('processing', 'shipped', 'delivered')
-    `, {
-      replacements: { productId },
-      type: sequelize.QueryTypes.SELECT,
-    });
+    `,
+      {
+        replacements: { productId },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
 
     // Get monthly sales data for the last 12 months
-    const monthlySales = await sequelize.query(`
+    const monthlySales = await sequelize.query(
+      `
       SELECT
         DATE_FORMAT(o.order_date, '%Y-%m') as month,
         COUNT(DISTINCT oi.order_id) as orders_count,
@@ -774,21 +817,25 @@ const getProductAnalytics = async (req, res, next) => {
       AND o.order_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
       GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
       ORDER BY month DESC
-    `, {
-      replacements: { productId },
-      type: sequelize.QueryTypes.SELECT,
-    });
+    `,
+      {
+        replacements: { productId },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
 
     // Calculate conversion rate (orders per impression)
     const stats = orderStats[0] || {};
-    const conversionRate = stats.total_orders && product.impressions
-      ? (stats.total_orders / product.impressions) * 100
-      : 0;
+    const conversionRate =
+      stats.total_orders && product.impressions
+        ? (stats.total_orders / product.impressions) * 100
+        : 0;
 
     // Calculate average order value for this product
-    const avgOrderValue = stats.total_revenue && stats.total_orders
-      ? stats.total_revenue / stats.total_orders
-      : 0;
+    const avgOrderValue =
+      stats.total_revenue && stats.total_orders
+        ? stats.total_revenue / stats.total_orders
+        : 0;
 
     res.status(200).json({
       success: true,
@@ -820,7 +867,7 @@ const getProductAnalytics = async (req, res, next) => {
 
 /**
  * @desc    Get vendor's products analytics summary
- * @route   GET /api/v1/products/vendor/analytics
+ * @route   GET /api/v1/products/analytics/vendor/
  * @access  Private (Vendor)
  */
 const getVendorAnalytics = async (req, res, next) => {
@@ -831,7 +878,8 @@ const getVendorAnalytics = async (req, res, next) => {
     }
 
     // Get overall vendor analytics
-    const vendorStats = await sequelize.query(`
+    const vendorStats = await sequelize.query(
+      `
       SELECT
         COUNT(DISTINCT p.id) as total_products,
         SUM(p.impressions) as total_impressions,
@@ -841,13 +889,16 @@ const getVendorAnalytics = async (req, res, next) => {
         AVG(p.sold_units) as avg_sales_per_product
       FROM products p
       WHERE p.vendor_id = :vendorId
-    `, {
-      replacements: { vendorId: vendor.id },
-      type: sequelize.QueryTypes.SELECT,
-    });
+    `,
+      {
+        replacements: { vendorId: vendor.id },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
 
     // Get top performing products
-    const topProducts = await sequelize.query(`
+    const topProducts = await sequelize.query(
+      `
       SELECT
         p.id,
         p.name,
@@ -862,10 +913,12 @@ const getVendorAnalytics = async (req, res, next) => {
       GROUP BY p.id, p.name, p.impressions, p.sold_units
       ORDER BY total_revenue DESC
       LIMIT 10
-    `, {
-      replacements: { vendorId: vendor.id },
-      type: sequelize.QueryTypes.SELECT,
-    });
+    `,
+      {
+        replacements: { vendorId: vendor.id },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
 
     const stats = vendorStats[0] || {};
 
@@ -877,10 +930,11 @@ const getVendorAnalytics = async (req, res, next) => {
           active_products: parseInt(stats.active_products) || 0,
           total_impressions: parseInt(stats.total_impressions) || 0,
           total_sold_units: parseInt(stats.total_sold_units) || 0,
-          avg_impressions_per_product: parseFloat(stats.avg_impressions_per_product) || 0,
+          avg_impressions_per_product:
+            parseFloat(stats.avg_impressions_per_product) || 0,
           avg_sales_per_product: parseFloat(stats.avg_sales_per_product) || 0,
         },
-        top_products: topProducts.map(product => ({
+        top_products: topProducts.map((product) => ({
           id: product.id,
           name: product.name,
           impressions: parseInt(product.impressions) || 0,
@@ -897,11 +951,11 @@ const getVendorAnalytics = async (req, res, next) => {
 
 module.exports = {
   createProduct,
-  getProducts,
-  getProductByIdentifier,
   updateProduct,
   deleteProduct,
-  getVendorProducts,
+  getProducts,
+  getProductByIdentifier,
+  getProductsByVendor,
   getProductAnalytics,
   getVendorAnalytics,
   // Admin methods

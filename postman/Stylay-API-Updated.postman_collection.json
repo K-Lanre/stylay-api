@@ -833,6 +833,35 @@
                     }
                 },
                 {
+                    "name": "Get Vendor Products",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/vendor/products?page=1&limit=10",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "vendor",
+                                "products"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Get All Vendors",
                     "request": {
                         "method": "GET",
@@ -1601,12 +1630,12 @@
                     }
                 },
                 {
-                    "name": "Get Product by ID",
+                    "name": "Get Product by ID (Public)",
                     "request": {
                         "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/products/1",
+                            "raw": "{{base_url}}/api/v1/products/:id",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -1614,27 +1643,34 @@
                                 "api",
                                 "v1",
                                 "products",
-                                "1"
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "1",
+                                    "description": "Product ID"
+                                }
                             ]
                         }
                     }
                 },
                 {
-                    "name": "Get Vendor Products",
+                    "name": "Get Products By Vendor (Public)",
                     "request": {
                         "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/vendors/1/products?page=1&limit=10",
+                            "raw": "{{base_url}}/api/v1/products/vendor/:id?page=1&limit=10",
                             "host": [
                                 "{{base_url}}"
                             ],
                             "path": [
                                 "api",
                                 "v1",
-                                "vendors",
-                                "1",
-                                "products"
+                                "products",
+                                "vendor",
+                                ":id"
                             ],
                             "query": [
                                 {
@@ -1645,7 +1681,15 @@
                                     "key": "limit",
                                     "value": "10"
                                 }
-                            ]
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "1",
+                                    "description": "Vendor ID"
+                                }
+                            ],
+                            "description": "Get all products created by a specific vendor."
                         }
                     }
                 },
@@ -1741,14 +1785,101 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "Get Product Analytics",
+                            "description": "Product impression and viewer metrics endpoints",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/products/1/analytics",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "products",
+                                        "1",
+                                        "analytics"
+                                    ]
+                                },
+                                "description": "Get detailed analytics for a specific product including impressions, viewers, sales data, conversion rate, and monthly trends. (Vendor/Admin only)"
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Analytics",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/products/analytics/vendor",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "products",
+                                        "analytics",
+                                        "vendor"
+                                    ]
+                                },
+                                "description": "Get comprehensive analytics summary for all vendor products including total impressions, viewers, sales, and top performing products. (Vendor only)"
+                            }
                         }
                     ]
                 },
                 {
-                    "name": "Admin Routes",
+                    "name": "Admin Routes (Auth Required)",
                     "item": [
                         {
-                            "name": "Get All Products (Admin)",
+                            "name": "Create Product",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Premium T-Shirt\",\n    \"description\": \"High quality cotton t-shirt\",\n    \"price\": 29.99,\n    \"category_id\": 1,\n    \"sku\": \"TSHIRT-001\",\n    \"stock\": 100,\n    \"vendor_id\": 1,\n    \"variants\": [\n        {\n            \"name\": \"Size\",\n            \"value\": \"M\",\n            \"additional_price\": 0,\n            \"stock\": 50\n        }\n    ],\n    \"images\": [\n        {\n            \"url\": \"https://example.com/tshirt.jpg\",\n            \"is_featured\": true\n        }\n    ]\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/products",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "products"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Get All Products",
                             "request": {
                                 "method": "GET",
                                 "header": [
@@ -1759,7 +1890,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/admin/all?page=1&limit=10",
+                                    "raw": "{{base_url}}/api/v1/products/all/admin?page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -1767,8 +1898,8 @@
                                         "api",
                                         "v1",
                                         "products",
-                                        "admin",
-                                        "all"
+                                        "all",
+                                        "admin"
                                     ],
                                     "query": [
                                         {
@@ -1784,7 +1915,7 @@
                             }
                         },
                         {
-                            "name": "Update Any Product (Admin)",
+                            "name": "Update Any Product",
                             "request": {
                                 "method": "PUT",
                                 "header": [
@@ -1803,7 +1934,7 @@
                                     "raw": "{\n    \"name\": \"Admin Updated Product\",\n    \"status\": \"active\",\n    \"price\": 39.99\n}"
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/admin/1",
+                                    "raw": "{{base_url}}/api/v1/products/:id/admin",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -1811,14 +1942,21 @@
                                         "api",
                                         "v1",
                                         "products",
-                                        "admin",
-                                        "1"
+                                        ":id",
+                                        "admin"
+                                    ],
+                                    "variable": [
+                                        {
+                                            "key": "id",
+                                            "value": "1",
+                                            "description": "Product ID"
+                                        }
                                     ]
                                 }
                             }
                         },
                         {
-                            "name": "Delete Any Product (Admin)",
+                            "name": "Delete Any Product",
                             "request": {
                                 "method": "DELETE",
                                 "header": [
@@ -1829,7 +1967,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/admin/1",
+                                    "raw": "{{base_url}}/api/v1/products/:id/admin",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -1837,14 +1975,21 @@
                                         "api",
                                         "v1",
                                         "products",
-                                        "admin",
-                                        "1"
+                                        ":id",
+                                        "admin"
+                                    ],
+                                    "variable": [
+                                        {
+                                            "key": "id",
+                                            "value": "1",
+                                            "description": "Product ID"
+                                        }
                                     ]
                                 }
                             }
                         },
                         {
-                            "name": "Update Product Status (Admin)",
+                            "name": "Update Product Status",
                             "request": {
                                 "method": "PATCH",
                                 "header": [
@@ -1863,7 +2008,7 @@
                                     "raw": "{\n    \"status\": \"banned\"\n}"
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/admin/1/status",
+                                    "raw": "{{base_url}}/api/v1/products/:id/admin/status",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -1871,9 +2016,16 @@
                                         "api",
                                         "v1",
                                         "products",
+                                        ":id",
                                         "admin",
-                                        "1",
                                         "status"
+                                    ],
+                                    "variable": [
+                                        {
+                                            "key": "id",
+                                            "value": "1",
+                                            "description": "Product ID"
+                                        }
                                     ]
                                 }
                             }
@@ -1914,69 +2066,9 @@
                                     ]
                                 }
                             }
-                        }
-                    ]
-                },
-                {
-                    "name": "Product Analytics",
-                    "description": "Product impression and viewer metrics endpoints",
-                    "item": [
+                        },
                         {
                             "name": "Get Product Analytics",
-                            "request": {
-                                "method": "GET",
-                                "header": [
-                                    {
-                                        "key": "Authorization",
-                                        "value": "Bearer {{vendor_token}}",
-                                        "type": "text"
-                                    }
-                                ],
-                                "url": {
-                                    "raw": "{{base_url}}/api/v1/products/1/analytics",
-                                    "host": [
-                                        "{{base_url}}"
-                                    ],
-                                    "path": [
-                                        "api",
-                                        "v1",
-                                        "products",
-                                        "1",
-                                        "analytics"
-                                    ]
-                                },
-                                "description": "Get detailed analytics for a specific product including impressions, viewers, sales data, conversion rate, and monthly trends. (Vendor/Admin only)"
-                            }
-                        },
-                        {
-                            "name": "Get Vendor Analytics Summary",
-                            "request": {
-                                "method": "GET",
-                                "header": [
-                                    {
-                                        "key": "Authorization",
-                                        "value": "Bearer {{vendor_token}}",
-                                        "type": "text"
-                                    }
-                                ],
-                                "url": {
-                                    "raw": "{{base_url}}/api/v1/products/vendor/analytics",
-                                    "host": [
-                                        "{{base_url}}"
-                                    ],
-                                    "path": [
-                                        "api",
-                                        "v1",
-                                        "products",
-                                        "vendor",
-                                        "analytics"
-                                    ]
-                                },
-                                "description": "Get comprehensive analytics summary for all vendor products including total impressions, viewers, sales, and top performing products. (Vendor only)"
-                            }
-                        },
-                        {
-                            "name": "Get Product Analytics (Admin)",
                             "request": {
                                 "method": "GET",
                                 "header": [
@@ -1987,7 +2079,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/1/analytics",
+                                    "raw": "{{base_url}}/api/v1/products/:id/analytics",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -1995,8 +2087,14 @@
                                         "api",
                                         "v1",
                                         "products",
-                                        "1",
+                                        ":id",
                                         "analytics"
+                                    ],
+                                    "variable": [
+                                        {
+                                            "key": "id",
+                                            "value": "1"
+                                        }
                                     ]
                                 },
                                 "description": "Get detailed analytics for any product including impressions, sales data, conversion rate, and monthly trends. (Admin only - can view any product's analytics)"
@@ -3563,7 +3661,7 @@
                             }
                         },
                         {
-                            "name": "Get Vendor Products",
+                            "name": "Get Products By Vendor",
                             "request": {
                                 "method": "GET",
                                 "header": [
@@ -3757,7 +3855,8 @@
                     ]
                 }
             ]
-        }, {
+        },
+        {
             "name": "Wishlist Endpoints",
             "item": [
                 {
@@ -3806,7 +3905,8 @@
                                 "v1",
                                 "wishlists",
                                 ":wishlist_id"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -3862,7 +3962,8 @@
                                 "v1",
                                 "wishlists",
                                 ":wishlist_id"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -3893,7 +3994,8 @@
                                 "v1",
                                 "wishlists",
                                 ":wishlist_id"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -3925,7 +4027,8 @@
                                 "wishlists",
                                 ":wishlist_id",
                                 "items"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -3958,7 +4061,8 @@
                                 ":wishlist_id",
                                 "items",
                                 ":item_id"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -3995,7 +4099,8 @@
                                 ":wishlist_id",
                                 "items",
                                 ":item_id"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -4031,7 +4136,8 @@
                                 "wishlists",
                                 ":wishlist_id",
                                 "items"
-                            ], "variable": [
+                            ],
+                            "variable": [
                                 {
                                     "key": "wishlist_id",
                                     "value": ""
@@ -4041,7 +4147,6 @@
                         "description": "Get all items in a specific wishlist"
                     }
                 }
-
             ]
         }
     ],
@@ -4070,15 +4175,5 @@
             "type": "string",
             "description": "JWT token for vendor user"
         }
-    ],
-    "auth": {
-        "type": "bearer",
-        "bearer": [
-            {
-                "key": "token",
-                "value": "{{auth_token}}",
-                "type": "string"
-            }
-        ]
-    }
+    ]
 }

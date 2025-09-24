@@ -3,7 +3,6 @@ const {
   Role,
   Vendor,
   Store,
-  UserRole,
   VendorFollower,
 } = require("../models");
 const bcrypt = require("bcryptjs");
@@ -28,6 +27,8 @@ const hashVerificationCode = (code) => {
 
 /**
  * Register a new vendor
+ * @access Public
+ * /api/v1/vendors/register
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -249,6 +250,8 @@ const registerVendor = async (req, res) => {
 
 /**
  * Get vendor profile
+ * @access Private/Vendor
+ * /api/v1/vendors/profile
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -259,7 +262,7 @@ const getVendorProfile = async (req, res) => {
       include: [
         {
           model: Store,
-          as: "Store",
+          as: "store",
           attributes: { exclude: ["created_at", "updated_at"] },
         },
         {
@@ -301,6 +304,8 @@ const getVendorProfile = async (req, res) => {
 
 /**
  * Complete vendor onboarding
+ * @access Private/Vendor
+ * /api/v1/vendors/complete-onboarding
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -462,7 +467,51 @@ const completeOnboarding = async (req, res, next) => {
 };
 
 /**
+ * Get vendor products
+ * @access Private/Vendor
+ * /api/v1/vendors/products
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getVendorProducts = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 12 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const vendor = await Vendor.findByPk(req.params.id);
+
+    if (!vendor) {
+      return next(new AppError("Vendor not found", 404));
+    }
+
+    const { count, rows: products } = await Product.findAndCountAll({
+      where: { vendor_id: req.params.id },
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      include: [
+        { model: Category, attributes: ["id", "name", "slug"] },
+        { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
+      ],
+      order: [["created_at", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      total: count,
+      data: products,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Get all vendors (Public or Admin)
+ * @access Public/Admin
+ * /api/v1/vendors
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
 const getAllVendors = async (req, res, next) => {
   try {
@@ -513,6 +562,10 @@ const getAllVendors = async (req, res, next) => {
 
 /**
  * Get vendor by ID public
+ * @access Public
+ * /api/v1/vendors/:id
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
 const getVendor = async (req, res, next) => {
   try {
@@ -555,6 +608,10 @@ const getVendor = async (req, res, next) => {
 
 /**
  * Approve vendor (Admin only)
+ * @access Admin
+ * /api/v1/vendors/:id/approve
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
 const approveVendor = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
@@ -635,6 +692,10 @@ const approveVendor = async (req, res, next) => {
 
 /**
  * Reject vendor (Admin only)
+ * @access Admin
+ * /api/v1/vendors/:id/reject
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
 const rejectVendor = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
@@ -720,6 +781,8 @@ const rejectVendor = async (req, res, next) => {
 
 /**
  * Follow a vendor
+ * @access Private/User
+ * /api/v1/vendors/:vendorId/follow
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -769,6 +832,8 @@ const followVendor = async (req, res, next) => {
 
 /**
  * Unfollow a vendor
+ * @access Private/User
+ * /api/v1/vendors/:vendorId/unfollow
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -804,6 +869,8 @@ const unfollowVendor = async (req, res, next) => {
 
 /**
  * Get followers of a vendor
+ * @access Private/Vendor
+ * /api/v1/vendors/:vendorId/followers
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -853,6 +920,8 @@ const getVendorFollowers = async (req, res, next) => {
 
 /**
  * Get vendors followed by a user
+ * @access Private/User
+ * /api/v1/vendors/user/:userId/following
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -901,6 +970,8 @@ const getUserFollowing = async (req, res, next) => {
 
 /**
  * Check if user is following a vendor
+ * @access Private/User
+ * /api/v1/vendors/:vendorId/follow-status
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -930,6 +1001,8 @@ const checkFollowStatus = async (req, res, next) => {
 
 /**
  * Get followers of the authenticated vendor (Vendor only)
+ * @access Private/Vendor
+ * /api/v1/vendors/profile/followers
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -998,6 +1071,7 @@ module.exports = {
   registerVendor,
   getVendorProfile,
   completeOnboarding,
+  getVendorProducts,
   getAllVendors,
   getVendor,
   approveVendor,

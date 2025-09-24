@@ -19,6 +19,7 @@ router.get('/:identifier', getProductByIdentifierValidation, validate, productCo
 
 // General route for listing products with query parameters
 router.get('/', getProductsValidation, validate, productController.getProducts);
+router.get('/vendor/:id', getVendorProductsValidation, validate, productController.getProductsByVendor);
 
 // Protected routes (require authentication)
 router.use(protect);
@@ -35,10 +36,10 @@ router.get('/:id/analytics', [
 
 /**
  * @desc    Get vendor analytics summary
- * @route   GET /api/v1/products/vendor/analytics
+ * @route   GET /api/v1/products/analytics/vendor
  * @access  Private (Vendor)
  */
-router.get('/vendor/analytics', isVendor, productController.getVendorAnalytics);
+router.get('/analytics/vendor', isVendor, productController.getVendorAnalytics);
 
 // Vendor-only routes
 router.post('/', isVendor, createProductValidation, validate, productController.createProduct);
@@ -50,32 +51,32 @@ router.use(isAdmin);
 
 /**
  * @desc    Get all products (Admin)
- * @route   GET /api/v1/products/admin/all
+ * @route   GET /api/v1/products/all/admin
  * @access  Private/Admin
  */
-router.get('/admin/all', getProductsValidation, validate, productController.getAllProducts);
+router.get('/all/admin', getProductsValidation, validate, productController.getAllProducts);
 
 /**
  * @desc    Update any product (Admin)
- * @route   PUT /api/v1/products/admin/:id
+ * @route   PUT /api/v1/products/:id/admin
  * @access  Private/Admin
  */
-router.put('/admin/:id', updateProductValidation, validate, productController.adminUpdateProduct);
+router.put('/:id/admin', updateProductValidation, validate, productController.adminUpdateProduct);
 
 /**
  * @desc    Delete any product (Admin)
- * @route   DELETE /api/v1/products/admin/:id
+ * @route   DELETE /api/v1/products/:id/admin
  * @access  Private/Admin
  */
-router.delete('/admin/:id', deleteProductValidation, validate, productController.adminDeleteProduct);
+router.delete('/:id/admin', deleteProductValidation, validate, productController.adminDeleteProduct);
 
 /**
  * @desc    Update product status (Admin)
- * @route   PATCH /api/v1/products/admin/:id/status
+ * @route   PATCH /api/v1/products/:id/admin/status
  * @access  Private/Admin
  */
 router.patch(
-  '/admin/:id/status',
+  '/:id/admin/status',
   [
     param('id').isInt({ min: 1 }).withMessage('Invalid product ID'),
     body('status')
@@ -89,11 +90,11 @@ router.patch(
 
 /**
  * @desc    Get products by status (Admin)
- * @route   GET /api/v1/products/admin/status/:status
+ * @route   GET /api/v1/products/:id/admin/status/:status
  * @access  Private/Admin
  */
 router.get(
-  '/admin/status/:status',
+  '/:id/admin/status/:status',
   [
     param('status')
       .isIn(['active', 'inactive', 'banned', 'out_of_stock', 'draft', 'all'])
