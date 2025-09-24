@@ -1,4 +1,11 @@
-const { User, Role, Vendor, Store, UserRole, VendorFollower } = require("../models");
+const {
+  User,
+  Role,
+  Vendor,
+  Store,
+  UserRole,
+  VendorFollower,
+} = require("../models");
 const bcrypt = require("bcryptjs");
 const logger = require("../utils/logger");
 const { Op } = require("sequelize");
@@ -15,10 +22,9 @@ const generateVerificationCode = () => {
 };
 
 // Hash the verification code
-const hashVerificationCode =  (code) => {
+const hashVerificationCode = (code) => {
   return bcrypt.hashSync(code, 10);
 };
-
 
 /**
  * Register a new vendor
@@ -66,7 +72,8 @@ const registerVendor = async (req, res) => {
         await transaction.rollback();
         return res.status(400).json({
           status: "error",
-          message: "Invalid CAC number format. Expected format: RC/1234567 or BN/1234567"
+          message:
+            "Invalid CAC number format. Expected format: RC/1234567 or BN/1234567",
         });
       }
 
@@ -74,17 +81,17 @@ const registerVendor = async (req, res) => {
       const existingStore = await Store.findOne({
         where: {
           cac_number: {
-            [Op.like]: cac_number
-          }
+            [Op.like]: cac_number,
+          },
         },
-        transaction
+        transaction,
       });
 
       if (existingStore) {
         await transaction.rollback();
         return res.status(400).json({
           status: "error",
-          message: "This CAC number is already registered"
+          message: "This CAC number is already registered",
         });
       }
     }
@@ -106,12 +113,15 @@ const registerVendor = async (req, res) => {
     }
 
     // Generate and store verification code with expiration
-    const { code: verificationCode, expires: tokenExpires } = generateVerificationCode();
+    const { code: verificationCode, expires: tokenExpires } =
+      generateVerificationCode();
     const hashedCode = hashVerificationCode(verificationCode);
 
     // Calculate minutes until expiration
-    const minutesUntilExpiry = Math.ceil((tokenExpires - new Date()) / (1000 * 60));
-    
+    const minutesUntilExpiry = Math.ceil(
+      (tokenExpires - new Date()) / (1000 * 60)
+    );
+
     // Create user
     const user = await User.create(
       {
@@ -130,17 +140,23 @@ const registerVendor = async (req, res) => {
 
     // Send welcome email with verification code
     try {
-      await sendWelcomeEmail(email, `${first_name} ${last_name}`, verificationCode, minutesUntilExpiry);
+      await sendWelcomeEmail(
+        email,
+        `${first_name} ${last_name}`,
+        verificationCode,
+        minutesUntilExpiry
+      );
     } catch (err) {
       logger.error(`Error sending welcome email: ${err.message}`);
       // Don't fail the registration if email sending fails
     }
 
     // Create store
-    const newStore = await Store.create({
-      business_name,
-      slug: storeSlug,
-      cac_number: cac_number ? cac_number.trim() : null,
+    const newStore = await Store.create(
+      {
+        business_name,
+        slug: storeSlug,
+        cac_number: cac_number ? cac_number.trim() : null,
         instagram_handle,
         facebook_handle,
         twitter_handle,
@@ -176,23 +192,23 @@ const registerVendor = async (req, res) => {
     }
 
     // Assign vendor role to user
-    console.log('User:', user);
-    console.log('VendorRole:', vendorRole);
-    
+    console.log("User:", user);
+    console.log("VendorRole:", vendorRole);
+
     try {
       // Use the correct method to add role through the belongsToMany association
-      await user.addRoles([vendorRole.id], { 
-        through: { 
+      await user.addRoles([vendorRole.id], {
+        through: {
           user_id: user.id,
           role_id: vendorRole.id,
-          created_at: new Date()
+          created_at: new Date(),
         },
-        transaction 
+        transaction,
       });
-      
-      console.log('Successfully assigned role to user');
+
+      console.log("Successfully assigned role to user");
     } catch (error) {
-      console.error('Error assigning role:', error);
+      console.error("Error assigning role:", error);
       throw error;
     }
 
@@ -290,59 +306,53 @@ const getVendorProfile = async (req, res) => {
  */
 const completeOnboarding = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
-  
+
   try {
-    const { bank_account_name, bank_account_number, bank_name, description, cac_number } = req.body;
-    const uploadedFiles = req.uploadedFiles || [];
+    const {
+      bank_account_name,
+      bank_account_number,
+      bank_name,
+      description,
+      cac_number,
+    } = req.body;
+    const processedFiles = req.processedFiles || {};
     const vendorId = req.user.id;
-    
-    // Log the request body and files for debugging
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-    console.log('Uploaded files count:', uploadedFiles.length);
 
-    // Separate logo from business images
-    let logo = null;
-    const business_images = [];
-    
-    console.log('Uploaded files:', JSON.stringify(uploadedFiles, null, 2));
-    
-    // Process uploaded files from req.uploadedFiles (passed from the route middleware)
-    for (const file of uploadedFiles) {
-      console.log(`Processing file field: ${file.fieldname}`, file);
-      
-      if (file.fieldname === 'logo') {
-        // Use the URL that was already processed in the route middleware
-        logo = file.url || null;
-        console.log('Logo URL set to:', logo);
-      } else if (file.fieldname === 'business_images') {
-        // Only add valid files
-        if (file && file.url) {
-          const imgInfo = {
-            url: file.url,
-            alt: file.name || 'Business image',
-            size: file.size || 0,
-            mimeType: file.mimetype || 'image/jpeg'
-          };
-          console.log('Adding business image:', imgInfo);
-          business_images.push(imgInfo);
-        }
-      }
-    }
+    // Extract processed file data
+    const logo = processedFiles.logo;
+    const business_images = processedFiles.business_images || [];
 
-    // Validate we have at least one business image
-    if (business_images.length === 0) {
+    // Get vendor with store first to validate CAC number
+    const vendor = await Vendor.findOne({
+      where: { user_id: vendorId },
+      include: [
+        {
+          model: Store,
+          as: "Store",
+        },
+      ],
+      transaction,
+    });
+
+    if (!vendor) {
       await transaction.rollback();
-      return next(new AppError('At least one business image is required', 400));
+      return next(new AppError("Vendor not found", 404));
     }
 
     // If CAC number is being updated in the onboarding, validate it
+    let validatedCacNumber = cac_number || null;
     if (req.body.cac_number) {
-      const cac_number = req.body.cac_number.trim();
+      const cac_number_trimmed = req.body.cac_number.trim();
       const cacRegex = /^[A-Z]{2,3}\/\d{4,5}\d{5,7}$/i;
-      
-      if (!cacRegex.test(cac_number)) {
+
+      if (!cacRegex.test(cac_number_trimmed)) {
         await transaction.rollback();
-        return next(new AppError('Invalid CAC number format. Expected format: RC/1234567 or BN/1234567', 400));
+        return next(
+          new AppError(
+            "Invalid CAC number format. Expected format: RC/1234567 or BN/1234567",
+            400
+          )
+        );
       }
 
       // Check if CAC number is already registered to another store
@@ -350,34 +360,23 @@ const completeOnboarding = async (req, res, next) => {
         where: {
           id: { [Op.ne]: vendor.Store.id }, // Exclude current store
           cac_number: {
-            [Op.iLike]: cac_number
-          }
+            [Op.iLike]: cac_number_trimmed,
+          },
         },
-        transaction
+        transaction,
       });
 
       if (existingStore) {
         await transaction.rollback();
-        return next(new AppError('This CAC number is already registered to another store', 400));
+        return next(
+          new AppError(
+            "This CAC number is already registered to another store",
+            400
+          )
+        );
       }
 
-      // Add CAC number to update data
-      updateData.cac_number = cac_number;
-    }
-
-    // Get vendor with store
-    const vendor = await Vendor.findOne({
-      where: { user_id: vendorId },
-      include: [{
-        model: Store,
-        as: 'Store'
-      }],
-      transaction
-    });
-
-    if (!vendor) {
-      await transaction.rollback();
-      return next(new AppError('Vendor not found', 404));
+      validatedCacNumber = cac_number_trimmed;
     }
 
     // Prepare update data with processed files
@@ -389,61 +388,75 @@ const completeOnboarding = async (req, res, next) => {
       logo: logo || null,
       business_images: JSON.stringify(business_images),
       is_verified: false, // Set to false initially, admin will verify
-      status: 'pending', // Set status to pending review
-      cac_number: cac_number || null,
+      status: "pending", // Set status to pending review
+      cac_number: validatedCacNumber,
     };
 
-    console.log('Updating store with data:', JSON.stringify(updateData, null, 2));
+    console.log(
+      "Updating store with data:",
+      JSON.stringify(updateData, null, 2)
+    );
 
     // Update store with the prepared data
     try {
       // First, get the store instance
       const store = await Store.findByPk(vendor.Store.id, { transaction });
       if (!store) {
-        throw new Error('Store not found');
+        throw new Error("Store not found");
       }
-      
+
       // Log the update data before updating
-      console.log('Updating store with data:', JSON.stringify({
-        ...updateData,
-        business_images: business_images // Show the actual array, not the stringified version
-      }, null, 2));
-      
+      console.log(
+        "Updating store with data:",
+        JSON.stringify(
+          {
+            ...updateData,
+            business_images: business_images, // Show the actual array, not the stringified version
+          },
+          null,
+          2
+        )
+      );
+
       // Update only the changed fields
       const updatedFields = {};
-      Object.keys(updateData).forEach(key => {
+      Object.keys(updateData).forEach((key) => {
         if (JSON.stringify(store[key]) !== JSON.stringify(updateData[key])) {
           updatedFields[key] = updateData[key];
         }
       });
-      
+
       if (Object.keys(updatedFields).length > 0) {
         await store.update(updatedFields, { transaction });
-        console.log('Store updated successfully');
+        console.log("Store updated successfully");
       } else {
-        console.log('No changes detected in store data');
+        console.log("No changes detected in store data");
       }
     } catch (error) {
-      console.error('Error updating store:', error);
+      console.error("Error updating store:", error);
       throw error;
     }
 
     // Update vendor status to 'registration_complete'
-    await vendor.update({
-      status: 'registration_complete'
-    }, { transaction });
+    await vendor.update(
+      {
+        status: "registration_complete",
+      },
+      { transaction }
+    );
 
     await transaction.commit();
 
     // TODO: Send notification to admin about completed onboarding
-    
+
     res.status(200).json({
-      status: 'success',
-      message: 'Onboarding completed successfully. Your information is under review.'
+      status: "success",
+      message:
+        "Onboarding completed successfully. Your information is under review.",
     });
   } catch (error) {
     await transaction.rollback();
-    logger.error('Complete onboarding error:', error);
+    logger.error("Complete onboarding error:", error);
     next(error);
   }
 };
@@ -455,7 +468,7 @@ const getAllVendors = async (req, res, next) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     const whereClause = {};
     if (status) whereClause.status = status;
 
@@ -464,34 +477,42 @@ const getAllVendors = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: 'User',
-          attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'email_verified_at']
+          as: "User",
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "profile_image",
+            "email_verified_at",
+          ],
         },
         {
           model: Store,
-          as: 'Store',
-          attributes: { exclude: ['created_at', 'updated_at'] }
-        }
+          as: "store",
+          attributes: { exclude: ["created_at", "updated_at"] },
+        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
     });
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       results: vendors.length,
       total: count,
-      data: vendors
+      data: vendors,
     });
   } catch (error) {
-    logger.error('Get all vendors error:', error);
+    logger.error("Get all vendors error:", error);
     next(error);
   }
 };
 
 /**
- * Get vendor by ID (Admin only)
+ * Get vendor by ID public
  */
 const getVendor = async (req, res, next) => {
   try {
@@ -499,27 +520,35 @@ const getVendor = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: 'User',
-          attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'email_verified_at']
+          as: "User",
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "profile_image",
+            "email_verified_at",
+          ],
         },
         {
           model: Store,
-          as: 'Store',
-          attributes: { exclude: ['created_at', 'updated_at'] }
-        }
-      ]
+          as: "store",
+          attributes: { exclude: ["created_at", "updated_at"] },
+        },
+      ],
     });
 
     if (!vendor) {
-      return next(new AppError('Vendor not found', 404));
+      return next(new AppError("Vendor not found", 404));
     }
 
     res.status(200).json({
-      status: 'success',
-      data: vendor
+      status: "success",
+      data: vendor,
     });
   } catch (error) {
-    logger.error('Get vendor error:', error);
+    logger.error("Get vendor error:", error);
     next(error);
   }
 };
@@ -529,75 +558,77 @@ const getVendor = async (req, res, next) => {
  */
 const approveVendor = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
-  
+
   try {
     const vendor = await Vendor.findByPk(req.params.id, {
       include: [
         {
           model: User,
-          as: 'User'
+          as: "User",
         },
         {
           model: Store,
-          as: 'Store'
-        }
+          as: "store",
+        },
       ],
-      transaction
+      transaction,
     });
 
     if (!vendor) {
       await transaction.rollback();
-      return next(new AppError('Vendor not found', 404));
+      return next(new AppError("Vendor not found", 404));
     }
 
-    if (vendor.status === 'approved') {
+    if (vendor.status === "approved") {
       await transaction.rollback();
-      return next(new AppError('Vendor is already approved', 400));
+      return next(new AppError("Vendor is already approved", 400));
     }
 
     // Update vendor status
-    await vendor.update({
-      status: 'approved',
-      approved_by: req.user.id,
-      approved_at: new Date()
-    }, { transaction });
+    await vendor.update(
+      {
+        status: "approved",
+        approved_by: req.user.id,
+        approved_at: new Date(),
+      },
+      { transaction }
+    );
 
     // Update store verification status
-    await vendor.Store.update({
-      is_verified: true
-    }, { transaction });
+    await vendor.Store.update(
+      {
+        is_verified: true,
+      },
+      { transaction }
+    );
 
     // Send approval email to vendor
     try {
-      await sendEmail(
-        vendor.User.email,
-        'VENDOR_APPROVED',
-        {
-          name: `${vendor.User.first_name} ${vendor.User.last_name}`,
-          storeName: vendor.Store.business_name,
-          loginUrl: `${process.env.FRONTEND_URL}/vendor/login`,
-          supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.ng'
-        }
-      );
+      await sendEmail(vendor.User.email, "VENDOR_APPROVED", {
+        name: `${vendor.User.first_name} ${vendor.User.last_name}`,
+        storeName: vendor.Store.business_name,
+        loginUrl: `${process.env.FRONTEND_URL}/vendor/login`,
+        supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.ng",
+      });
     } catch (emailError) {
-      logger.error('Error sending vendor approval email:', emailError);
+      logger.error("Error sending vendor approval email:", emailError);
       // Don't fail the request if email fails
     }
 
     await transaction.commit();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Vendor approved successfully',
+      status: "success",
+      message: "Vendor approved successfully",
       data: {
         id: vendor.id,
-        status: 'approved',
-        approved_at: new Date()
-      }
+        status: "approved",
+        approved_at: new Date(),
+      },
     });
   } catch (error) {
     await transaction.rollback();
-    logger.error('Approve vendor error:', error);
+    logger.error("Approve vendor error:", error);
     next(error);
   }
 };
@@ -607,79 +638,82 @@ const approveVendor = async (req, res, next) => {
  */
 const rejectVendor = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
-  
+
   try {
     const { reason } = req.body;
-    
+
     if (!reason) {
-      return next(new AppError('Please provide a reason for rejection', 400));
+      return next(new AppError("Please provide a reason for rejection", 400));
     }
 
     const vendor = await Vendor.findByPk(req.params.id, {
       include: [
         {
           model: User,
-          as: 'User'
+          as: "User",
         },
         {
           model: Store,
-          as: 'Store'
-        }
+          as: "store",
+        },
       ],
-      transaction
+      transaction,
     });
 
     if (!vendor) {
       await transaction.rollback();
-      return next(new AppError('Vendor not found', 404));
+      return next(new AppError("Vendor not found", 404));
     }
 
-    if (vendor.status === 'rejected') {
+    if (vendor.status === "rejected") {
       await transaction.rollback();
-      return next(new AppError('Vendor is already rejected', 400));
+      return next(new AppError("Vendor is already rejected", 400));
     }
 
     // Update vendor status
-    await vendor.update({
-      status: 'rejected',
-      rejection_reason: reason,
-      approved_by: req.user.id,
-      approved_at: new Date()
-    }, { transaction });
+    await vendor.update(
+      {
+        status: "rejected",
+        rejection_reason: reason,
+        approved_by: req.user.id,
+        approved_at: new Date(),
+      },
+      { transaction }
+    );
 
     // Send rejection email to vendor
     try {
       await sendEmail({
         to: vendor.User.email,
-        subject: 'Your Vendor Application Status',
-        template: 'vendor-rejected',
+        subject: "Your Vendor Application Status",
+        template: "vendor-rejected",
         context: {
           name: `${vendor.User.first_name} ${vendor.User.last_name}`,
           storeName: vendor.Store.business_name,
           reason: reason,
-          supportEmail: process.env.SUPPORT_EMAIL || 'support@stylay.ng',
-          contactUrl: `${process.env.FRONTEND_URL}/contact`
-        }
+          supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.ng",
+          contactUrl: `${process.env.FRONTEND_URL}/contact`,
+        },
       });
     } catch (emailError) {
-      logger.error('Error sending vendor rejection email:', emailError);
+      logger.error("Error sending vendor rejection email:", emailError);
       // Don't fail the request if email fails
     }
 
     await transaction.commit();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Vendor rejected successfully',
+      status: "success",
+      message: "Vendor rejected successfully",
       data: {
         id: vendor.id,
-        status: 'rejected',
-        rejected_at: new Date()
-      }
+        status: "rejected",
+        rejected_at: new Date(),
+      },
     });
   } catch (error) {
     await transaction.rollback();
-    logger.error('Reject vendor error:', error);
+    logger.error("Reject vendor error:", error);
     next(error);
   }
 };
@@ -697,38 +731,38 @@ const followVendor = async (req, res, next) => {
     // Check if vendor exists
     const vendor = await Vendor.findByPk(vendorId);
     if (!vendor) {
-      return next(new AppError('Vendor not found', 404));
+      return next(new AppError("Vendor not found", 404));
     }
 
     // Check if user is trying to follow themselves
     if (vendor.user_id === userId) {
-      return next(new AppError('You cannot follow yourself', 400));
+      return next(new AppError("You cannot follow yourself", 400));
     }
 
     // Check if already following
     const existingFollow = await VendorFollower.findOne({
       where: {
         user_id: userId,
-        vendor_id: vendorId
-      }
+        vendor_id: vendorId,
+      },
     });
 
     if (existingFollow) {
-      return next(new AppError('You are already following this vendor', 400));
+      return next(new AppError("You are already following this vendor", 400));
     }
 
     // Create follow relationship
     await VendorFollower.create({
       user_id: userId,
-      vendor_id: vendorId
+      vendor_id: vendorId,
     });
 
     res.status(201).json({
-      status: 'success',
-      message: 'Successfully followed vendor'
+      status: "success",
+      message: "Successfully followed vendor",
     });
   } catch (error) {
-    logger.error('Follow vendor error:', error);
+    logger.error("Follow vendor error:", error);
     next(error);
   }
 };
@@ -747,23 +781,23 @@ const unfollowVendor = async (req, res, next) => {
     const follow = await VendorFollower.findOne({
       where: {
         user_id: userId,
-        vendor_id: vendorId
-      }
+        vendor_id: vendorId,
+      },
     });
 
     if (!follow) {
-      return next(new AppError('You are not following this vendor', 400));
+      return next(new AppError("You are not following this vendor", 400));
     }
 
     // Remove follow relationship
     await follow.destroy();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Successfully unfollowed vendor'
+      status: "success",
+      message: "Successfully unfollowed vendor",
     });
   } catch (error) {
-    logger.error('Unfollow vendor error:', error);
+    logger.error("Unfollow vendor error:", error);
     next(error);
   }
 };
@@ -782,7 +816,7 @@ const getVendorFollowers = async (req, res, next) => {
     // Check if vendor exists
     const vendor = await Vendor.findByPk(vendorId);
     if (!vendor) {
-      return next(new AppError('Vendor not found', 404));
+      return next(new AppError("Vendor not found", 404));
     }
 
     const { count, rows: followers } = await VendorFollower.findAndCountAll({
@@ -790,23 +824,29 @@ const getVendorFollowers = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: 'follower',
-          attributes: ['id', 'first_name', 'last_name', 'email', 'profile_image']
-        }
+          as: "follower",
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "profile_image",
+          ],
+        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
     });
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       results: followers.length,
       total: count,
-      data: followers
+      data: followers,
     });
   } catch (error) {
-    logger.error('Get vendor followers error:', error);
+    logger.error("Get vendor followers error:", error);
     next(error);
   }
 };
@@ -827,34 +867,34 @@ const getUserFollowing = async (req, res, next) => {
       include: [
         {
           model: Vendor,
-          as: 'vendor',
+          as: "vendor",
           include: [
             {
               model: User,
-              as: 'User',
-              attributes: ['id', 'first_name', 'last_name']
+              as: "User",
+              attributes: ["id", "first_name", "last_name"],
             },
             {
               model: Store,
-              as: 'store',
-              attributes: ['business_name', 'slug', 'logo']
-            }
-          ]
-        }
+              as: "store",
+              attributes: ["business_name", "slug", "logo"],
+            },
+          ],
+        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
     });
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       results: following.length,
       total: count,
-      data: following
+      data: following,
     });
   } catch (error) {
-    logger.error('Get user following error:', error);
+    logger.error("Get user following error:", error);
     next(error);
   }
 };
@@ -872,18 +912,18 @@ const checkFollowStatus = async (req, res, next) => {
     const follow = await VendorFollower.findOne({
       where: {
         user_id: userId,
-        vendor_id: vendorId
-      }
+        vendor_id: vendorId,
+      },
     });
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       data: {
-        isFollowing: !!follow
-      }
+        isFollowing: !!follow,
+      },
     });
   } catch (error) {
-    logger.error('Check follow status error:', error);
+    logger.error("Check follow status error:", error);
     next(error);
   }
 };
@@ -905,14 +945,14 @@ const getMyFollowers = async (req, res, next) => {
       include: [
         {
           model: Store,
-          as: 'Store',
-          attributes: ['business_name']
-        }
-      ]
+          as: "Store",
+          attributes: ["business_name"],
+        },
+      ],
     });
 
     if (!vendor) {
-      return next(new AppError('Vendor profile not found', 404));
+      return next(new AppError("Vendor profile not found", 404));
     }
 
     const { count, rows: followers } = await VendorFollower.findAndCountAll({
@@ -920,29 +960,36 @@ const getMyFollowers = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: 'follower',
-          attributes: ['id', 'first_name', 'last_name', 'email', 'profile_image', 'created_at']
-        }
+          as: "follower",
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "profile_image",
+            "created_at",
+          ],
+        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
     });
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       results: followers.length,
       total: count,
       data: {
         vendor: {
           id: vendor.id,
-          business_name: vendor.Store.business_name
+          business_name: vendor.Store.business_name,
         },
-        followers: followers
-      }
+        followers: followers,
+      },
     });
   } catch (error) {
-    logger.error('Get my followers error:', error);
+    logger.error("Get my followers error:", error);
     next(error);
   }
 };
@@ -960,5 +1007,5 @@ module.exports = {
   getVendorFollowers,
   getUserFollowing,
   checkFollowStatus,
-  getMyFollowers
+  getMyFollowers,
 };

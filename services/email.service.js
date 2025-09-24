@@ -609,7 +609,6 @@ const notifyVendors = async (orderId) => {
       const vendorItems = order.items
         .filter((item) => item.product?.vendor?.id === vendor.id)
         .map((item) => item.product.toJSON());
-      console.log("vendorItems", vendorItems);
       // Prepare order data for the template
       const orderData = {
         id: order.id,
@@ -619,7 +618,6 @@ const notifyVendors = async (orderId) => {
         order_status: order.order_status,
         // Include any other order fields needed in the template
       };
-      console.log("orderData", orderData);
 
       return sendEmail(vendor.email, "VENDOR_ORDER", {
         order: orderData, // Pass the order object that the template expects

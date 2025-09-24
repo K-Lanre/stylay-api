@@ -100,20 +100,57 @@ exports.updateCategoryValidation = [
   }
 ];
 
-// Validation rules for getting a category
+// Validation rules for getting a category by ID (legacy)
 exports.getCategoryValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid category ID')
 ];
 
+// Validation rules for getting a category by ID or slug
+exports.getCategoryByIdentifierValidation = [
+  param('identifier')
+    .notEmpty().withMessage('Category identifier is required')
+    .custom(async (value) => {
+      // Check if it's a numeric ID
+      const isNumericId = !isNaN(value) && !isNaN(parseFloat(value));
+
+      if (isNumericId) {
+        // Validate as ID
+        const category = await Category.findByPk(parseInt(value));
+        if (!category) {
+          throw new Error('Category not found');
+        }
+      } else {
+        // Validate as slug
+        const category = await Category.findOne({ where: { slug: value } });
+        if (!category) {
+          throw new Error('Category not found');
+        }
+      }
+      return true;
+    })
+];
+
 // Validation rules for getting category products
 exports.getCategoryProductsValidation = [
   param('id')
-    .isInt({ min: 1 }).withMessage('Invalid category ID')
+    .notEmpty().withMessage('Category ID or slug is required')
     .custom(async (value) => {
-      const category = await Category.findByPk(value);
-      if (!category) {
-        throw new Error('Category not found');
+      // Check if it's a numeric ID
+      const isNumericId = !isNaN(value) && !isNaN(parseFloat(value));
+
+      if (isNumericId) {
+        // Validate as ID
+        const category = await Category.findByPk(parseInt(value));
+        if (!category) {
+          throw new Error('Category not found');
+        }
+      } else {
+        // Validate as slug
+        const category = await Category.findOne({ where: { slug: value } });
+        if (!category) {
+          throw new Error('Category not found');
+        }
       }
       return true;
     }),
@@ -144,7 +181,7 @@ exports.getCategoryProductsValidation = [
     .isIn(['price', 'createdAt', 'name']).withMessage('Invalid sort field'),
   query('sortOrder')
     .optional()
-    .isIn(['ASC', 'DESC']).withMessage('Sort order must be either ASC or DESC')
+    .isIn(['ASC', 'DESC', 'asc', 'desc']).withMessage('Sort order must be either ASC, DESC, asc, or desc')
 ];
 
 // Validation rules for deleting a category

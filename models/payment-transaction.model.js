@@ -9,7 +9,8 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id'
       });
       PaymentTransaction.belongsTo(models.Order, {
-        foreignKey: 'order_id'
+        foreignKey: 'order_id',
+        as: 'order'
       });
     }
   }

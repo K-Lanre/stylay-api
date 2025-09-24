@@ -270,16 +270,39 @@ exports.getProductsValidation = [
     
   query('category')
     .optional()
-    .isInt({ min: 1 }).withMessage('Category ID must be a positive integer')
     .custom(async (value) => {
-      const category = await Category.findByPk(value);
-      if (!category) {
-        throw new Error('Category not found');
+      // Check if it's a numeric ID
+      const isNumericId = !isNaN(value) && !isNaN(parseFloat(value));
+
+      if (isNumericId) {
+        // Validate as ID
+        const category = await Category.findByPk(parseInt(value));
+        if (!category) {
+          throw new Error('Category not found');
+        }
+      } else {
+        // Validate as name or slug
+        const category = await Category.findOne({
+          where: {
+            [Op.or]: [
+              { name: { [Op.like]: `%${value}%` } },
+              { slug: value }
+            ]
+          }
+        });
+        if (!category) {
+          throw new Error('Category not found');
+        }
       }
       return true;
     }),
-    
-    
+  query('sortBy')
+    .optional()
+    .isIn(['price', 'createdAt', 'name']).withMessage('Invalid sort field'),
+  query('sortOrder')
+    .optional()
+    .isIn(['ASC', 'DESC', 'asc', 'desc']).withMessage('Sort order must be either ASC, DESC, asc, or desc'),
+
   query('vendor')
     .optional()
     .isInt({ min: 1 }).withMessage('Vendor ID must be a positive integer')
@@ -299,17 +322,29 @@ exports.getProductsValidation = [
     .isLength({ min: 2 }).withMessage('Search term must be at least 2 characters')
 ];
 
-// Get product by ID validation
-exports.getProductByIdValidation = [
-  param('id')
-    .isInt({ min: 1 }).withMessage('Invalid product ID')
+// Get product by ID or slug validation
+exports.getProductByIdentifierValidation = [
+  param('identifier')
+    .notEmpty().withMessage('Product identifier is required')
     .custom(async (value) => {
-      const product = await Product.findByPk(value);
-      if (!product) {
-        throw new Error('Product not found');
+      // Check if it's a numeric ID
+      const isNumericId = !isNaN(value) && !isNaN(parseFloat(value));
+
+      if (isNumericId) {
+        // Validate as ID
+        const product = await Product.findByPk(parseInt(value));
+        if (!product) {
+          throw new Error('Product not found');
+        }
+      } else {
+        // Validate as slug
+        const product = await Product.findOne({ where: { slug: value } });
+        if (!product) {
+          throw new Error('Product not found');
+        }
       }
       return true;
-    })  
+    })
 ];
 
 // Delete product validation

@@ -29,7 +29,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="<%= process.env.APP_URL %>/logo.png" alt="Stylay" class="logo">
+      <img src="<%= process.env.LOGO_URL %>" alt="Stylay" class="logo">
       <h1>Payment Failed</h1>
       <p>We couldn't process your payment</p>
     </div>
@@ -53,7 +53,7 @@
     <div style="margin: 30px 0; padding: 15px; background: #f9f9f9; border-radius: 5px;">
       <h3>Order Summary</h3>
       <p><strong>Order #<%= order.id %></strong></p>
-      <p><strong>Order Total:</strong> $<%= (order.total_amount || 0).toFixed(2) %></p>
+      <p><strong>Order Total:</strong> $<%= (order.total_amount || 0) %></p>
       <p><strong>Items:</strong> <%= order.items.reduce((sum, item) => sum + item.quantity, 0) %></p>
     </div>
 

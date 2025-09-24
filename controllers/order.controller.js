@@ -233,7 +233,7 @@ async function createOrder(req, res) {
       email: user.email,
       amount: totalAmount * 100, // Convert to kobo
       reference,
-      callbackUrl: `${process.env.PAYSTACK_CALLBACK_URL}`, // Use frontend URL for callback
+      callbackUrl: `${process.env.PAYSTACK_CALLBACK_URL}/${reference}`, // Use frontend URL for callback
       metadata: {
         orderId: order.id,
         userId: user.id,
@@ -423,9 +423,11 @@ async function getOrder(req, res) {
         },
         {
           model: OrderItem,
+          as: "items",
           include: [
             {
               model: Product,
+              as: "product",
               attributes: [
                 "id",
                 "name",
@@ -456,6 +458,7 @@ async function getOrder(req, res) {
         },
         {
           model: PaymentTransaction,
+          as: "transactions",
           attributes: { exclude: ["created_at", "updated_at"] },
           order: [["created_at", "DESC"]],
         },
@@ -526,7 +529,7 @@ async function updateOrderStatus(req, res) {
     const order = await Order.findOne({
       where: { id },
       include: [
-        { model: OrderItem, include: [Product] },
+        { model: OrderItem, as: "items", include: [Product] },
         { model: User, attributes: ["id", "email", "first_name"] },
       ],
       transaction,
@@ -868,10 +871,27 @@ async function verifyPayment(req, res) {
       });
     }
 
+    // Fetch the full order with items for email
+    const fullOrder = await Order.findByPk(order.id, {
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: ["id", "name", "price"],
+            },
+          ],
+        },
+      ],
+    });
+
     // Verify with payment gateway
     const verification = await paymentService.verifyPayment(reference);
 
-    if (verification.status !== "success") {
+    if (!verification.status || verification.data.status !== "success") {
       throw new Error(verification.message || "Payment verification failed");
     }
 
@@ -903,7 +923,7 @@ async function verifyPayment(req, res) {
     // Send notifications after successful commit
     try {
       // Send payment confirmation email
-      await emailService.sendPaymentReceived(order, order.user_id, {
+      await emailService.sendPaymentReceived(fullOrder, order.user_id, {
         amount: order.total_amount,
         paymentMethod: order.payment_method,
         transactionDate: new Date(),
@@ -1030,7 +1050,7 @@ async function cancelOrder(req, res) {
         order_status: ["pending", "processing"],
       },
       include: [
-        { model: OrderItem, include: [Product] },
+        { model: OrderItem, as: "items", include: [Product] },
         { model: User, attributes: ["id", "email", "first_name"] },
       ],
       transaction,
@@ -1279,6 +1299,7 @@ async function updateOrderItemStatus(req, res) {
         },
         {
           model: Order,
+          as: "order",
           attributes: ["id", "order_status", "user_id"],
         },
       ],

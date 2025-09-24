@@ -29,6 +29,8 @@ const inventoryRoutes = require('./routes/inventory.route');
 const journalRoutes = require('./routes/journal.route');
 const addressRoutes = require('./routes/address.route');
 const orderRoutes = require('./routes/order.route');
+const cartRoutes = require('./routes/cart.route');
+const wishlistRoutes = require('./routes/wishlist.route');
 const webhookRoutes = require('./routes/webhook.route');
 const dashboardRoutes = require('./routes/dashboard.route');
 // const reviewRoutes = require('./routes/reviews');
@@ -63,6 +65,7 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // In development, serve uploaded files from the Upload directory
   app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
+  app.use('/logo', express.static(path.join(__dirname, 'public', 'logo.png')));
 }
 
 // Serve static files in production
@@ -72,6 +75,7 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // In development, serve uploaded files from the Upload directory
   app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
+  app.use('/logo', express.static(path.join(__dirname, 'public','logo.png')));
 }
 
 // Serve static files in production
@@ -249,6 +253,8 @@ app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/journals', journalRoutes);
 app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/cart', cartRoutes);
+app.use('/api/v1/wishlists', wishlistRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 // app.use('/api/v1/reviews', reviewRoutes);

@@ -99,13 +99,26 @@ const getCategories = async (req, res) => {
 };
 
 /**
- * @desc    Get category by ID
- * @route   GET /api/v1/categories/:id
+ * @desc    Get category by ID or slug
+ * @route   GET /api/v1/categories/:identifier
  * @access  Public
  */
-const getCategoryById = async (req, res) => {
+const getCategoryByIdentifier = async (req, res) => {
   try {
-    const category = await Category.findByPk(req.params.id, {
+    const { identifier } = req.params;
+
+    // Check if identifier is a number (ID) or string (slug)
+    const isNumericId = !isNaN(identifier) && !isNaN(parseFloat(identifier));
+
+    let whereClause = {};
+    if (isNumericId) {
+      whereClause.id = parseInt(identifier);
+    } else {
+      whereClause.slug = identifier;
+    }
+
+    const category = await Category.findOne({
+      where: whereClause,
       include: [
         {
           model: Category,
@@ -140,6 +153,8 @@ const getCategoryById = async (req, res) => {
     });
   }
 };
+
+
 
 /**
  * @desc    Update category
@@ -274,8 +289,11 @@ const getCategoryProducts = async (req, res) => {
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
 
-    // Check if category exists
-    const category = await Category.findByPk(id);
+    // Check if category exists (support both ID and slug)
+    const isNumericId = !isNaN(id) && !isNaN(parseFloat(id));
+    const categoryWhereClause = isNumericId ? { id: parseInt(id) } : { slug: id };
+
+    const category = await Category.findOne({ where: categoryWhereClause });
     if (!category) {
       return res.status(404).json({
         success: false,
@@ -284,14 +302,14 @@ const getCategoryProducts = async (req, res) => {
     }
 
     // Get category IDs: always include self; for parent categories, include direct children
-    let categoryIds = [parseInt(id)];
+    let categoryIds = [category.id];
     if (category.parent_id === null) {
       const directChildren = await Category.findAll({
-        where: { parent_id: id },
+        where: { parent_id: category.id },
         attributes: ['id'],
         raw: true
       });
-      categoryIds = [...categoryIds, ...directChildren.map(c => parseInt(c.id))]; // Ensure all IDs are integers
+      categoryIds = [...categoryIds, ...directChildren.map(c => c.id)]; // Use category.id instead of id
     }
 
     // Build where clause
@@ -459,7 +477,7 @@ const getCategoryProducts = async (req, res) => {
 module.exports = {
   createCategory,
   getCategories,
-  getCategoryById,
+  getCategoryByIdentifier,
   updateCategory,
   deleteCategory,
   getCategoryTree,

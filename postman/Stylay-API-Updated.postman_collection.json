@@ -2871,6 +2871,31 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "Get Cart Summary",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/cart/summary",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "cart",
+                                "summary"
+                            ]
+                        }
+                    }
                 }
             ]
         },
@@ -3731,6 +3756,292 @@
                         }
                     ]
                 }
+            ]
+        }, {
+            "name": "Wishlist Endpoints",
+            "item": [
+                {
+                    "name": "Get User Wishlists",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists"
+                            ]
+                        },
+                        "description": "Get all wishlists for the authenticated user"
+                    }
+                },
+                {
+                    "name": "Get Wishlist by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Get a specific wishlist by ID"
+                    }
+                },
+                {
+                    "name": "Create Wishlist",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists"
+                            ]
+                        },
+                        "description": "Create a new wishlist for the authenticated user"
+                    }
+                },
+                {
+                    "name": "Update Wishlist",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Update a specific wishlist by ID"
+                    }
+                },
+                {
+                    "name": "Delete Wishlist",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Delete a specific wishlist by ID"
+                    }
+                },
+                {
+                    "name": "Add Item to Wishlist",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id",
+                                "items"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Add an item to a specific wishlist"
+                    }
+                },
+                {
+                    "name": "Remove Item from Wishlist",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items/:item_id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id",
+                                "items",
+                                ":item_id"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                },
+                                {
+                                    "key": "item_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Remove an item from a specific wishlist"
+                    }
+                },
+                {
+                    "name": "Update Item in Wishlist",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items/:item_id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id",
+                                "items",
+                                ":item_id"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                },
+                                {
+                                    "key": "item_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Update an item in a specific wishlist"
+                    }
+                },
+                {
+                    "name": "Get Wishlist Items",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "wishlists",
+                                ":wishlist_id",
+                                "items"
+                            ], "variable": [
+                                {
+                                    "key": "wishlist_id",
+                                    "value": ""
+                                }
+                            ]
+                        },
+                        "description": "Get all items in a specific wishlist"
+                    }
+                }
+
             ]
         }
     ],

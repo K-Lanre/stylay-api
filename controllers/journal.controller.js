@@ -90,7 +90,7 @@ const getAllJournals = async (req, res, next) => {
         {
           model: Product,
           as: 'product',
-          attributes: ['id', 'name', 'slug'],
+          attributes: ['id', 'name', 'slug', 'thumbnail', 'price', 'discounted_price'],
           required: false
         }
       ],
@@ -127,7 +127,7 @@ const getJournalById = async (req, res, next) => {
         {
           model: Product,
           as: 'product',
-          attributes: ['id', 'name', 'slug'],
+          attributes: ['id', 'name', 'slug', 'thumbnail', 'price', 'discounted_price'],
           required: false
         }
       ]

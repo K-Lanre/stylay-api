@@ -8,14 +8,17 @@ const {
   createProductValidation,
   updateProductValidation,
   getProductsValidation,
-  getProductByIdValidation,
+  getProductByIdentifierValidation,
   deleteProductValidation,
   getVendorProductsValidation
 } = require('../validators/product.validator');
 
 // Public routes
+// More specific routes first (with constraints)
+router.get('/:identifier', getProductByIdentifierValidation, validate, productController.getProductByIdentifier);
+
+// General route for listing products with query parameters
 router.get('/', getProductsValidation, validate, productController.getProducts);
-router.get('/:id', getProductByIdValidation, validate, productController.getProductById);
 
 // Protected routes (require authentication)
 router.use(protect);

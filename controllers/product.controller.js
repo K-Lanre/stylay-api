@@ -138,9 +138,32 @@ const getProducts = async (req, res, next) => {
 
     const whereClause = {};
 
-    // Filter by category
+    // Filter by category (supports both ID and name/slug)
     if (category) {
-      whereClause.category_id = category;
+      // Check if category is a numeric ID or string (name/slug)
+      const isNumericId = !isNaN(category) && !isNaN(parseFloat(category));
+
+      if (isNumericId) {
+        whereClause.category_id = parseInt(category);
+      } else {
+        // Find category by name or slug
+        const categoryRecord = await Category.findOne({
+          where: {
+            [Op.or]: [
+              { name: { [Op.like]: `%${category}%` } },
+              { slug: category }
+            ]
+          }
+        });
+
+        if (categoryRecord) {
+          whereClause.category_id = categoryRecord.id;
+        } else {
+          // Instead of throwing error, just log and continue without category filter
+          console.log(`Category "${category}" not found, showing all products`);
+          return next(new AppError("Category not found", 404));
+        }
+      }
     }
 
     // Filter by vendor
@@ -184,13 +207,26 @@ const getProducts = async (req, res, next) => {
 };
 
 /**
- * @desc    Get single product
- * @route   GET /api/v1/products/:id
+ * @desc    Get product by ID or slug
+ * @route   GET /api/v1/products/:identifier
  * @access  Public
  */
-const getProductById = async (req, res, next) => {
+const getProductByIdentifier = async (req, res, next) => {
   try {
-    const product = await Product.findByPk(req.params.id, {
+    const { identifier } = req.params;
+
+    // Check if identifier is a number (ID) or string (slug)
+    const isNumericId = !isNaN(identifier) && !isNaN(parseFloat(identifier));
+
+    let whereClause = {};
+    if (isNumericId) {
+      whereClause.id = parseInt(identifier);
+    } else {
+      whereClause.slug = identifier;
+    }
+
+    const product = await Product.findOne({
+      where: whereClause,
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
         {
@@ -217,7 +253,7 @@ const getProductById = async (req, res, next) => {
     // Increment impression count for analytics
     await Product.increment('impressions', {
       by: 1,
-      where: { id: req.params.id }
+      where: { id: product.id }
     });
 
     // Track unique viewers (simplified - in production, use sessions/cookies)
@@ -237,6 +273,8 @@ const getProductById = async (req, res, next) => {
     next(error);
   }
 };
+
+
 
 /**
  * @desc    Update product
@@ -860,7 +898,7 @@ const getVendorAnalytics = async (req, res, next) => {
 module.exports = {
   createProduct,
   getProducts,
-  getProductById,
+  getProductByIdentifier,
   updateProduct,
   deleteProduct,
   getVendorProducts,

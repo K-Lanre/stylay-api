@@ -1,62 +1,85 @@
-'use strict';
-const { faker } = require('@faker-js/faker/locale/en_NG'); // Nigerian locale
-const { sequelize } = require('../models');
+"use strict";
+const { faker } = require("@faker-js/faker/locale/en_NG"); // Nigerian locale
+const { sequelize } = require("../models");
 
 // Configure faker to use the new API paths
-const { 
-  person, 
-  finance, 
-  helpers, 
+const {
+  person,
+  finance,
+  helpers,
   number: { int: randomNumber },
   image,
   commerce,
-  location
+  location,
 } = faker;
 
 // Helper function for alphanumeric string
 const randomAlphaNumeric = (length) => {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   return Array.from(
     { length },
     () => chars[Math.floor(Math.random() * chars.length)]
-  ).join('');
+  ).join("");
 };
-const bcrypt = require('bcryptjs');
-const slugify = require('slugify');
-require('dotenv').config();
+const bcrypt = require("bcryptjs");
+const slugify = require("slugify");
+require("dotenv").config();
 
 // Generate random business images (1-3 per store)
 const generateBusinessImages = (vendorId, count = 3) => {
   const images = [];
   const numImages = randomNumber({ min: 1, max: count });
-  const categories = ['fashion', 'business', 'technics', 'transport', 'food'];
-  
+
   for (let i = 0; i < numImages; i++) {
-    const category = helpers.arrayElement(categories);
     const width = randomNumber({ min: 400, max: 800 });
     const height = randomNumber({ min: 300, max: 600 });
-    
-    images.push({
-      url: image.urlPicsumPhotos({ width, height }),
-      alt: `Business ${category} image ${i + 1}`,
-      size: randomNumber({ min: 100000, max: 1000000 }),
-      mimeType: 'image/jpeg'
-    });
+
+    images.push(image.urlPicsumPhotos({ width, height }));
   }
-  
+
   return images;
 };
 
 // Generate Nigerian business names
 const generateBusinessName = () => {
-  const prefixes = ['Elite', 'Royal', 'Prime', 'Global', 'City', 'Metro', 'Capital', 'Heritage', 'Prestige', 'Grand'];
-  const businessTypes = ['Fashion', 'Electronics', 'Supermarket', 'Boutique', 'Plaza', 'Mall', 'Emporium', 'Trading', 'Ventures', 'Enterprises'];
-  const suffixes = ['NG', 'Ltd', 'Limited', 'Stores', '& Sons', '& Co', 'Group'];
-  
+  const prefixes = [
+    "Elite",
+    "Royal",
+    "Prime",
+    "Global",
+    "City",
+    "Metro",
+    "Capital",
+    "Heritage",
+    "Prestige",
+    "Grand",
+  ];
+  const businessTypes = [
+    "Fashion",
+    "Electronics",
+    "Supermarket",
+    "Boutique",
+    "Plaza",
+    "Mall",
+    "Emporium",
+    "Trading",
+    "Ventures",
+    "Enterprises",
+  ];
+  const suffixes = [
+    "NG",
+    "Ltd",
+    "Limited",
+    "Stores",
+    "& Sons",
+    "& Co",
+    "Group",
+  ];
+
   const prefix = helpers.arrayElement(prefixes);
   const businessType = helpers.arrayElement(businessTypes);
   const suffix = helpers.arrayElement(suffixes);
-  
+
   return `${prefix} ${businessType} ${suffix}`;
 };
 
@@ -64,27 +87,42 @@ const generateBusinessName = () => {
 const generateSocialMedia = () => ({
   instagram_handle: `vendor_${randomAlphaNumeric(8)}`,
   facebook_handle: `vendor_${randomAlphaNumeric(8)}`,
-  twitter_handle: `vendor_${randomAlphaNumeric(8)}`
+  twitter_handle: `vendor_${randomAlphaNumeric(8)}`,
 });
 
 // Generate Nigerian phone number in +234[70|80|81|90|91]XXXXXXX format
 const generateNigerianPhoneNumber = () => {
   // Generate a random number with valid Nigerian prefix and 8 more digits
-  return `+234${faker.helpers.arrayElement(['70', '80', '81', '90', '91'])}${faker.string.numeric(8)}`;
+  return `+234${faker.helpers.arrayElement([
+    "70",
+    "80",
+    "81",
+    "90",
+    "91",
+  ])}${faker.string.numeric(8)}`;
 };
 
 // Generate Nigerian bank details
 const generateBankDetails = () => {
   const banks = [
-    'Access Bank', 'First Bank', 'Guaranty Trust Bank', 'Zenith Bank', 
-    'United Bank for Africa', 'Fidelity Bank', 'Stanbic IBTC', 'Union Bank',
-    'First City Monument Bank', 'Ecobank', 'Wema Bank', 'Polaris Bank'
+    "Access Bank",
+    "First Bank",
+    "Guaranty Trust Bank",
+    "Zenith Bank",
+    "United Bank for Africa",
+    "Fidelity Bank",
+    "Stanbic IBTC",
+    "Union Bank",
+    "First City Monument Bank",
+    "Ecobank",
+    "Wema Bank",
+    "Polaris Bank",
   ];
-  
+
   return {
     bank_name: helpers.arrayElement(banks),
     bank_account_name: person.fullName(),
-    bank_account_number: finance.accountNumber(10)
+    bank_account_number: finance.accountNumber(10),
   };
 };
 
@@ -97,7 +135,9 @@ module.exports = {
     );
 
     if (!role) {
-      throw new Error('Vendor role not found. Please run the roles seeder first.');
+      throw new Error(
+        "Vendor role not found. Please run the roles seeder first."
+      );
     }
 
     // Get the admin user ID
@@ -106,26 +146,28 @@ module.exports = {
     );
 
     if (!adminUsers || adminUsers.length === 0) {
-      throw new Error('Admin user with email "admin@stylay.com" not found. Please ensure the admin user seeder (20250824020000-seed-admin-user.js) has been run successfully.');
+      throw new Error(
+        'Admin user with email "admin@stylay.com" not found. Please ensure the admin user seeder (20250824020000-seed-admin-user.js) has been run successfully.'
+      );
     }
     const adminId = adminUsers[0].id;
 
     // Get the next available IDs
     const [maxUserResult] = await queryInterface.sequelize.query(
-      'SELECT COALESCE(MAX(id), 0) + 1 as maxId FROM users',
+      "SELECT COALESCE(MAX(id), 0) + 1 as maxId FROM users",
       { type: Sequelize.QueryTypes.SELECT }
     );
 
     const [maxVendorResult] = await queryInterface.sequelize.query(
-      'SELECT COALESCE(MAX(id), 0) + 1 as maxId FROM vendors',
+      "SELECT COALESCE(MAX(id), 0) + 1 as maxId FROM vendors",
       { type: Sequelize.QueryTypes.SELECT }
     );
 
     const [maxStoreResult] = await queryInterface.sequelize.query(
-      'SELECT COALESCE(MAX(id), 0) + 1 as maxId FROM stores',
+      "SELECT COALESCE(MAX(id), 0) + 1 as maxId FROM stores",
       { type: Sequelize.QueryTypes.SELECT }
     );
-    
+
     const maxUserId = maxUserResult ? maxUserResult.maxId : 1;
     const maxVendorId = maxVendorResult ? maxVendorResult.maxId : 1;
     const maxStoreId = maxStoreResult ? maxStoreResult.maxId : 1;
@@ -136,12 +178,12 @@ module.exports = {
     const userRoles = [];
     const now = new Date();
     const usedCacNumbers = new Set();
-    
+
     // Function to generate a unique CAC number
     const generateUniqueCacNumber = () => {
       let attempts = 0;
       const maxAttempts = 100; // Prevent infinite loops
-      
+
       while (attempts < maxAttempts) {
         const cacNumber = `RC${randomNumber({ min: 10000000, max: 99999999 })}`;
         if (!usedCacNumbers.has(cacNumber)) {
@@ -150,11 +192,13 @@ module.exports = {
         }
         attempts++;
       }
-      
+
       // If we couldn't find a unique number after max attempts, throw an error
-      throw new Error('Could not generate a unique CAC number after maximum attempts');
+      throw new Error(
+        "Could not generate a unique CAC number after maximum attempts"
+      );
     };
-    
+
     // Start IDs from the next available
     let userId = maxUserId || 1;
     let vendorId = maxVendorId || 1;
@@ -167,7 +211,7 @@ module.exports = {
       // Ensure unique email for each vendor
       const email = `vendor${i + 1}@stylay.com`; // Using stylay.com domain for test accounts
       // Use a stronger password and ensure it meets validation requirements
-      const password = await bcrypt.hash('Vendor@123', 10);
+      const password = await bcrypt.hash("Vendor@123", 10);
       // Generate a unique business name
       const businessName = `Vendor ${i + 1} ${generateBusinessName()}`;
       const socialMedia = generateSocialMedia();
@@ -186,17 +230,21 @@ module.exports = {
         email_verified_at: now,
         is_active: true,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
 
       // Generate store with next available ID
       const currentStoreId = storeId++;
       // Generate slug without special characters
-      const slug = (slugify(businessName, {
-        lower: true,
-        strict: true,
-        remove: /[*+~.()'"!:@]/g
-      }) + '-' + randomAlphaNumeric(6)).toLowerCase();
+      const slug = (
+        slugify(businessName, {
+          lower: true,
+          strict: true,
+          remove: /[*+~.()'"!:@]/g,
+        }) +
+        "-" +
+        randomAlphaNumeric(6)
+      ).toLowerCase();
 
       stores.push({
         id: currentStoreId,
@@ -215,7 +263,7 @@ module.exports = {
         is_verified: true,
         status: 1, // Active
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
 
       // Generate vendor with next available ID
@@ -225,46 +273,50 @@ module.exports = {
         user_id: currentUserId,
         store_id: currentStoreId,
         join_reason: faker.helpers.arrayElement([
-          'Expand customer reach',
-          'Increase sales volume',
-          'Access new markets',
-          'Benefit from platform marketing',
-          'Streamline online operations',
-          'Leverage existing customer base',
-          'Reduce operational costs',
-          'Gain brand visibility',
-          'Easy setup and management',
-          'Competitive commission rates'
+          "Expand customer reach",
+          "Increase sales volume",
+          "Access new markets",
+          "Benefit from platform marketing",
+          "Streamline online operations",
+          "Leverage existing customer base",
+          "Reduce operational costs",
+          "Gain brand visibility",
+          "Easy setup and management",
+          "Competitive commission rates",
         ]),
         total_sales: 0,
         total_earnings: 0,
-        status: 'approved',
+        status: "approved",
         approved_at: now,
         approved_by: adminId,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
 
       // Assign vendor role
       userRoles.push({
         user_id: currentUserId,
         role_id: role.id,
-        created_at: now
+        created_at: now,
       });
     }
 
     // Insert data in the correct order to respect foreign key constraints
-    await queryInterface.bulkInsert('users', users, {});
-    await queryInterface.bulkInsert('stores', stores, {});
-    await queryInterface.bulkInsert('vendors', vendors, {});
-    await queryInterface.bulkInsert('user_roles', userRoles, {});
+    await queryInterface.bulkInsert("users", users, {});
+    await queryInterface.bulkInsert("stores", stores, {});
+    await queryInterface.bulkInsert("vendors", vendors, {});
+    await queryInterface.bulkInsert("user_roles", userRoles, {});
   },
 
   down: async (queryInterface, Sequelize) => {
     // Clean up in reverse order to respect foreign key constraints
-    await queryInterface.bulkDelete('user_roles', null, {});
-    await queryInterface.bulkDelete('vendors', null, {});
-    await queryInterface.bulkDelete('stores', null, {});
-    await queryInterface.bulkDelete('users', { email: { [Sequelize.Op.like]: 'vendor%@stylay.com' } }, {});
-  }
+    await queryInterface.bulkDelete("user_roles", null, {});
+    await queryInterface.bulkDelete("vendors", null, {});
+    await queryInterface.bulkDelete("stores", null, {});
+    await queryInterface.bulkDelete(
+      "users",
+      { email: { [Sequelize.Op.like]: "vendor%@stylay.com" } },
+      {}
+    );
+  },
 };
