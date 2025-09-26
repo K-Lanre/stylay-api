@@ -3,6 +3,16 @@ const { Product, ProductVariant, Cart, CartItem } = require('../models');
 const { Op } = require('sequelize');
 
 // Validation for getting cart
+/**
+ * Validation rules for retrieving cart contents.
+ * Validates optional query parameters for cart retrieval.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} include_items - Optional boolean to include cart items
+ * @returns {Array} Express validator middleware array for cart retrieval
+ * @example
+ * // Use in route:
+ * router.get('/cart', getCartValidation, getCart);
+ */
 exports.getCartValidation = [
   // Optional query parameters for pagination (if needed in future)
   query('include_items')
@@ -12,6 +22,19 @@ exports.getCartValidation = [
 ];
 
 // Validation for adding item to cart
+/**
+ * Validation rules for adding items to cart.
+ * Validates product existence, stock availability, quantity limits, and variant details.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} product_id - Required, positive integer, validates product exists and is active
+ * @property {ValidationChain} quantity - Required, 1-100, validates stock availability
+ * @property {ValidationChain} variant_id - Optional, validates variant belongs to product
+ * @property {ValidationChain} price - Optional, validates price matches product/variant pricing
+ * @returns {Array} Express validator middleware array for adding cart items
+ * @example
+ * // Use in route:
+ * router.post('/cart/items', addToCartValidation, addToCart);
+ */
 exports.addToCartValidation = [
   body('product_id')
     .notEmpty()
@@ -103,6 +126,17 @@ exports.addToCartValidation = [
 ];
 
 // Validation for updating cart item
+/**
+ * Validation rules for updating cart item quantity.
+ * Validates cart item ownership and stock availability for quantity changes.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} itemId - Required cart item ID parameter, validates ownership
+ * @property {ValidationChain} quantity - Required, 0-100, 0 removes item, validates stock
+ * @returns {Array} Express validator middleware array for updating cart items
+ * @example
+ * // Use in route:
+ * router.put('/cart/items/:itemId', updateCartItemValidation, updateCartItem);
+ */
 exports.updateCartItemValidation = [
   param('itemId')
     .notEmpty()
@@ -162,6 +196,16 @@ exports.updateCartItemValidation = [
 ];
 
 // Validation for removing item from cart
+/**
+ * Validation rules for removing items from cart.
+ * Validates cart item ownership before removal.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} itemId - Required cart item ID parameter, validates ownership
+ * @returns {Array} Express validator middleware array for removing cart items
+ * @example
+ * // Use in route:
+ * router.delete('/cart/items/:itemId', removeFromCartValidation, removeFromCart);
+ */
 exports.removeFromCartValidation = [
   param('itemId')
     .notEmpty()
@@ -192,11 +236,33 @@ exports.removeFromCartValidation = [
 ];
 
 // Validation for clearing cart
+/**
+ * Validation rules for clearing entire cart.
+ * No specific validation needed - cart ownership checked in controller.
+ * @type {Array} Empty array for cart clearing
+ * @returns {Array} Empty express validator middleware array
+ * @example
+ * // Use in route:
+ * router.delete('/cart', clearCartValidation, clearCart);
+ */
 exports.clearCartValidation = [
   // No additional validation needed - cart ownership is checked in controller
 ];
 
 // Validation for getting cart summary
+/**
+ * Validation rules for retrieving cart summary with optional shipping/tax calculations.
+ * Validates optional query parameters for cart calculations.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} include_shipping - Optional boolean for shipping calculation
+ * @property {ValidationChain} include_tax - Optional boolean for tax calculation
+ * @property {ValidationChain} shipping_cost - Optional positive number for shipping cost
+ * @property {ValidationChain} tax_rate - Optional tax rate between 0 and 1
+ * @returns {Array} Express validator middleware array for cart summary
+ * @example
+ * // Use in route:
+ * router.get('/cart/summary', getCartSummaryValidation, getCartSummary);
+ */
 exports.getCartSummaryValidation = [
   // Optional query parameters
   query('include_shipping')
@@ -221,6 +287,20 @@ exports.getCartSummaryValidation = [
 ];
 
 // Helper function to validate cart ownership
+/**
+ * Validates ownership/access rights for a cart.
+ * Checks if user or session has access to the specified cart.
+ * @param {number} cartId - Cart ID to validate
+ * @param {number|null} userId - User ID for ownership check (null for guest carts)
+ * @param {string|null} sessionId - Session ID for guest cart access (null for user carts)
+ * @returns {Promise<Object>} Cart instance if validation passes
+ * @throws {Error} When cart not found or access denied
+ * @example
+ * // Validate user cart access
+ * const cart = await validateCartOwnership(cartId, userId);
+ * // Validate guest cart access
+ * const cart = await validateCartOwnership(cartId, null, sessionId);
+ */
 exports.validateCartOwnership = async (cartId, userId = null, sessionId = null) => {
   const cart = await Cart.findByPk(cartId);
   if (!cart) {
@@ -239,6 +319,19 @@ exports.validateCartOwnership = async (cartId, userId = null, sessionId = null) 
 };
 
 // Helper function to check if user can access cart
+/**
+ * Checks if a user/session can access a specific cart.
+ * Performs ownership validation for both authenticated users and guest sessions.
+ * @param {Object} cart - Cart instance to check access for
+ * @param {number|null} userId - User ID for ownership check (null for guest carts)
+ * @param {string|null} sessionId - Session ID for guest cart access (null for user carts)
+ * @returns {boolean} True if access is allowed, false otherwise
+ * @example
+ * // Check user cart access
+ * const canAccess = canAccessCart(cart, userId);
+ * // Check guest cart access
+ * const canAccess = canAccessCart(cart, null, sessionId);
+ */
 exports.canAccessCart = (cart, userId = null, sessionId = null) => {
   if (userId) {
     return cart.user_id === userId;

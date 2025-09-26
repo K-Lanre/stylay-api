@@ -3,9 +3,33 @@ const { Op } = require('sequelize');
 const slugify = require('slugify');
 
 /**
- * @desc    Create a new category
- * @route   POST /api/v1/categories
- * @access  Private/Admin
+ * Create a new product category
+ * Generates unique slug from category name and supports hierarchical categories.
+ * Admin access required for category creation and management.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.name - Category name (required)
+ * @param {number} [req.body.parent_id] - Parent category ID for hierarchical categories
+ * @param {string} [req.body.description] - Category description
+ * @param {string} [req.body.image] - Category image URL
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with created category
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Object} res.body.data - Created category object
+ * @throws {Error} 500 - Server error during creation or slug generation
+ * @api {post} /api/v1/categories Create category
+ * @private Requires admin authentication
+ * @example
+ * POST /api/v1/categories
+ * Authorization: Bearer <admin_jwt_token>
+ * {
+ *   "name": "Electronics",
+ *   "description": "Electronic devices and accessories",
+ *   "parent_id": null,
+ *   "image": "https://example.com/electronics.jpg"
+ * }
  */
 const createCategory = async (req, res) => {
   try {
@@ -35,9 +59,32 @@ const createCategory = async (req, res) => {
 };
 
 /**
- * @desc    Get all categories (with optional filtering and pagination)
- * @route   GET /api/v1/categories
- * @access  Public
+ * Get all categories with filtering and pagination
+ * Supports hierarchical category display with parent-child relationships.
+ * Includes search functionality and flexible filtering options.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.query} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of categories per page
+ * @param {number|string} [req.query.parent_id] - Filter by parent category ID or 'null' for root categories
+ * @param {string} [req.query.search] - Search term for category name or description
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated categories
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Array} res.body.data - Array of category objects with parent/child relationships
+ * @returns {Object} res.body.pagination - Pagination metadata
+ * @returns {number} res.body.pagination.total - Total number of categories
+ * @returns {number} res.body.pagination.page - Current page number
+ * @returns {number} res.body.pagination.pages - Total number of pages
+ * @returns {number} res.body.pagination.limit - Items per page
+ * @throws {Error} 500 - Server error during category retrieval
+ * @api {get} /api/v1/categories Get categories
+ * @public
+ * @example
+ * GET /api/v1/categories?page=1&limit=5&parent_id=null
+ * GET /api/v1/categories?search=electronics
  */
 const getCategories = async (req, res) => {
   try {
@@ -99,9 +146,25 @@ const getCategories = async (req, res) => {
 };
 
 /**
- * @desc    Get category by ID or slug
- * @route   GET /api/v1/categories/:identifier
- * @access  Public
+ * Get category by ID or slug with full details
+ * Supports both numeric IDs and URL-friendly slugs for category identification.
+ * Returns category with parent and child relationships.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.identifier - Category ID (numeric) or slug (string)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with category details
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Object} res.body.data - Category object with parent and children
+ * @throws {Object} 404 - Category not found
+ * @throws {Error} 500 - Server error during category retrieval
+ * @api {get} /api/v1/categories/:identifier Get category by ID/slug
+ * @public
+ * @example
+ * GET /api/v1/categories/123
+ * GET /api/v1/categories/electronics
  */
 const getCategoryByIdentifier = async (req, res) => {
   try {
@@ -157,9 +220,35 @@ const getCategoryByIdentifier = async (req, res) => {
 
 
 /**
- * @desc    Update category
- * @route   PUT /api/v1/categories/:id
- * @access  Private/Admin
+ * Update category information
+ * Supports partial updates and automatically generates new slug when name changes.
+ * Admin access required for category modifications.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Category ID to update
+ * @param {import('express').Request.body} req.body - Request body with updateable fields
+ * @param {string} [req.body.name] - New category name (triggers slug regeneration)
+ * @param {string} [req.body.slug] - Custom slug (overrides auto-generated)
+ * @param {number} [req.body.parent_id] - Parent category ID
+ * @param {string} [req.body.description] - Category description
+ * @param {string} [req.body.image] - Category image URL
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated category
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Object} res.body.data - Updated category object
+ * @throws {Object} 404 - Category not found
+ * @throws {Error} 500 - Server error during update
+ * @api {put} /api/v1/categories/:id Update category
+ * @private Requires admin authentication
+ * @example
+ * PUT /api/v1/categories/123
+ * Authorization: Bearer <admin_jwt_token>
+ * {
+ *   "name": "Updated Electronics",
+ *   "description": "Updated category description"
+ * }
  */
 const updateCategory = async (req, res) => {
   try {
@@ -202,9 +291,25 @@ const updateCategory = async (req, res) => {
 };
 
 /**
- * @desc    Delete category
- * @route   DELETE /api/v1/categories/:id
- * @access  Private/Admin
+ * Delete category
+ * Permanently removes category from database. Admin access required.
+ * Note: Consider cascade effects on products and subcategories.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Category ID to delete
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming deletion
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {string} res.body.message - Success message
+ * @throws {Object} 404 - Category not found
+ * @throws {Error} 500 - Server error during deletion
+ * @api {delete} /api/v1/categories/:id Delete category
+ * @private Requires admin authentication
+ * @example
+ * DELETE /api/v1/categories/123
+ * Authorization: Bearer <admin_jwt_token>
  */
 const deleteCategory = async (req, res) => {
   try {
@@ -234,9 +339,39 @@ const deleteCategory = async (req, res) => {
 };
 
 /**
- * @desc    Get category tree (nested categories)
- * @route   GET /api/v1/categories/tree
- * @access  Public
+ * Get hierarchical category tree
+ * Returns nested category structure with unlimited depth.
+ * Useful for building category navigation menus and filters.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with nested category tree
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Array} res.body.data - Array of root categories with nested children
+ * @returns {Object} res.body.data[].children - Child categories (recursive)
+ * @throws {Error} 500 - Server error during tree generation
+ * @api {get} /api/v1/categories/tree Get category tree
+ * @public
+ * @example
+ * GET /api/v1/categories/tree
+ *
+ * // Response structure:
+ * [
+ *   {
+ *     "id": 1,
+ *     "name": "Electronics",
+ *     "slug": "electronics",
+ *     "children": [
+ *       {
+ *         "id": 2,
+ *         "name": "Smartphones",
+ *         "slug": "smartphones",
+ *         "children": []
+ *       }
+ *     ]
+ *   }
+ * ]
  */
 const getCategoryTree = async (req, res) => {
   try {
@@ -277,9 +412,38 @@ const getCategoryTree = async (req, res) => {
 };
 
 /**
- * @desc    Get products by category
- * @route   GET /api/v1/categories/:id/products
- * @access  Public
+ * Get products belonging to a category with advanced filtering
+ * Supports hierarchical category queries (includes subcategories), price filtering,
+ * sorting options, and pagination. Includes product reviews and vendor information.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Category ID or slug
+ * @param {import('express').Request.query} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=12] - Products per page
+ * @param {number} [req.query.minPrice] - Minimum price filter
+ * @param {number} [req.query.maxPrice] - Maximum price filter
+ * @param {string} [req.query.sortBy='createdAt'] - Sort field (createdAt, price, name)
+ * @param {string} [req.query.sortOrder='DESC'] - Sort order (ASC, DESC)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with category products
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Object} res.body.data - Products data with category info
+ * @returns {Object} res.body.data.category - Category details
+ * @returns {Array} res.body.data.products - Array of products with reviews
+ * @returns {Object} res.body.data.pagination - Pagination metadata
+ * @throws {Object} 404 - Category not found
+ * @throws {Error} 500 - Server error during product retrieval
+ * @api {get} /api/v1/categories/:id/products Get category products
+ * @public
+ * @example
+ * GET /api/v1/categories/electronics/products?page=1&limit=6&minPrice=100&maxPrice=500&sortBy=price&sortOrder=ASC
+ *
+ * // Supports both ID and slug:
+ * GET /api/v1/categories/electronics/products
+ * GET /api/v1/categories/123/products
  */
 const getCategoryProducts = async (req, res) => {
   try {

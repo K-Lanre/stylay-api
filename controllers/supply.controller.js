@@ -3,9 +3,34 @@ const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 
 /**
- * @desc    Create a new supply
- * @route   POST /api/v1/supplies
- * @access  Private/Vendor
+ * Create a new supply record for a vendor's product
+ * Records product supply transactions and automatically updates inventory levels.
+ * Uses database transactions to ensure data consistency.
+ *
+ * @param {import('express').Request} req - Express request object (vendor authentication required)
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {number} req.body.product_id - Product ID being supplied (required)
+ * @param {number} req.body.quantity - Quantity supplied (required)
+ * @param {number} [req.body.vendor_product_tag_id] - Optional vendor product tag ID
+ * @param {string} [req.body.supply_date] - Supply date (defaults to current date)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with created supply record
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data.supply - Created supply record
+ * @throws {AppError} 404 - Vendor not found or not approved, or product not owned by vendor
+ * @throws {Error} 500 - Server error during supply creation
+ * @api {post} /api/v1/supplies Create supply
+ * @private Requires vendor authentication
+ * @example
+ * POST /api/v1/supplies
+ * Authorization: Bearer <vendor_jwt_token>
+ * {
+ *   "product_id": 123,
+ *   "quantity": 50,
+ *   "vendor_product_tag_id": 456,
+ *   "supply_date": "2024-01-15"
+ * }
  */
 const createSupply = async (req, res, next) => {
   const transaction = await Supply.sequelize.transaction();

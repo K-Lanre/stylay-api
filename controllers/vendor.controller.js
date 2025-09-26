@@ -249,11 +249,56 @@ const registerVendor = async (req, res) => {
 };
 
 /**
- * Get vendor profile
- * @access Private/Vendor
- * /api/v1/vendors/profile
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves the profile information for the authenticated vendor including user details and store information.
+ * Returns comprehensive vendor data for profile management and display.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for vendor lookup
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor profile data
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Vendor profile information
+ * @returns {number} data.id - Vendor ID
+ * @returns {string} data.status - Vendor approval status
+ * @returns {Object} data.User - Associated user information
+ * @returns {number} data.User.id - User ID
+ * @returns {string} data.User.first_name - First name
+ * @returns {string} data.User.last_name - Last name
+ * @returns {string} data.User.email - Email address
+ * @returns {string} data.User.phone - Phone number
+ * @returns {string} data.User.email_verified_at - Email verification timestamp
+ * @returns {Object} data.store - Store/business information
+ * @throws {AppError} 404 - When vendor profile not found
+ * @api {get} /api/v1/vendors/profile Get Vendor Profile
+ * @private vendor
+ * @example
+ * // Request
+ * GET /api/v1/vendors/profile
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "id": 1,
+ *     "status": "approved",
+ *     "User": {
+ *       "id": 1,
+ *       "first_name": "John",
+ *       "last_name": "Doe",
+ *       "email": "john.doe@example.com",
+ *       "phone": "+2348012345678",
+ *       "email_verified_at": "2024-01-15T10:00:00.000Z"
+ *     },
+ *     "store": {
+ *       "business_name": "Doe Enterprises",
+ *       "slug": "doe-enterprises",
+ *       "description": "Handmade crafts store",
+ *       "logo": "https://example.com/logo.jpg"
+ *     }
+ *   }
+ * }
  */
 const getVendorProfile = async (req, res) => {
   try {
@@ -303,11 +348,48 @@ const getVendorProfile = async (req, res) => {
 };
 
 /**
- * Complete vendor onboarding
- * @access Private/Vendor
- * /api/v1/vendors/complete-onboarding
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Completes the vendor onboarding process by updating store information with banking details,
+ * business documentation, and file uploads. Sets vendor status to 'registration_complete' for admin review.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.body - Request body containing onboarding data
+ * @param {string} req.body.bank_account_name - Bank account holder name (required)
+ * @param {string} req.body.bank_account_number - Bank account number (required)
+ * @param {string} req.body.bank_name - Bank name (required)
+ * @param {string} [req.body.description] - Business description
+ * @param {string} [req.body.cac_number] - CAC registration number (optional, validated)
+ * @param {Object} [req.processedFiles] - Processed file upload data
+ * @param {string} [req.processedFiles.logo] - Store logo URL
+ * @param {Array<string>} [req.processedFiles.business_images] - Array of business image URLs
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for vendor lookup
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming onboarding completion
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message about pending admin review
+ * @throws {AppError} 404 - When vendor not found
+ * @throws {AppError} 400 - When CAC number format is invalid or already registered
+ * @api {post} /api/v1/vendors/complete-onboarding Complete Vendor Onboarding
+ * @private vendor
+ * @example
+ * // Request
+ * POST /api/v1/vendors/complete-onboarding
+ * Authorization: Bearer <token>
+ * Content-Type: multipart/form-data
+ * {
+ *   "bank_account_name": "John Doe",
+ *   "bank_account_number": "0123456789",
+ *   "bank_name": "Access Bank",
+ *   "description": "We specialize in handmade crafts",
+ *   "cac_number": "RC/1234567"
+ * }
+ * // Include file uploads for logo and business_images
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Onboarding completed successfully. Your information is under review."
+ * }
  */
 const completeOnboarding = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
@@ -467,11 +549,52 @@ const completeOnboarding = async (req, res, next) => {
 };
 
 /**
- * Get vendor products
- * @access Private/Vendor
- * /api/v1/vendors/products
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves paginated list of products belonging to a specific vendor.
+ * Includes category and image information for product display.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Vendor ID
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=12] - Number of products per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor's products
+ * @returns {boolean} success - Success flag
+ * @returns {number} count - Number of products in current page
+ * @returns {number} total - Total number of products by vendor
+ * @returns {Array} data - Array of product objects
+ * @returns {number} data[].id - Product ID
+ * @returns {string} data[].name - Product name
+ * @returns {string} data[].slug - Product slug
+ * @returns {string} data[].description - Product description
+ * @returns {number} data[].price - Product price
+ * @returns {Object} data[].Category - Product category info
+ * @returns {Array} data[].images - Product images (first image only)
+ * @throws {AppError} 404 - When vendor not found
+ * @api {get} /api/v1/vendors/:id/products Get Vendor Products
+ * @public
+ * @example
+ * // Request
+ * GET /api/v1/vendors/5/products?page=1&limit=10
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "count": 8,
+ *   "total": 25,
+ *   "data": [
+ *     {
+ *       "id": 1,
+ *       "name": "Wireless Headphones",
+ *       "slug": "wireless-headphones",
+ *       "description": "High-quality wireless headphones",
+ *       "price": 99.99,
+ *       "Category": {"id": 1, "name": "Electronics"},
+ *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
+ *     }
+ *   ]
+ * }
  */
 const getVendorProducts = async (req, res, next) => {
   try {
@@ -507,11 +630,53 @@ const getVendorProducts = async (req, res, next) => {
 };
 
 /**
- * Get all vendors (Public or Admin)
- * @access Public/Admin
- * /api/v1/vendors
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves a paginated list of all vendors with optional filtering by status.
+ * Public access shows general vendor information; admin access may show additional details.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} [req.query.status] - Filter vendors by status (pending, approved, rejected)
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of vendors per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated vendor list
+ * @returns {boolean} status - Success status
+ * @returns {number} results - Number of vendors in current page
+ * @returns {number} total - Total number of vendors matching criteria
+ * @returns {Array} data - Array of vendor objects
+ * @returns {number} data[].id - Vendor ID
+ * @returns {string} data[].status - Vendor approval status
+ * @returns {Object} data[].User - Associated user information
+ * @returns {Object} data[].store - Store/business information
+ * @api {get} /api/v1/vendors Get All Vendors
+ * @public
+ * @example
+ * // Request
+ * GET /api/v1/vendors?page=1&limit=10&status=approved
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "results": 8,
+ *   "total": 25,
+ *   "data": [
+ *     {
+ *       "id": 1,
+ *       "status": "approved",
+ *       "User": {
+ *         "id": 1,
+ *         "first_name": "John",
+ *         "last_name": "Doe",
+ *         "email": "john.doe@example.com"
+ *       },
+ *       "store": {
+ *         "business_name": "Doe Enterprises",
+ *         "slug": "doe-enterprises",
+ *         "logo": "https://example.com/logo.jpg"
+ *       }
+ *     }
+ *   ]
+ * }
  */
 const getAllVendors = async (req, res, next) => {
   try {
@@ -561,11 +726,48 @@ const getAllVendors = async (req, res, next) => {
 };
 
 /**
- * Get vendor by ID public
- * @access Public
- * /api/v1/vendors/:id
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves detailed information about a specific vendor by their ID.
+ * Includes user and store information for public vendor profile display.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Vendor ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor details
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Vendor information
+ * @returns {number} data.id - Vendor ID
+ * @returns {string} data.status - Vendor approval status
+ * @returns {Object} data.User - Associated user information
+ * @returns {Object} data.store - Store/business information
+ * @throws {AppError} 404 - When vendor not found
+ * @api {get} /api/v1/vendors/:id Get Vendor by ID
+ * @public
+ * @example
+ * // Request
+ * GET /api/v1/vendors/123
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "id": 123,
+ *     "status": "approved",
+ *     "User": {
+ *       "id": 1,
+ *       "first_name": "John",
+ *       "last_name": "Doe",
+ *       "email": "john.doe@example.com",
+ *       "phone": "+2348012345678"
+ *     },
+ *     "store": {
+ *       "business_name": "Doe Enterprises",
+ *       "slug": "doe-enterprises",
+ *       "description": "Handmade crafts store",
+ *       "logo": "https://example.com/logo.jpg"
+ *     }
+ *   }
+ * }
  */
 const getVendor = async (req, res, next) => {
   try {
@@ -607,11 +809,41 @@ const getVendor = async (req, res, next) => {
 };
 
 /**
- * Approve vendor (Admin only)
- * @access Admin
- * /api/v1/vendors/:id/approve
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Approves a vendor application, changing their status from pending to approved.
+ * Updates both vendor and store verification status, and sends approval notification email.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Vendor ID to approve
+ * @param {Object} req.user - Authenticated admin user info
+ * @param {number} req.user.id - Admin user ID for audit trail
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with approval confirmation
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @returns {Object} data - Approval details
+ * @returns {number} data.id - Vendor ID
+ * @returns {string} data.status - Updated vendor status ('approved')
+ * @returns {string} data.approved_at - Approval timestamp
+ * @throws {AppError} 404 - When vendor not found
+ * @throws {AppError} 400 - When vendor is already approved
+ * @api {post} /api/v1/vendors/:id/approve Approve Vendor
+ * @private admin
+ * @example
+ * // Request
+ * POST /api/v1/vendors/123/approve
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Vendor approved successfully",
+ *   "data": {
+ *     "id": 123,
+ *     "status": "approved",
+ *     "approved_at": "2024-09-26T05:00:00.000Z"
+ *   }
+ * }
  */
 const approveVendor = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
@@ -691,11 +923,46 @@ const approveVendor = async (req, res, next) => {
 };
 
 /**
- * Reject vendor (Admin only)
- * @access Admin
- * /api/v1/vendors/:id/reject
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Rejects a vendor application with a specified reason, preventing them from selling on the platform.
+ * Sends rejection notification email with the provided reason.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Vendor ID to reject
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.reason - Reason for rejection (required)
+ * @param {Object} req.user - Authenticated admin user info
+ * @param {number} req.user.id - Admin user ID for audit trail
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with rejection confirmation
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @returns {Object} data - Rejection details
+ * @returns {number} data.id - Vendor ID
+ * @returns {string} data.status - Updated vendor status ('rejected')
+ * @returns {string} data.rejected_at - Rejection timestamp
+ * @throws {AppError} 400 - When reason is not provided or vendor already rejected
+ * @throws {AppError} 404 - When vendor not found
+ * @api {post} /api/v1/vendors/:id/reject Reject Vendor
+ * @private admin
+ * @example
+ * // Request
+ * POST /api/v1/vendors/123/reject
+ * Authorization: Bearer <admin_token>
+ * {
+ *   "reason": "Incomplete documentation provided"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Vendor rejected successfully",
+ *   "data": {
+ *     "id": 123,
+ *     "status": "rejected",
+ *     "rejected_at": "2024-09-26T05:00:00.000Z"
+ *   }
+ * }
  */
 const rejectVendor = async (req, res, next) => {
   const transaction = await Vendor.sequelize.transaction();
@@ -780,11 +1047,32 @@ const rejectVendor = async (req, res, next) => {
 };
 
 /**
- * Follow a vendor
- * @access Private/User
- * /api/v1/vendors/:vendorId/follow
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Creates a follow relationship between the authenticated user and a vendor.
+ * Allows users to follow vendors to receive updates and stay connected.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.vendorId - Vendor ID to follow
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID creating the follow relationship
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming follow action
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @throws {AppError} 404 - When vendor not found
+ * @throws {AppError} 400 - When user tries to follow themselves or already following
+ * @api {post} /api/v1/vendors/:vendorId/follow Follow Vendor
+ * @private user
+ * @example
+ * // Request
+ * POST /api/v1/vendors/123/follow
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (201)
+ * {
+ *   "status": "success",
+ *   "message": "Successfully followed vendor"
+ * }
  */
 const followVendor = async (req, res, next) => {
   try {
@@ -831,11 +1119,31 @@ const followVendor = async (req, res, next) => {
 };
 
 /**
- * Unfollow a vendor
- * @access Private/User
- * /api/v1/vendors/:vendorId/unfollow
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Removes the follow relationship between the authenticated user and a vendor.
+ * Allows users to unfollow vendors they no longer wish to follow.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.vendorId - Vendor ID to unfollow
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID removing the follow relationship
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming unfollow action
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @throws {AppError} 400 - When user is not following the vendor
+ * @api {delete} /api/v1/vendors/:vendorId/unfollow Unfollow Vendor
+ * @private user
+ * @example
+ * // Request
+ * DELETE /api/v1/vendors/123/unfollow
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Successfully unfollowed vendor"
+ * }
  */
 const unfollowVendor = async (req, res, next) => {
   try {
@@ -868,11 +1176,55 @@ const unfollowVendor = async (req, res, next) => {
 };
 
 /**
- * Get followers of a vendor
- * @access Private/Vendor
- * /api/v1/vendors/:vendorId/followers
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves a paginated list of users who are following a specific vendor.
+ * Shows follower information including profile details for vendor relationship management.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.vendorId - Vendor ID to get followers for
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of followers per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor followers
+ * @returns {boolean} status - Success status
+ * @returns {number} results - Number of followers in current page
+ * @returns {number} total - Total number of followers
+ * @returns {Array} data - Array of follower objects
+ * @returns {number} data[].user_id - Follower user ID
+ * @returns {number} data[].vendor_id - Vendor being followed
+ * @returns {Object} data[].follower - Follower user details
+ * @returns {string} data[].follower.first_name - Follower's first name
+ * @returns {string} data[].follower.last_name - Follower's last name
+ * @returns {string} data[].follower.email - Follower's email
+ * @returns {string} data[].follower.profile_image - Follower's profile image
+ * @throws {AppError} 404 - When vendor not found
+ * @api {get} /api/v1/vendors/:vendorId/followers Get Vendor Followers
+ * @private vendor
+ * @example
+ * // Request
+ * GET /api/v1/vendors/123/followers?page=1&limit=10
+ * Authorization: Bearer <vendor_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "results": 5,
+ *   "total": 25,
+ *   "data": [
+ *     {
+ *       "user_id": 456,
+ *       "vendor_id": 123,
+ *       "follower": {
+ *         "id": 456,
+ *         "first_name": "Jane",
+ *         "last_name": "Smith",
+ *         "email": "jane.smith@example.com",
+ *         "profile_image": "https://example.com/profile.jpg"
+ *       }
+ *     }
+ *   ]
+ * }
  */
 const getVendorFollowers = async (req, res, next) => {
   try {
@@ -919,11 +1271,58 @@ const getVendorFollowers = async (req, res, next) => {
 };
 
 /**
- * Get vendors followed by a user
- * @access Private/User
- * /api/v1/vendors/user/:userId/following
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves a paginated list of vendors that a specific user is following.
+ * Shows vendor and store information for each followed vendor.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} [req.params.userId] - User ID (defaults to authenticated user)
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - Authenticated user ID (fallback for userId)
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of vendors per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with followed vendors
+ * @returns {boolean} status - Success status
+ * @returns {number} results - Number of vendors in current page
+ * @returns {number} total - Total number of followed vendors
+ * @returns {Array} data - Array of following relationships
+ * @returns {Object} data[].vendor - Vendor information
+ * @returns {Object} data[].vendor.User - Vendor user details
+ * @returns {Object} data[].vendor.store - Vendor store details
+ * @api {get} /api/v1/vendors/user/:userId/following Get User Following
+ * @private user
+ * @example
+ * // Request
+ * GET /api/v1/vendors/user/456/following?page=1&limit=10
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "results": 3,
+ *   "total": 8,
+ * "data": [
+ *     {
+ *       "user_id": 456,
+ *       "vendor_id": 123,
+ *       "vendor": {
+ *         "id": 123,
+ *         "User": {
+ *           "id": 1,
+ *           "first_name": "John",
+ *           "last_name": "Doe"
+ *         },
+ *         "store": {
+ *           "business_name": "Doe Enterprises",
+ *           "slug": "doe-enterprises",
+ *           "logo": "https://example.com/logo.jpg"
+ *         }
+ *       }
+ *     }
+ *   ]
+ * }
  */
 const getUserFollowing = async (req, res, next) => {
   try {
@@ -969,11 +1368,33 @@ const getUserFollowing = async (req, res, next) => {
 };
 
 /**
- * Check if user is following a vendor
- * @access Private/User
- * /api/v1/vendors/:vendorId/follow-status
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Checks whether the authenticated user is currently following a specific vendor.
+ * Returns a boolean indicating the follow relationship status.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.vendorId - Vendor ID to check follow status for
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID to check follow relationship
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with follow status
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Follow status information
+ * @returns {boolean} data.isFollowing - Whether user is following the vendor
+ * @api {get} /api/v1/vendors/:vendorId/follow-status Check Follow Status
+ * @private user
+ * @example
+ * // Request
+ * GET /api/v1/vendors/123/follow-status
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "isFollowing": true
+ *   }
+ * }
  */
 const checkFollowStatus = async (req, res, next) => {
   try {
@@ -1000,11 +1421,62 @@ const checkFollowStatus = async (req, res, next) => {
 };
 
 /**
- * Get followers of the authenticated vendor (Vendor only)
- * @access Private/Vendor
- * /api/v1/vendors/profile/followers
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Retrieves a paginated list of followers for the authenticated vendor.
+ * Shows detailed information about users following the vendor's store.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated vendor user info
+ * @param {number} req.user.id - Vendor user ID
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of followers per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor's followers
+ * @returns {boolean} status - Success status
+ * @returns {number} results - Number of followers in current page
+ * @returns {number} total - Total number of followers
+ * @returns {Object} data - Response data container
+ * @returns {Object} data.vendor - Vendor basic information
+ * @returns {number} data.vendor.id - Vendor ID
+ * @returns {string} data.vendor.business_name - Vendor business name
+ * @returns {Array} data.followers - Array of follower relationships
+ * @returns {number} data.followers[].user_id - Follower user ID
+ * @returns {number} data.followers[].vendor_id - Vendor ID
+ * @returns {Object} data.followers[].follower - Follower user details
+ * @throws {AppError} 404 - When vendor profile not found
+ * @api {get} /api/v1/vendors/profile/followers Get My Followers
+ * @private vendor
+ * @example
+ * // Request
+ * GET /api/v1/vendors/profile/followers?page=1&limit=10
+ * Authorization: Bearer <vendor_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "results": 5,
+ *   "total": 25,
+ *   "data": {
+ *     "vendor": {
+ *       "id": 123,
+ *       "business_name": "Doe Enterprises"
+ *     },
+ *     "followers": [
+ *       {
+ *         "user_id": 456,
+ *         "vendor_id": 123,
+ *         "follower": {
+ *           "id": 456,
+ *           "first_name": "Jane",
+ *           "last_name": "Smith",
+ *           "email": "jane.smith@example.com",
+ *           "profile_image": "https://example.com/profile.jpg",
+ *           "created_at": "2024-08-15T10:30:00.000Z"
+ *         }
+ *       }
+ *     ]
+ *   }
+ * }
  */
 const getMyFollowers = async (req, res, next) => {
   try {

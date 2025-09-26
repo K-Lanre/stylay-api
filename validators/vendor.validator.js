@@ -4,6 +4,25 @@ const { Store } = require("../models");
 const { Op } = require('sequelize');
 
 // Validation rules for vendor registration
+/**
+ * Validation rules for vendor registration.
+ * Comprehensive validation for business information, contact details, and CAC registration.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} first_name - Required, 2-100 chars, trimmed
+ * @property {ValidationChain} last_name - Required, 2-100 chars, trimmed
+ * @property {ValidationChain} email - Required, valid email, normalized
+ * @property {ValidationChain} phone - Required, Nigerian phone format (+2348012345678)
+ * @property {ValidationChain} business_name - Required, 2-100 chars, trimmed, unique check
+ * @property {ValidationChain} cac_number - Optional, specific CAC format validation
+ * @property {ValidationChain} instagram_handle - Optional, 5-20 chars, alphanumeric + underscore
+ * @property {ValidationChain} facebook_handle - Optional, 5-20 chars, alphanumeric + underscore
+ * @property {ValidationChain} twitter_handle - Optional, 5-20 chars, alphanumeric + underscore
+ * @property {ValidationChain} join_reason - Required, 10-1000 chars, explains vendor motivation
+ * @returns {Array} Express validator middleware array for vendor registration
+ * @example
+ * // Use in route:
+ * router.post('/vendors/register', registerVendorValidation, validate, registerVendor);
+ */
 const registerVendorValidation = [
   // User fields
   body("first_name")
@@ -85,6 +104,21 @@ const registerVendorValidation = [
     .withMessage("Join reason must be between 10 and 1000 characters"),
 ];
 
+/**
+ * Validation rules for completing vendor onboarding process.
+ * Validates banking information, business description, and file uploads.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} bank_account_name - Required, 2-100 chars, trimmed
+ * @property {ValidationChain} bank_account_number - Required, numeric only
+ * @property {ValidationChain} bank_name - Required, 2-100 chars, trimmed
+ * @property {ValidationChain} description - Optional, max 1000 chars
+ * @property {ValidationChain} logo - Optional, string validation for file path
+ * @property {ValidationChain} business_images - Optional, handled by file upload middleware
+ * @returns {Array} Express validator middleware array for vendor onboarding completion
+ * @example
+ * // Use in route:
+ * router.post('/vendors/complete-onboarding', completeOnboardingValidation, validate, completeOnboarding);
+ */
 const completeOnboardingValidation = [
   body("bank_account_name")
     .trim()
@@ -123,6 +157,20 @@ const completeOnboardingValidation = [
 ];
 
 // Validation middleware
+/**
+ * Express middleware to handle validation errors using express-validator.
+ * Formats validation errors with detailed error information for vendor operations.
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} JSON error response if validation fails
+ * @returns {boolean} status - Always false for validation errors
+ * @returns {string} message - "Validation error"
+ * @returns {Array} errors - Array of validation errors from express-validator
+ * @example
+ * // Use as middleware in routes:
+ * router.post('/vendors/register', registerVendorValidation, validate, registerVendor);
+ */
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {

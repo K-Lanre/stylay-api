@@ -44,6 +44,21 @@ const imageValidation = body('image')
   .isURL().withMessage('Invalid image URL format');
 
 // Validation rules for creating a category
+/**
+ * Validation rules for creating a new category.
+ * Validates category name, optional slug, parent relationship, description, and image URL.
+ * Auto-generates slug from name if not provided.
+ * @type {Array<ValidationChain|Function>} Array of express-validator chains and middleware functions
+ * @property {ValidationChain} name - Required, 1-100 chars, trimmed
+ * @property {ValidationChain} slug - Optional, 1-100 chars, unique, slug format
+ * @property {ValidationChain} parent_id - Optional, integer > 0, validates parent exists
+ * @property {ValidationChain} description - Optional, max 1000 chars
+ * @property {ValidationChain} image - Optional, valid URL format
+ * @returns {Array} Express validator middleware array for category creation
+ * @example
+ * // Use in route:
+ * router.post('/categories', createCategoryValidation, createCategory);
+ */
 exports.createCategoryValidation = [
   nameValidation,
   slugValidation,
@@ -60,6 +75,22 @@ exports.createCategoryValidation = [
 ];
 
 // Validation rules for updating a category
+/**
+ * Validation rules for updating an existing category.
+ * Validates category ID parameter and optional fields for updates.
+ * Includes circular reference prevention for parent-child relationships.
+ * @type {Array<ValidationChain|Function>} Array of express-validator chains and middleware functions
+ * @property {ValidationChain} id - Required category ID parameter, integer > 0
+ * @property {ValidationChain} name - Optional, 1-100 chars, trimmed
+ * @property {ValidationChain} slug - Optional, 1-100 chars, unique, slug format
+ * @property {ValidationChain} parent_id - Optional, integer > 0, validates parent exists
+ * @property {ValidationChain} description - Optional, max 1000 chars
+ * @property {ValidationChain} image - Optional, valid URL format
+ * @returns {Array} Express validator middleware array for category updates
+ * @example
+ * // Use in route:
+ * router.put('/categories/:id', updateCategoryValidation, updateCategory);
+ */
 exports.updateCategoryValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid category ID'),
@@ -107,6 +138,16 @@ exports.getCategoryValidation = [
 ];
 
 // Validation rules for getting a category by ID or slug
+/**
+ * Validation rules for retrieving a category by ID or slug identifier.
+ * Handles both numeric IDs and string slugs with appropriate validation.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} identifier - Required identifier (ID or slug), validates existence
+ * @returns {Array} Express validator middleware array for category retrieval by identifier
+ * @example
+ * // Use in route:
+ * router.get('/categories/:identifier', getCategoryByIdentifierValidation, getCategory);
+ */
 exports.getCategoryByIdentifierValidation = [
   param('identifier')
     .notEmpty().withMessage('Category identifier is required')
@@ -132,6 +173,22 @@ exports.getCategoryByIdentifierValidation = [
 ];
 
 // Validation rules for getting category products
+/**
+ * Validation rules for retrieving products in a specific category.
+ * Validates category identifier and optional filtering/sorting parameters.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required category identifier (ID or slug), validates existence
+ * @property {ValidationChain} page - Optional, integer >= 1
+ * @property {ValidationChain} limit - Optional, integer 1-100
+ * @property {ValidationChain} minPrice - Optional, float >= 0
+ * @property {ValidationChain} maxPrice - Optional, float >= minPrice
+ * @property {ValidationChain} sortBy - Optional, one of: price, createdAt, name
+ * @property {ValidationChain} sortOrder - Optional, ASC, DESC, asc, or desc
+ * @returns {Array} Express validator middleware array for category products retrieval
+ * @example
+ * // Use in route:
+ * router.get('/categories/:id/products', getCategoryProductsValidation, getCategoryProducts);
+ */
 exports.getCategoryProductsValidation = [
   param('id')
     .notEmpty().withMessage('Category ID or slug is required')
@@ -185,6 +242,17 @@ exports.getCategoryProductsValidation = [
 ];
 
 // Validation rules for deleting a category
+/**
+ * Validation rules for deleting a category.
+ * Includes checks for child categories and associated products to prevent data integrity issues.
+ * @type {Array<ValidationChain|Function>} Array of express-validator chains and middleware functions
+ * @property {ValidationChain} id - Required category ID parameter, integer > 0
+ * @property {Function} - Middleware to check for child categories and products
+ * @returns {Array} Express validator middleware array for category deletion
+ * @example
+ * // Use in route:
+ * router.delete('/categories/:id', deleteCategoryValidation, deleteCategory);
+ */
 exports.deleteCategoryValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid category ID'),

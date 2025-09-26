@@ -1,7 +1,8 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const passport = require('passport');
-const { User, Role, Op } = require("../models");
+const { User, Role} = require("../models");
+const { Op } = require("sequelize");
 const AppError = require("../utils/appError");
 const { sendWelcomeEmail } = require("../services/email.service");
 const logger = require("../utils/logger");
@@ -47,7 +48,39 @@ const createSendToken = (user, statusCode, res) => {
   });
 };
 
-// Register a new user
+/**
+ * Register a new user account
+ * Creates a new user with email verification required before account activation.
+ * Sends a welcome email with verification code that expires in 10 minutes.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.first_name - User's first name (required)
+ * @param {string} req.body.last_name - User's last name (required)
+ * @param {string} req.body.email - User's email address (required, must be unique)
+ * @param {string} req.body.password - User's password (required, min 8 characters)
+ * @param {string} req.body.phone - User's phone number (required, must be unique, Nigerian format)
+ * @param {string} req.body.gender - User's gender (optional)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with JWT token and user data
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.token - JWT authentication token
+ * @returns {Object} res.body.data - User data object
+ * @throws {AppError} 400 - Email already registered or phone already in use
+ * @throws {AppError} 500 - Server error during registration
+ * @api {post} /api/v1/auth/register Register a new user
+ * @example
+ * POST /api/v1/auth/register
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@example.com",
+ *   "password": "securepass123",
+ *   "phone": "+2348012345678",
+ *   "gender": "male"
+ * }
+ */
 exports.register = async (req, res, next) => {
   try {
     const { first_name, last_name, email, password, phone, gender } = req.body;
@@ -128,7 +161,33 @@ exports.register = async (req, res, next) => {
   }
 };
 
-// Verify email with code
+/**
+ * Verify user email using verification code
+ * Validates the email verification code sent during registration and activates the user account.
+ * Uses database transactions for data consistency.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.email - User's email address (required)
+ * @param {string} req.body.code - 6-digit verification code (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with JWT token and verified user data
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {string} res.body.token - JWT authentication token
+ * @returns {Object} res.body.data - Verified user data with roles
+ * @throws {AppError} 400 - Missing email/code, invalid/expired code, or already verified
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 500 - Server error during verification
+ * @api {post} /api/v1/auth/verify-email Verify email with code
+ * @example
+ * POST /api/v1/auth/verify-email
+ * {
+ *   "email": "john.doe@example.com",
+ *   "code": "123456"
+ * }
+ */
 exports.verifyEmail = async (req, res, next) => {
   const { email, code } = req.body;
 
@@ -270,7 +329,32 @@ exports.verifyEmail = async (req, res, next) => {
   }
 };
 
-// Login user with Passport local strategy
+/**
+ * Authenticate user login using Passport local strategy
+ * Validates user credentials and returns JWT token if authentication successful.
+ * Requires email verification before allowing login.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.email - User's email address (required)
+ * @param {string} req.body.password - User's password (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with JWT token and user data
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.token - JWT authentication token
+ * @returns {Object} res.body.data - User data object
+ * @throws {AppError} 400 - Missing email or password
+ * @throws {AppError} 401 - Invalid credentials or unverified email
+ * @throws {AppError} 500 - Authentication error
+ * @api {post} /api/v1/auth/login Login user with Passport local strategy
+ * @example
+ * POST /api/v1/auth/login
+ * {
+ *   "email": "john.doe@example.com",
+ *   "password": "securepass123"
+ * }
+ */
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -307,7 +391,37 @@ exports.login = async (req, res, next) => {
   }
 };
 
-// Update user profile
+/**
+ * Update authenticated user's profile information
+ * Allows users to modify their profile data while preventing updates to sensitive fields.
+ * If email is changed, marks it as unverified and triggers re-verification process.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.body} req.body - Request body with updatable fields
+ * @param {string} [req.body.first_name] - User's first name
+ * @param {string} [req.body.last_name] - User's last name
+ * @param {string} [req.body.email] - New email address (triggers verification)
+ * @param {string} [req.body.phone] - Phone number
+ * @param {string} [req.body.gender] - Gender
+ * @param {Date} [req.body.dob] - Date of birth
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated user data
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Updated user object with roles
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 500 - Server error during update
+ * @api {put} /api/v1/auth/update-profile Update user profile
+ * @private Requires authentication
+ * @example
+ * PUT /api/v1/auth/update-profile
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Smith",
+ *   "phone": "+2348012345678"
+ * }
+ */
 exports.updateProfile = async (req, res, next) => {
   try {
     const { id } = req.user;
@@ -367,7 +481,24 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-// Get current user
+/**
+ * Get current authenticated user's profile data
+ * Returns comprehensive user information including roles and permissions.
+ * Excludes sensitive data like passwords.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with current user data
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - User object with roles and permissions
+ * @throws {AppError} 500 - Server error retrieving user data
+ * @api {get} /api/v1/auth/me Get current user
+ * @private Requires authentication
+ * @example
+ * GET /api/v1/auth/me
+ * Authorization: Bearer <jwt_token>
+ */
 exports.getMe = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id, {
@@ -396,6 +527,32 @@ exports.getMe = async (req, res, next) => {
 // Rate limiting configuration (in milliseconds)
 const VERIFICATION_RESEND_DELAY = 30 * 1000; // 30 seconds
 
+/**
+ * Resend email verification code
+ * Generates and sends a new verification code with rate limiting (30 seconds between requests).
+ * Updates the verification token and expiration time in the database.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.email - User's email address (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with expiration details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {number} res.body.expiresIn - Token expiration in seconds
+ * @returns {Date} res.body.expiresAt - Token expiration timestamp
+ * @throws {AppError} 400 - Email required or already verified
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 429 - Rate limit exceeded (wait before retrying)
+ * @throws {AppError} 500 - Server error sending email
+ * @api {post} /api/v1/auth/resend-verification-code Resend verification code
+ * @example
+ * POST /api/v1/auth/resend-verification-code
+ * {
+ *   "email": "john.doe@example.com"
+ * }
+ */
 exports.resendVerificationCode = async (req, res, next) => {
   const { email } = req.body;
   
@@ -489,7 +646,34 @@ exports.resendVerificationCode = async (req, res, next) => {
   }
 };
 
-// Update password
+/**
+ * Update authenticated user's password
+ * Validates current password before allowing password change.
+ * Updates password_changed_at timestamp and logs the change.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.currentPassword - User's current password (required)
+ * @param {string} req.body.newPassword - New password (required, min 8 characters)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with new JWT token
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.token - New JWT authentication token
+ * @returns {Object} res.body.data - Updated user data
+ * @throws {AppError} 400 - Phone change pending (blocks password update)
+ * @throws {AppError} 401 - Current password is incorrect
+ * @throws {AppError} 500 - Server error during password update
+ * @api {put} /api/v1/auth/update-password Update password
+ * @private Requires authentication
+ * @example
+ * PUT /api/v1/auth/update-password
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "currentPassword": "oldpassword123",
+ *   "newPassword": "newpassword456"
+ * }
+ */
 exports.updatePassword = async (req, res, next) => {
   const { currentPassword, newPassword } = req.body;
   try {
@@ -518,7 +702,28 @@ exports.updatePassword = async (req, res, next) => {
   }
 };
 
-// Forgot password - Send reset code
+/**
+ * Initiate password reset process
+ * Generates a reset code and sends it via email. Returns success even if email doesn't exist
+ * to prevent email enumeration attacks. Uses database transactions for consistency.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.email - User's email address (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response (generic message for security)
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Generic success message
+ * @throws {AppError} 400 - Email required
+ * @throws {AppError} 500 - Server error or email sending failure
+ * @api {post} /api/v1/auth/forgot-password Forgot password - Send reset code
+ * @example
+ * POST /api/v1/auth/forgot-password
+ * {
+ *   "email": "john.doe@example.com"
+ * }
+ */
 exports.forgotPassword = async (req, res, next) => {
   const { email } = req.body;
 
@@ -595,7 +800,22 @@ exports.forgotPassword = async (req, res, next) => {
   }
 };
 
-// Logout user
+/**
+ * Logout user by clearing authentication cookies
+ * Clears JWT cookies on the client side. For token-based auth, client removes token.
+ * Always returns success to prevent user being stuck in logged-in state.
+ *
+ * @param {import('express').Request} req - Express request object (may include JWT cookie)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming logout
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Logout confirmation message
+ * @api {post} /api/v1/auth/logout Logout user
+ * @example
+ * POST /api/v1/auth/logout
+ * Authorization: Bearer <jwt_token> (optional)
+ */
 exports.logout = (req, res) => {
   try {
     // Clear the JWT cookie if it exists
@@ -623,7 +843,33 @@ exports.logout = (req, res) => {
   }
 };
 
-// Reset password with code
+/**
+ * Reset user password using reset code
+ * Validates the reset code and updates the user's password.
+ * Marks the reset token as used to prevent reuse.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.email - User's email address (required)
+ * @param {string} req.body.code - 6-digit reset code (required)
+ * @param {string} req.body.newPassword - New password (required, min 8 characters)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming password update
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Password update confirmation
+ * @throws {AppError} 400 - Missing required fields or invalid/expired code
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 500 - Server error during password reset
+ * @api {post} /api/v1/auth/reset-password Reset password with code
+ * @example
+ * POST /api/v1/auth/reset-password
+ * {
+ *   "email": "john.doe@example.com",
+ *   "code": "654321",
+ *   "newPassword": "newsecurepass123"
+ * }
+ */
 exports.resetPassword = async (req, res, next) => {
   try {
     const { email, code, newPassword } = req.body;
@@ -661,7 +907,34 @@ exports.resetPassword = async (req, res, next) => {
   }
 };
 
-// Request phone number change
+/**
+ * Request phone number change for authenticated user
+ * Initiates phone change process requiring admin approval. Sends verification email to user.
+ * Generates secure token valid for 24 hours. Validates Nigerian phone format.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.newPhone - New phone number in Nigerian format (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with pending change details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Request submission confirmation
+ * @returns {Object} res.body.data - Pending change details
+ * @returns {string} res.body.data.pending_phone - Requested phone number
+ * @returns {Date} res.body.data.requested_at - Request timestamp
+ * @returns {Date} res.body.data.verification_expires_at - Token expiry
+ * @throws {AppError} 400 - Invalid phone format, phone in use, or pending request exists
+ * @throws {AppError} 500 - Server error during request processing
+ * @api {post} /api/v1/auth/request-phone-change Request phone number change
+ * @private Requires authentication
+ * @example
+ * POST /api/v1/auth/request-phone-change
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "newPhone": "+2348012345678"
+ * }
+ */
 exports.requestPhoneChange = async (req, res, next) => {
   try {
     const { newPhone } = req.body;
@@ -735,7 +1008,28 @@ exports.requestPhoneChange = async (req, res, next) => {
   }
 };
 
-// Verify phone change (user clicks verification link)
+/**
+ * Verify phone change request via email link
+ * Validates the verification token and marks the request as verified for admin approval.
+ * Clears the verification token after successful verification.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.token - Verification token from email link (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming verification
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Verification confirmation
+ * @returns {Object} res.body.data - Verified request details
+ * @returns {string} res.body.data.pending_phone - Requested phone number
+ * @returns {Date} res.body.data.requested_at - Request timestamp
+ * @throws {AppError} 400 - Invalid/expired token or verification period expired
+ * @throws {AppError} 500 - Server error during verification
+ * @api {get} /api/v1/auth/verify-phone-change Verify phone change (user clicks verification link)
+ * @example
+ * GET /api/v1/auth/verify-phone-change?token=abc123def456
+ */
 exports.verifyPhoneChange = async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -784,7 +1078,25 @@ exports.verifyPhoneChange = async (req, res, next) => {
   }
 };
 
-// Cancel phone change request (user)
+/**
+ * Cancel pending phone change request
+ * Removes all pending phone change data for the authenticated user.
+ * Allows user to submit a new phone change request after cancellation.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming cancellation
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Cancellation confirmation
+ * @throws {AppError} 400 - No pending request found
+ * @throws {AppError} 500 - Server error during cancellation
+ * @api {post} /api/v1/auth/cancel-phone-change Cancel phone change request (user)
+ * @private Requires authentication
+ * @example
+ * POST /api/v1/auth/cancel-phone-change
+ * Authorization: Bearer <jwt_token>
+ */
 exports.cancelPhoneChange = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -812,7 +1124,31 @@ exports.cancelPhoneChange = async (req, res, next) => {
   }
 };
 
-// Admin approve phone change
+/**
+ * Admin approval of phone number change request
+ * Validates request is still pending and phone number available, then updates user's phone.
+ * Clears all pending change fields after successful approval.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.userId - ID of user whose request to approve (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with approval details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Approval confirmation
+ * @returns {Object} res.body.data - Approval result details
+ * @returns {string} res.body.data.user_id - Approved user ID
+ * @returns {string} res.body.data.new_phone - New phone number
+ * @throws {AppError} 400 - No pending request, verification expired, or phone unavailable
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 500 - Server error during approval
+ * @api {post} /api/v1/auth/approve-phone-change Admin approve phone change
+ * @private Requires admin authentication
+ * @example
+ * POST /api/v1/auth/approve-phone-change/123
+ * Authorization: Bearer <admin_jwt_token>
+ */
 exports.approvePhoneChange = async (req, res, next) => {
   try {
     const { userId } = req.params;
@@ -864,7 +1200,30 @@ exports.approvePhoneChange = async (req, res, next) => {
   }
 };
 
-// Admin reject phone change
+/**
+ * Admin rejection of phone number change request
+ * Removes pending phone change request without updating user's phone number.
+ * Logs the rejection for audit purposes.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.userId - ID of user whose request to reject (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with rejection details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Rejection confirmation
+ * @returns {Object} res.body.data - Rejection result details
+ * @returns {string} res.body.data.user_id - Rejected user ID
+ * @throws {AppError} 400 - No pending request found
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 500 - Server error during rejection
+ * @private admin
+ * @api {post} /api/v1/auth/reject-phone-change Admin reject phone change
+ * @example
+ * POST /api/v1/auth/reject-phone-change/123
+ * Authorization: Bearer <admin_jwt_token>
+ */
 exports.rejectPhoneChange = async (req, res, next) => {
   try {
     const { userId } = req.params;
@@ -902,7 +1261,31 @@ exports.rejectPhoneChange = async (req, res, next) => {
   }
 };
 
-// Get pending phone changes (admin)
+/**
+ * Get paginated list of pending phone change requests (admin only)
+ * Returns all users with pending phone change requests for admin review and approval.
+ * Includes pagination support for large result sets.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.query} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of results per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Paginated list of pending phone change requests
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {number} res.body.results - Number of results in current page
+ * @returns {number} res.body.total - Total number of pending requests
+ * @returns {number} res.body.totalPages - Total number of pages
+ * @returns {number} res.body.currentPage - Current page number
+ * @returns {Array} res.body.data - Array of pending phone change user objects
+ * @throws {AppError} 500 - Server error retrieving pending requests
+ * @private admin
+ * @api {get} /api/v1/auth/get-pending-phone-changes Get pending phone changes (admin)
+ * @example
+ * GET /api/v1/auth/get-pending-phone-changes?page=1&limit=5
+ * Authorization: Bearer <admin_jwt_token>
+ */
 exports.getPendingPhoneChanges = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;

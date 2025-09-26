@@ -11,9 +11,25 @@ const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
 
 /**
- * @desc    Get inventory for a product
- * @route   GET /api/v1/inventory/product/:productId
- * @access  Private/Vendor
+ * Get inventory details for a specific product (vendor only)
+ * Returns current stock levels, supply information, and product details.
+ * Vendor can only access inventory for their own products.
+ *
+ * @param {import('express').Request} req - Express request object (vendor authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.productId - Product ID to get inventory for
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with inventory details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data.inventory - Inventory object with stock and supply info
+ * @throws {AppError} 404 - Vendor or product not found, or access denied
+ * @throws {Error} 500 - Server error during inventory retrieval
+ * @api {get} /api/v1/inventory/product/:productId Get product inventory
+ * @private Requires vendor authentication
+ * @example
+ * GET /api/v1/inventory/product/123
+ * Authorization: Bearer <vendor_jwt_token>
  */
 const getProductInventory = async (req, res, next) => {
   try {

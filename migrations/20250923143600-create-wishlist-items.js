@@ -33,7 +33,7 @@ module.exports = {
         type: Sequelize.BIGINT({ unsigned: true }),
         allowNull: true,
         references: {
-          model: 'variants',
+          model: 'product_variants',
           key: 'id'
         },
         onUpdate: 'CASCADE',

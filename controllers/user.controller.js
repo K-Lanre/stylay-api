@@ -4,9 +4,29 @@ const { Op } = require('sequelize');
 const logger = require('../utils/logger');
 
 /**
- * Get all users (with pagination, search, and filtering)
- * @route GET /api/v1/users
- * @access Private/Admin
+ * Get all users with pagination and role information
+ * Returns users with their associated roles, ordered by creation date.
+ * Admin access required for user management and security.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.query} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of users per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated user list
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {number} res.body.results - Number of users in current page
+ * @returns {number} res.body.total - Total number of users
+ * @returns {number} res.body.totalPages - Total number of pages
+ * @returns {number} res.body.currentPage - Current page number
+ * @returns {Array} res.body.data - Array of user objects with roles
+ * @throws {AppError} 500 - Server error during user retrieval
+ * @api {get} /api/v1/users Get all users
+ * @private Requires admin authentication
+ * @example
+ * GET /api/v1/users?page=1&limit=5
+ * Authorization: Bearer <admin_jwt_token>
  */
 const getAllUsers = async (req, res, next) => {
   try {

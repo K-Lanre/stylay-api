@@ -46,22 +46,7 @@ module.exports = {
           }
         ];
 
-        // Add a third address for every 3rd user
-        if (index % 3 === 0) {
-          userAddresses.push({
-            user_id: user.id,
-            label: 'Alternate',
-            address_line: `${index + 1} Alternative Road`,
-            city: 'Abuja',
-            state: 'FCT',
-            country: 'Nigeria',
-            postal_code: `900${index + 1}`,
-            phone: user.phone,
-            is_default: false,
-            created_at: new Date(),
-            updated_at: new Date()
-          });
-        }
+        // Note: Removed alternate address logic to ensure exactly 2 addresses per user
 
         return userAddresses;
       });

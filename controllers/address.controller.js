@@ -1,7 +1,24 @@
 const { Address } = require("../models");
 const { Op } = require("sequelize");
 
-// Get all addresses for the authenticated user
+/**
+ * Get all addresses for the authenticated user
+ * Returns addresses ordered by default status first, then by creation date.
+ * Excludes sensitive information and provides clean address data.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with user's addresses
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Array} res.body.data - Array of address objects
+ * @throws {Error} 500 - Server error during database query
+ * @api {get} /api/v1/addresses Get user addresses
+ * @private Requires authentication
+ * @example
+ * GET /api/v1/addresses
+ * Authorization: Bearer <jwt_token>
+ */
 const getUserAddresses = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -28,7 +45,26 @@ const getUserAddresses = async (req, res) => {
   }
 };
 
-// Get a single address by ID
+/**
+ * Get a single address by ID for the authenticated user
+ * Verifies that the address belongs to the authenticated user before returning it.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Address ID to retrieve
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with address data
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {Object} res.body.data - Address object
+ * @throws {Object} 404 - Address not found or doesn't belong to user
+ * @throws {Error} 500 - Server error during database query
+ * @api {get} /api/v1/addresses/:id Get address by ID
+ * @private Requires authentication
+ * @example
+ * GET /api/v1/addresses/123
+ * Authorization: Bearer <jwt_token>
+ */
 const getAddressById = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -62,7 +98,45 @@ const getAddressById = async (req, res) => {
   }
 };
 
-// Create a new address
+/**
+ * Create a new address for the authenticated user
+ * Validates required fields and handles default address logic using database transactions.
+ * If marked as default, automatically removes default status from other addresses.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.label - Optional address label (e.g., "Home", "Work")
+ * @param {string} req.body.address_line - Street address (required)
+ * @param {string} req.body.city - City name (required)
+ * @param {string} req.body.state - State/province name (required)
+ * @param {string} req.body.country - Country name (required)
+ * @param {string} req.body.postal_code - Postal/ZIP code (optional)
+ * @param {boolean} [req.body.is_default=false] - Whether this should be the default address
+ * @param {string} req.body.phone - Contact phone number for this address (optional)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with created address
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Created address object
+ * @throws {Object} 400 - Missing required fields (address_line, city, state, country)
+ * @throws {Error} 500 - Server error during creation
+ * @api {post} /api/v1/addresses Create address
+ * @private Requires authentication
+ * @example
+ * POST /api/v1/addresses
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "label": "Home",
+ *   "address_line": "123 Main Street",
+ *   "city": "Lagos",
+ *   "state": "Lagos",
+ *   "country": "Nigeria",
+ *   "postal_code": "100001",
+ *   "is_default": true,
+ *   "phone": "+2348012345678"
+ * }
+ */
 const createAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
 
@@ -132,7 +206,41 @@ const createAddress = async (req, res) => {
   }
 };
 
-// Update an existing address
+/**
+ * Update an existing address for the authenticated user
+ * Allows partial updates and handles default address logic using database transactions.
+ * If setting as default, automatically removes default status from other addresses.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Address ID to update
+ * @param {import('express').Request.body} req.body - Request body with updateable fields
+ * @param {string} [req.body.label] - Address label
+ * @param {string} [req.body.address_line] - Street address
+ * @param {string} [req.body.city] - City name
+ * @param {string} [req.body.state] - State/province name
+ * @param {string} [req.body.country] - Country name
+ * @param {string} [req.body.postal_code] - Postal/ZIP code
+ * @param {boolean} [req.body.is_default] - Whether this should be the default address
+ * @param {string} [req.body.phone] - Contact phone number
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated address
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Updated address object
+ * @throws {Object} 404 - Address not found or doesn't belong to user
+ * @throws {Error} 500 - Server error during update
+ * @api {put} /api/v1/addresses/:id Update address
+ * @private Requires authentication
+ * @example
+ * PUT /api/v1/addresses/123
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "label": "Work Address",
+ *   "phone": "+2348012345678"
+ * }
+ */
 const updateAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
 
@@ -217,7 +325,27 @@ const updateAddress = async (req, res) => {
   }
 };
 
-// Delete an address
+/**
+ * Delete an address for the authenticated user
+ * Uses database transactions and handles default address reassignment.
+ * If deleting the default address, automatically sets another address as default.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Address ID to delete
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming deletion
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {string} res.body.message - Success message
+ * @throws {Object} 404 - Address not found or doesn't belong to user
+ * @throws {Error} 500 - Server error during deletion
+ * @api {delete} /api/v1/addresses/:id Delete address
+ * @private Requires authentication
+ * @example
+ * DELETE /api/v1/addresses/123
+ * Authorization: Bearer <jwt_token>
+ */
 const deleteAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
 
@@ -276,7 +404,27 @@ const deleteAddress = async (req, res) => {
   }
 };
 
-// Set default address
+/**
+ * Set a specific address as the default address for the authenticated user
+ * Uses database transactions to ensure data consistency.
+ * Automatically removes default status from all other addresses.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Address ID to set as default
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming default address update
+ * @returns {Object} res.body.success - Response status (true)
+ * @returns {string} res.body.message - Success message
+ * @throws {Object} 404 - Address not found or doesn't belong to user
+ * @throws {Error} 500 - Server error during update
+ * @api {patch} /api/v1/addresses/:id/default Set default address
+ * @private Requires authentication
+ * @example
+ * PATCH /api/v1/addresses/123/default
+ * Authorization: Bearer <jwt_token>
+ */
 const setDefaultAddress = async (req, res) => {
   const transaction = await Address.sequelize.transaction();
 

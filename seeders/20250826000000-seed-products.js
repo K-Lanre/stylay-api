@@ -373,9 +373,7 @@ module.exports = {
       return;
     }
 
-    const vendorIds = vendors.map(v => v.id);
-
-    // Fetch all categories (both primary and subcategories)
+    // Get all categories for product assignment
     const allCategories = await queryInterface.sequelize.query(
       `SELECT id, name, slug, parent_id FROM categories`,
       { type: queryInterface.sequelize.QueryTypes.SELECT }
@@ -385,121 +383,80 @@ module.exports = {
       throw new Error('No categories found in the database. Please ensure the category seeder has been run.');
     }
 
-    const primaryCategories = allCategories.filter(cat => cat.parent_id === null);
     const subCategories = allCategories.filter(cat => cat.parent_id !== null);
+    const vendorIds = vendors.map(v => v.id);
 
-    if (primaryCategories.length === 0) {
-      throw new Error('No primary categories found. Please ensure the category seeder has created them.');
-    }
-    if (subCategories.length === 0) {
-      throw new Error('No subcategories found. Please ensure the category seeder has created them.');
-    }
-
-    // Map primary categories to their subcategories
-    const primaryToSubCategories = new Map();
-    primaryCategories.forEach(pCat => {
-      primaryToSubCategories.set(pCat.id, {
-        ...pCat,
-        subcategories: subCategories.filter(sCat => sCat.parent_id === pCat.id)
-      });
-    });
-
-    const allProducts = [];
-    const allVariants = [];
-    const allImages = [];
-    let productIdCounter = 1; // To ensure unique product IDs for variants/images
-
-    // Generate products for each primary category and its subcategories
-    for (const [primaryCatId, primaryCatInfo] of primaryToSubCategories.entries()) {
-      for (const subCat of primaryCatInfo.subcategories) {
-        const numberOfProducts = randomNumber({ min: 5, max: 10 });
-        const simpleSubCategorySlug = subCat.slug.split('-').pop(); // e.g., 'men-t-shirts' -> 't-shirts'
-
-        for (let i = 0; i < numberOfProducts; i++) {
-          const product = generateProduct(vendorIds, subCat, productIdCounter);
-
-          const productVariants = generateVariants(productIdCounter, simpleSubCategorySlug);
-          const productImages = generateImages(
-            productIdCounter,
-            product.name,
-            simpleSubCategorySlug,
-            i === 0 // First product in each subcategory is featured
-          );
-
-          allProducts.push(product);
-          allVariants.push(...productVariants);
-          allImages.push(...productImages);
-
-          // Set the first image as thumbnail
-          if (productImages.length > 0) {
-            product.thumbnail = productImages[0].image_url;
-          }
-          productIdCounter++;
-        }
-      }
-    }
-
-    // Insert products one by one to maintain correct foreign key relationships
+    // Generate 150 products per vendor (total: 100 vendors × 150 products = 15,000 products)
+    const productsPerVendor = 150;
     let totalProducts = 0;
     let totalVariants = 0;
     let totalImages = 0;
+    const usedSlugs = new Set();
 
-    for (const [primaryCatId, primaryCatInfo] of primaryToSubCategories.entries()) {
-      for (const subCat of primaryCatInfo.subcategories) {
-        const numberOfProducts = randomNumber({ min: 5, max: 10 });
-        const simpleSubCategorySlug = subCat.slug.split('-').pop();
+    for (const vendor of vendors) {
+      for (let i = 0; i < productsPerVendor; i++) {
+        // Randomly select a category for this product
+        const randomCategory = arrayElement(subCategories);
+        const simpleSubCategorySlug = randomCategory.slug.split('-').pop();
 
-        for (let i = 0; i < numberOfProducts; i++) {
-          // Generate product data
-          const product = generateProduct(vendorIds, subCat, totalProducts + 1);
-          const productVariants = generateVariants(999999, simpleSubCategorySlug); // Temporary ID
-          const productImages = generateImages(999999, product.name, simpleSubCategorySlug, i === 0);
+        // Generate product data
+        let product = generateProduct(vendorIds, randomCategory, totalProducts + 1);
+        let productVariants = generateVariants(999999, simpleSubCategorySlug); // Temporary ID
+        let productImages = generateImages(999999, product.name, simpleSubCategorySlug, i === 0);
 
-          // Set thumbnail from first image
-          if (productImages.length > 0) {
-            product.thumbnail = productImages[0].image_url;
-          }
-
-          // Insert product
-          await queryInterface.bulkInsert('products', [product]);
-
-          // Get the actual product ID
-          const lastProduct = await queryInterface.sequelize.query(
-            'SELECT id FROM products ORDER BY id DESC LIMIT 1',
-            { type: queryInterface.sequelize.QueryTypes.SELECT }
-          );
-          const actualProductId = lastProduct[0].id;
-
-          // Update variants and images with correct product ID
-          const updatedVariants = productVariants.map(variant => ({
-            ...variant,
-            product_id: actualProductId
-          }));
-
-          const updatedImages = productImages.map(image => ({
-            ...image,
-            product_id: actualProductId,
-            image_url: image.image_url.replace('999999', actualProductId.toString())
-          }));
-
-          // Insert variants and images
-          if (updatedVariants.length > 0) {
-            await queryInterface.bulkInsert('product_variants', updatedVariants);
-            totalVariants += updatedVariants.length;
-          }
-
-          if (updatedImages.length > 0) {
-            await queryInterface.bulkInsert('product_images', updatedImages);
-            totalImages += updatedImages.length;
-          }
-
-          totalProducts++;
-          console.log(`Inserted product ${totalProducts} with ${updatedVariants.length} variants and ${updatedImages.length} images`);
+        // Ensure slug uniqueness
+        let slugCounter = 1;
+        let originalSlug = product.slug;
+        while (usedSlugs.has(product.slug)) {
+          product.slug = originalSlug.replace(/-\d+$/, '') + '-' + randomNumber({ min: 1000, max: 9999 }) + '-' + slugCounter;
+          slugCounter++;
         }
+        usedSlugs.add(product.slug);
+
+        // Set thumbnail from first image
+        if (productImages.length > 0) {
+          product.thumbnail = productImages[0].image_url;
+        }
+
+        // Insert product
+        await queryInterface.bulkInsert('products', [product]);
+
+        // Get the actual product ID
+        const lastProduct = await queryInterface.sequelize.query(
+          'SELECT id FROM products ORDER BY id DESC LIMIT 1',
+          { type: queryInterface.sequelize.QueryTypes.SELECT }
+        );
+        const actualProductId = lastProduct[0].id;
+
+        // Update variants and images with correct product ID
+        const updatedVariants = productVariants.map(variant => ({
+          ...variant,
+          product_id: actualProductId
+        }));
+
+        const updatedImages = productImages.map(image => ({
+          ...image,
+          product_id: actualProductId,
+          image_url: image.image_url.replace('999999', actualProductId.toString())
+        }));
+
+        // Insert variants and images
+        if (updatedVariants.length > 0) {
+          await queryInterface.bulkInsert('product_variants', updatedVariants);
+          totalVariants += updatedVariants.length;
+        }
+
+        if (updatedImages.length > 0) {
+          await queryInterface.bulkInsert('product_images', updatedImages);
+          totalImages += updatedImages.length;
+        }
+
+        totalProducts++;
+        console.log(`Inserted product ${totalProducts} for vendor ${vendor.id} with ${updatedVariants.length} variants and ${updatedImages.length} images`);
       }
     }
 
-    console.log(`Seeded ${allProducts.length} products with ${allVariants.length} variants and ${allImages.length} images`);
+    console.log(`Seeded ${totalProducts} products with ${totalVariants} variants and ${totalImages} images`);
   },
 
   async down(queryInterface, Sequelize) {

@@ -204,8 +204,8 @@ module.exports = {
     let vendorId = maxVendorId || 1;
     let storeId = maxStoreId || 1;
 
-    // Generate 10 vendors
-    for (let i = 0; i < 10; i++) {
+    // Generate 100 vendors
+    for (let i = 0; i < 100; i++) {
       const firstName = person.firstName();
       const lastName = person.lastName();
       // Ensure unique email for each vendor

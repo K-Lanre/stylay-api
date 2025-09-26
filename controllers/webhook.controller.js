@@ -6,9 +6,44 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 
 /**
- * @desc    Handle PayStack webhook
- * @route   POST /api/v1/webhooks/paystack
- * @access  Public (handled by PayStack)
+ * Handle PayStack payment webhooks
+ * Processes various PayStack webhook events including successful charges, failed charges,
+ * and transfer events. Verifies webhook authenticity using HMAC signature validation.
+ *
+ * @param {import('express').Request} req - Express request object from PayStack webhook
+ * @param {import('express').Request.body} req.body - Webhook payload from PayStack
+ * @param {string} req.body.event - Webhook event type (charge.success, charge.failed, etc.)
+ * @param {Object} req.body.data - Event data containing payment/transaction details
+ * @param {import('express').Request.headers} req.headers - Request headers
+ * @param {string} req.headers['x-paystack-signature'] - HMAC signature for verification
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming webhook processing
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Confirmation message
+ * @throws {AppError} 401 - Invalid webhook signature (security breach attempt)
+ * @throws {AppError} 404 - Order not found for successful charge
+ * @throws {Error} 500 - Server error during webhook processing
+ * @api {post} /api/v1/webhooks/paystack Handle PayStack webhook
+ * @public Called by PayStack servers (no authentication required)
+ *
+ * @example
+ * // PayStack sends webhook automatically:
+ * POST /api/v1/webhooks/paystack
+ * x-paystack-signature: <hmac_signature>
+ * {
+ *   "event": "charge.success",
+ *   "data": {
+ *     "reference": "STYLAY-1234567890-1",
+ *     "metadata": { "orderId": 1, "userId": 123 }
+ *   }
+ * }
+ *
+ * @example Supported Events:
+ * - charge.success: Payment completed successfully
+ * - charge.failed: Payment failed
+ * - transfer.success: Payout transfer successful
+ * - transfer.failed: Payout transfer failed
  */
 const handlePaystackWebhook = catchAsync(async (req, res, next) => {
   // Verify the event is from PayStack

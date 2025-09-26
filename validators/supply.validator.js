@@ -3,6 +3,19 @@ const { Product, Vendor, VendorProductTag, Sequelize } = require("../models");
 const { Op } = Sequelize;
 
 // Validation for creating a new supply
+/**
+ * Validation rules for creating a single supply record.
+ * Validates product, vendor product tag relationship, quantity, and optional supply date.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} product_id - Required, positive integer >= 1
+ * @property {ValidationChain} vendor_product_tag_id - Required, positive integer >= 1, validates vendor ownership
+ * @property {ValidationChain} quantity - Required, positive integer >= 1
+ * @property {ValidationChain} supply_date - Optional, valid ISO8601 date format
+ * @returns {Array} Express validator middleware array for single supply creation
+ * @example
+ * // Use in route:
+ * router.post('/supplies', createSupplyValidation, createSupply);
+ */
 exports.createSupplyValidation = [
   body("product_id")
     .notEmpty()
@@ -48,6 +61,17 @@ exports.createSupplyValidation = [
 ];
 
 // Validation for bulk supply creation
+/**
+ * Validation rules for creating multiple supply records in bulk.
+ * Comprehensive validation including product existence, vendor ownership, and business rule checks.
+ * Includes duplicate prevention and stock validation.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} items - Required array with comprehensive validation for each supply item
+ * @returns {Array} Express validator middleware array for bulk supply creation
+ * @example
+ * // Use in route:
+ * router.post('/supplies/bulk', createBulkSupplyValidation, createBulkSupply);
+ */
 exports.createBulkSupplyValidation = [
   body('items')
     .isArray({ min: 1 }).withMessage('At least one supply item is required')

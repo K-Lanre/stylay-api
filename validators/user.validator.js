@@ -64,6 +64,23 @@ const userValidationRules = [
 ];
 
 // Validation for creating a user (admin only)
+/**
+ * Validation rules for creating a new user account (admin only).
+ * Comprehensive validation including personal info, email uniqueness, password strength, phone format, and role assignments.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} first_name - Required, 2-50 chars, letters/spaces/hyphens/apostrophes
+ * @property {ValidationChain} last_name - Required, 2-50 chars, letters/spaces/hyphens/apostrophes
+ * @property {ValidationChain} email - Required, valid email, normalized, unique check
+ * @property {ValidationChain} password - Required, min 8 chars, uppercase/lowercase/number/special char
+ * @property {ValidationChain} phone - Optional, Nigerian format validation, unique check
+ * @property {ValidationChain} gender - Optional, male/female/other/prefer not to say
+ * @property {ValidationChain} is_active - Optional, boolean value
+ * @property {ValidationChain} role_ids - Optional array of role IDs, validates role existence
+ * @returns {Array} Express validator middleware array for user creation
+ * @example
+ * // Use in route:
+ * router.post('/users', createUserValidation, validate, createUser);
+ */
 const createUserValidation = [
   ...userValidationRules,
   
@@ -99,6 +116,23 @@ const createUserValidation = [
 ];
 
 // Validation for updating a user
+/**
+ * Validation rules for updating an existing user account.
+ * Validates user ID parameter and optional field updates with uniqueness checks.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required user ID parameter, validates user exists
+ * @property {ValidationChain} first_name - Optional, 2-100 chars
+ * @property {ValidationChain} last_name - Optional, 2-100 chars
+ * @property {ValidationChain} email - Optional, valid email, unique check (excluding current user)
+ * @property {ValidationChain} phone - Optional, valid phone, unique check (excluding current user)
+ * @property {ValidationChain} gender - Optional, male/female/other
+ * @property {ValidationChain} dob - Optional, valid ISO8601 date, user must be >= 13 years old
+ * @property {ValidationChain} role_ids - Optional array of role IDs, validates role existence
+ * @returns {Array} Express validator middleware array for user updates
+ * @example
+ * // Use in route:
+ * router.put('/users/:id', updateUserValidation, validate, updateUser);
+ */
 const updateUserValidation = [
   param('id')
     .isInt()
@@ -137,6 +171,17 @@ const updateUserValidation = [
 ];
 
 // Validation for assigning roles to a user
+/**
+ * Validation rules for assigning roles to a user account.
+ * Validates user existence and role validity before assignment.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required user ID parameter, validates user exists
+ * @property {ValidationChain} role_ids - Required array of role IDs (minimum 1), validates role existence
+ * @returns {Array} Express validator middleware array for role assignment
+ * @example
+ * // Use in route:
+ * router.post('/users/:id/roles', assignRolesValidation, validate, assignRoles);
+ */
 const assignRolesValidation = [
   param('id')
     .isInt()
@@ -166,6 +211,16 @@ const assignRolesValidation = [
 ];
 
 // Validation for removing roles from a user
+/**
+ * Validation rules for removing roles from a user account.
+ * Validates role validity before removal (user existence checked implicitly).
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} role_ids - Required array of role IDs (minimum 1), validates role existence
+ * @returns {Array} Express validator middleware array for role removal
+ * @example
+ * // Use in route:
+ * router.delete('/users/:id/roles', removeRolesValidation, validate, removeRoles);
+ */
 const removeRolesValidation = [
   param('id').isInt().withMessage('User ID must be an integer'),
   body('role_ids')
@@ -181,6 +236,20 @@ const removeRolesValidation = [
 ];
 
 // Validation middleware
+/**
+ * Express middleware to handle validation errors using express-validator.
+ * Checks for validation errors and returns formatted error response if any exist.
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} JSON error response if validation fails
+ * @returns {boolean} status - Always false for validation errors
+ * @returns {string} message - "Validation error"
+ * @returns {Array} errors - Array of validation errors from express-validator
+ * @example
+ * // Use as middleware in routes:
+ * router.post('/users', createUserValidation, validate, createUser);
+ */
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {

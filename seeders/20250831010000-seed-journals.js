@@ -14,13 +14,15 @@ module.exports = {
         attributes: ['id', 'name', 'vendor_id'],
         include: [{
           model: Vendor,
+          as: 'vendor',
           attributes: ['id'],
           include: [{
             model: Store,
+            as: 'store',
             attributes: ['business_name']
           }]
         }],
-        limit: 50, // Limit to 50 products to avoid memory issues
+        limit: 150, // Limit to 150 products to generate exactly 150 journal records
         transaction,
         raw: true,
         nest: true
@@ -51,8 +53,8 @@ module.exports = {
         const impressions = faker.number.int({ min: 10, max: 100 });
         const soldUnits = faker.number.int({ min: 1, max: 5 });
 
-        // Create 1-3 journal entries per product
-        const entryCount = faker.number.int({ min: 1, max: 3 });
+        // Create exactly 1 journal entry per product to ensure exactly 150 total records
+        const entryCount = 1;
         
         for (let i = 0; i < entryCount; i++) {
           const entryDate = faker.date.between({ 

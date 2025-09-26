@@ -3,9 +3,23 @@ const AppError = require('../utils/appError');
 const logger = require('../utils/logger');
 
 /**
- * Get all roles
- * @route GET /api/v1/roles
- * @access Private/Admin
+ * Get all user roles in the system
+ * Returns all roles ordered by ID in ascending order.
+ * Admin access required for role management.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with all roles
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {number} res.body.results - Number of roles returned
+ * @returns {Array} res.body.data.roles - Array of role objects
+ * @throws {AppError} 500 - Server error during role retrieval
+ * @api {get} /api/v1/roles Get all roles
+ * @private Requires admin authentication
+ * @example
+ * GET /api/v1/roles
+ * Authorization: Bearer <admin_jwt_token>
  */
 const getAllRoles = async (req, res, next) => {
   try {
@@ -29,8 +43,24 @@ const getAllRoles = async (req, res, next) => {
 
 /**
  * Get a single role by ID
- * @route GET /api/v1/roles/:id
- * @access Private/Admin
+ * Retrieves detailed information about a specific role.
+ * Admin access required for role management.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Role ID to retrieve
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with role details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data.role - Role object with id, name, description
+ * @throws {AppError} 404 - Role not found
+ * @throws {AppError} 500 - Server error during role retrieval
+ * @api {get} /api/v1/roles/:id Get role by ID
+ * @private Requires admin authentication
+ * @example
+ * GET /api/v1/roles/1
+ * Authorization: Bearer <admin_jwt_token>
  */
 const getRole = async (req, res, next) => {
   try {

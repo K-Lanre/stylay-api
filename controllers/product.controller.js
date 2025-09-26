@@ -12,9 +12,74 @@ const { Op } = require("sequelize");
 const slugify = require("slugify");
 
 /**
- * @desc    Create a new product
- * @route   POST /api/v1/products
- * @access  Private/Vendor
+ * Creates a new product for an approved vendor, with support for variants and images.
+ * Only approved vendors can create products. Admins can create products for any vendor.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.body - Request body containing product data
+ * @param {string} req.body.name - Product name (required)
+ * @param {string} req.body.description - Product description (required)
+ * @param {number} req.body.price - Product price (required)
+ * @param {number} req.body.category_id - Category ID (required)
+ * @param {string} req.body.sku - Product SKU (required)
+ * @param {Array<Object>} [req.body.variants] - Product variants array
+ * @param {Array<Object>} [req.body.images] - Product images array
+ * @param {number} [req.body.vendor_id] - Vendor ID (admin only)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with created product data
+ * @returns {Object} data - Response data
+ * @returns {Object} data.data - Created product with associations
+ * @returns {number} data.data.id - Product ID
+ * @returns {string} data.data.name - Product name
+ * @returns {string} data.data.slug - Product slug
+ * @returns {string} data.data.description - Product description
+ * @returns {number} data.data.price - Product price
+ * @returns {string} data.data.sku - Product SKU
+ * @returns {string} data.data.status - Product status ('active')
+ * @returns {number} data.data.impressions - View count (0)
+ * @returns {number} data.data.sold_units - Units sold (0)
+ * @returns {Object} data.data.category - Product category
+ * @returns {Object} data.data.vendor - Product vendor
+ * @returns {Array} data.data.ProductVariants - Product variants
+ * @returns {Array} data.data.images - Product images
+ * @throws {AppError} 403 - When vendor is not approved or admin tries to create for unapproved vendor
+ * @throws {AppError} 404 - When category not found
+ * @throws {AppError} 400 - When required fields are missing
+ * @api {post} /api/v1/products Create Product
+ * @private vendor, admin
+ * @example
+ * // Request
+ * POST /api/v1/products
+ * Authorization: Bearer <token>
+ * {
+ *   "name": "Wireless Headphones",
+ *   "description": "High-quality wireless headphones",
+ *   "price": 99.99,
+ *   "category_id": 1,
+ *   "sku": "WH-001",
+ *   "variants": [
+ *     {"name": "Color", "value": "Black", "price_modifier": 0}
+ *   ],
+ *   "images": [
+ *     {"url": "https://example.com/image1.jpg"}
+ *   ]
+ * }
+ *
+ * // Success Response (201)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "id": 1,
+ *     "name": "Wireless Headphones",
+ *     "slug": "wireless-headphones",
+ *     "description": "High-quality wireless headphones",
+ *     "price": 99.99,
+ *     "category": {"id": 1, "name": "Electronics"},
+ *     "vendor": {"id": 1, "status": "approved"},
+ *     "ProductVariants": [],
+ *     "images": []
+ *   }
+ * }
  */
 const createProduct = async (req, res, next) => {
   try {
@@ -143,9 +208,55 @@ const createProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Get all products
- * @route   GET /api/v1/products
- * @access  Public
+ * Retrieves a paginated list of active products with optional filtering by category, vendor, and search terms.
+ * Supports both numeric category IDs and category names/slugs for flexible filtering.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=12] - Number of products per page
+ * @param {string|number} [req.query.category] - Category ID (numeric) or name/slug (string)
+ * @param {number} [req.query.vendor] - Vendor ID to filter products by
+ * @param {string} [req.query.search] - Search term for product name or description
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated product list
+ * @returns {boolean} data.success - Success flag
+ * @returns {number} data.count - Number of products in current page
+ * @returns {number} data.total - Total number of products matching criteria
+ * @returns {Array} data.data - Array of product objects
+ * @returns {number} data.data[].id - Product ID
+ * @returns {string} data.data[].name - Product name
+ * @returns {string} data.data[].slug - Product slug
+ * @returns {string} data.data[].description - Product description
+ * @returns {number} data.data[].price - Product price
+ * @returns {Object} data.data[].Category - Product category info
+ * @returns {Object} data.data[].Vendor - Product vendor info
+ * @returns {Array} data.data[].images - Product images (first image only)
+ * @throws {AppError} 404 - When category filter is provided but category not found
+ * @api {get} /api/v1/products Get All Products
+ * @public
+ * @example
+ * // Request
+ * GET /api/v1/products?page=1&limit=10&category=electronics&search=headphones
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "count": 2,
+ *   "total": 25,
+ *   "data": [
+ *     {
+ *       "id": 1,
+ *       "name": "Wireless Headphones",
+ *       "slug": "wireless-headphones",
+ *       "description": "High-quality wireless headphones",
+ *       "price": 99.99,
+ *       "Category": {"id": 1, "name": "Electronics"},
+ *       "Vendor": {"id": 1},
+ *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
+ *     }
+ *   ]
+ * }
  */
 const getProducts = async (req, res, next) => {
   try {
@@ -223,9 +334,64 @@ const getProducts = async (req, res, next) => {
 };
 
 /**
- * @desc    Get product by ID or slug
- * @route   GET /api/v1/products/:identifier
- * @access  Public
+ * Retrieves detailed information about a specific product by its ID (numeric) or slug (string).
+ * Increments product impression count for analytics purposes.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {string|number} req.params.identifier - Product ID (number) or slug (string)
+ * @param {Object} [req.user] - Authenticated user info (for viewer tracking)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with detailed product information
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Product details
+ * @returns {number} data.data.id - Product ID
+ * @returns {string} data.data.name - Product name
+ * @returns {string} data.data.slug - Product slug
+ * @returns {string} data.data.description - Product description
+ * @returns {number} data.data.price - Product price
+ * @returns {string} data.data.sku - Product SKU
+ * @returns {string} data.data.status - Product status
+ * @returns {number} data.data.impressions - Updated impression count
+ * @returns {number} data.data.sold_units - Units sold
+ * @returns {Object} data.data.Category - Product category
+ * @returns {Object} data.data.Vendor - Product vendor with store info
+ * @returns {Array} data.data.ProductVariants - Product variants
+ * @returns {Array} data.data.ProductImages - Product images
+ * @throws {AppError} 404 - When product is not found
+ * @api {get} /api/v1/products/:identifier Get Product by ID/Slug
+ * @public
+ * @example
+ * // Request by ID
+ * GET /api/v1/products/123
+ *
+ * // Request by slug
+ * GET /api/v1/products/wireless-headphones
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "id": 123,
+ *     "name": "Wireless Headphones",
+ *     "slug": "wireless-headphones",
+ *     "description": "High-quality wireless headphones",
+ *     "price": 99.99,
+ *     "status": "active",
+ *     "impressions": 156,
+ *     "sold_units": 23,
+ *     "Category": {"id": 1, "name": "Electronics"},
+ *     "Vendor": {
+ *       "id": 1,
+ *       "status": "approved",
+ *       "store": {"business_name": "Tech Store"}
+ *     },
+ *     "ProductVariants": [],
+ *     "ProductImages": [
+ *       {"id": 1, "image_url": "https://example.com/image.jpg"}
+ *     ]
+ *   }
+ * }
  */
 const getProductByIdentifier = async (req, res, next) => {
   try {
@@ -291,9 +457,67 @@ const getProductByIdentifier = async (req, res, next) => {
 };
 
 /**
- * @desc    Update product
- * @route   PUT /api/v1/products/:id
- * @access  Private/Vendor
+ * Updates an existing product. Vendors can only update their own products.
+ * Admins can update any product regardless of ownership.
+ * Supports partial updates and automatically regenerates slug when name changes.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Product ID to update
+ * @param {Object} req.body - Request body with update data
+ * @param {string} [req.body.name] - New product name
+ * @param {string} [req.body.description] - New product description
+ * @param {number} [req.body.price] - New product price
+ * @param {number} [req.body.category_id] - New category ID
+ * @param {string} [req.body.sku] - New product SKU
+ * @param {string} [req.body.status] - New product status
+ * @param {Object} req.user - Authenticated user info
+ * @param {Array} req.user.roles - User roles array
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated product data
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Updated product with associations
+ * @returns {number} data.data.id - Product ID
+ * @returns {string} data.data.name - Product name
+ * @returns {string} data.data.slug - Product slug (regenerated if name changed)
+ * @returns {string} data.data.description - Product description
+ * @returns {number} data.data.price - Product price
+ * @returns {string} data.data.sku - Product SKU
+ * @returns {string} data.data.status - Product status
+ * @returns {Object} data.data.category - Product category
+ * @returns {Object} data.data.vendor - Product vendor with store info
+ * @returns {Array} data.data.ProductVariants - Product variants
+ * @returns {Array} data.data.images - Product images
+ * @throws {AppError} 404 - When product or category not found
+ * @throws {AppError} 403 - When user lacks permission to update product
+ * @throws {AppError} 400 - When no valid fields provided for update
+ * @api {put} /api/v1/products/:id Update Product
+ * @private vendor, admin
+ * @example
+ * // Request
+ * PUT /api/v1/products/123
+ * Authorization: Bearer <token>
+ * {
+ *   "name": "Updated Headphones",
+ *   "price": 89.99,
+ *   "description": "Updated description"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "id": 123,
+ *     "name": "Updated Headphones",
+ *     "slug": "updated-headphones",
+ *     "price": 89.99,
+ *     "description": "Updated description",
+ *     "category": {"id": 1, "name": "Electronics"},
+ *     "vendor": {"id": 1, "store": {"business_name": "Tech Store"}},
+ *     "ProductVariants": [],
+ *     "images": []
+ *   }
+ * }
  */
 const updateProduct = async (req, res, next) => {
   try {
@@ -428,9 +652,33 @@ const updateProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Delete product
- * @route   DELETE /api/v1/products/:id
- * @access  Private/Vendor
+ * Deletes a product permanently. Vendors can only delete their own products.
+ * Admins can delete any product regardless of ownership.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Product ID to delete
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for ownership verification
+ * @param {string} req.user.role - User role ('admin' for admin access)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming deletion
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Empty object confirming deletion
+ * @throws {AppError} 404 - When product not found
+ * @throws {AppError} 403 - When user lacks permission to delete product
+ * @api {delete} /api/v1/products/:id Delete Product
+ * @private vendor, admin
+ * @example
+ * // Request
+ * DELETE /api/v1/products/123
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {}
+ * }
  */
 const deleteProduct = async (req, res, next) => {
   try {
@@ -457,9 +705,52 @@ const deleteProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Get products by vendor
- * @route   GET /api/v1/products/vendors/:id
- * @access  Public
+ * Retrieves a paginated list of all products belonging to a specific vendor.
+ * Shows both active and inactive products for public access.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Vendor ID
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=12] - Number of products per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor's products
+ * @returns {boolean} data.success - Success flag
+ * @returns {number} data.count - Number of products in current page
+ * @returns {number} data.total - Total number of products by vendor
+ * @returns {Array} data.data - Array of product objects
+ * @returns {number} data.data[].id - Product ID
+ * @returns {string} data.data[].name - Product name
+ * @returns {string} data.data[].slug - Product slug
+ * @returns {string} data.data[].description - Product description
+ * @returns {number} data.data[].price - Product price
+ * @returns {Object} data.data[].Category - Product category
+ * @returns {Array} data.data[].images - Product images (first image only)
+ * @throws {AppError} 404 - When vendor not found
+ * @api {get} /api/v1/products/vendors/:id Get Products by Vendor
+ * @public
+ * @example
+ * // Request
+ * GET /api/v1/products/vendors/5?page=1&limit=10
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "count": 8,
+ *   "total": 25,
+ *   "data": [
+ *     {
+ *       "id": 1,
+ *       "name": "Wireless Headphones",
+ *       "slug": "wireless-headphones",
+ *       "description": "High-quality wireless headphones",
+ *       "price": 99.99,
+ *       "Category": {"id": 1, "name": "Electronics"},
+ *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
+ *     }
+ *   ]
+ * }
  */
 const getProductsByVendor = async (req, res, next) => {
   try {
@@ -495,9 +786,59 @@ const getProductsByVendor = async (req, res, next) => {
 };
 
 /**
- * @desc    Get all products (Admin)
- * @route   GET /api/v1/products/admin/all
- * @access  Private/Admin
+ * Retrieves a paginated list of all products (including inactive ones) with advanced admin filtering.
+ * Provides comprehensive product listing with search, category, and vendor filters.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=12] - Number of products per page
+ * @param {string} [req.query.search] - Search term for product name, description, or SKU
+ * @param {number} [req.query.category] - Category ID filter
+ * @param {number} [req.query.vendor] - Vendor ID filter
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with comprehensive product list
+ * @returns {boolean} data.success - Success flag
+ * @returns {number} data.count - Number of products in current page
+ * @returns {number} data.total - Total number of products matching criteria
+ * @returns {Array} data.data - Array of detailed product objects
+ * @returns {number} data.data[].id - Product ID
+ * @returns {string} data.data[].name - Product name
+ * @returns {string} data.data[].description - Product description
+ * @returns {number} data.data[].price - Product price
+ * @returns {string} data.data[].sku - Product SKU
+ * @returns {string} data.data[].status - Product status
+ * @returns {Object} data.data[].Category - Product category
+ * @returns {Object} data.data[].Vendor - Product vendor with business name and status
+ * @returns {Array} data.data[].ProductImages - Product images
+ * @returns {Array} data.data[].ProductVariants - Product variants
+ * @api {get} /api/v1/products/admin/all Get All Products (Admin)
+ * @private admin
+ * @example
+ * // Request
+ * GET /api/v1/products/admin/all?page=1&limit=20&search=headphones&vendor=5
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "count": 15,
+ *   "total": 150,
+ *   "data": [
+ *     {
+ *       "id": 1,
+ *       "name": "Wireless Headphones",
+ *       "description": "High-quality wireless headphones",
+ *       "price": 99.99,
+ *       "sku": "WH-001",
+ *       "status": "active",
+ *       "Category": {"id": 1, "name": "Electronics"},
+ *       "Vendor": {"id": 5, "business_name": "Tech Store", "status": "approved"},
+ *       "ProductImages": [],
+ *       "ProductVariants": []
+ *     }
+ *   ]
+ * }
  */
 const getAllProducts = async (req, res, next) => {
   try {
@@ -547,9 +888,62 @@ const getAllProducts = async (req, res, next) => {
 };
 
 /**
- * @desc    Update any product (Admin)
- * @route   PUT /api/v1/products/:id/admin
- * @access  Private/Admin
+ * Administrative update of any product regardless of ownership.
+ * Allows full control over product data including category and vendor associations.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Product ID to update
+ * @param {Object} req.body - Request body with update data
+ * @param {string} [req.body.name] - New product name
+ * @param {string} [req.body.description] - New product description
+ * @param {number} [req.body.price] - New product price
+ * @param {number} [req.body.category_id] - New category ID
+ * @param {string} [req.body.sku] - New product SKU
+ * @param {string} [req.body.status] - New product status
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated product data
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Updated product with all associations
+ * @returns {number} data.data.id - Product ID
+ * @returns {string} data.data.name - Product name
+ * @returns {string} data.data.slug - Product slug (regenerated if name changed)
+ * @returns {string} data.data.description - Product description
+ * @returns {number} data.data.price - Product price
+ * @returns {string} data.data.sku - Product SKU
+ * @returns {string} data.data.status - Product status
+ * @returns {Object} data.data.category - Product category
+ * @returns {Object} data.data.vendor - Product vendor with store info
+ * @returns {Array} data.data.ProductVariants - Product variants
+ * @returns {Array} data.data.images - Product images
+ * @throws {AppError} 404 - When product or category not found
+ * @api {put} /api/v1/products/:id/admin Admin Update Product
+ * @private admin
+ * @example
+ * // Request
+ * PUT /api/v1/products/123/admin
+ * Authorization: Bearer <admin_token>
+ * {
+ *   "name": "Admin Updated Product",
+ *   "price": 79.99,
+ *   "status": "inactive"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "id": 123,
+ *     "name": "Admin Updated Product",
+ *     "slug": "admin-updated-product",
+ *     "price": 79.99,
+ *     "status": "inactive",
+ *     "category": {"id": 1, "name": "Electronics"},
+ *     "vendor": {"id": 1, "store": {"business_name": "Tech Store"}},
+ *     "ProductVariants": [],
+ *     "images": []
+ *   }
+ * }
  */
 const adminUpdateProduct = async (req, res, next) => {
   try {
@@ -642,9 +1036,29 @@ const adminUpdateProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Delete any product (Admin)
- * @route   DELETE /api/v1/products/:id/admin
- * @access  Private/Admin
+ * Administrative deletion of any product regardless of ownership.
+ * Permanently removes product and all associated data.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Product ID to delete
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming deletion
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Empty object confirming deletion
+ * @throws {AppError} 404 - When product not found
+ * @api {delete} /api/v1/products/:id/admin Admin Delete Product
+ * @private admin
+ * @example
+ * // Request
+ * DELETE /api/v1/products/123/admin
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {}
+ * }
  */
 const adminDeleteProduct = async (req, res, next) => {
   try {
@@ -666,9 +1080,45 @@ const adminDeleteProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Update product status (Admin)
- * @route   PATCH /api/v1/products/:id/admin/status
- * @access  Private/Admin
+ * Updates the status of any product regardless of ownership.
+ * Used for product approval workflow and status management.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Product ID to update status for
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.status - New product status ('active', 'inactive', etc.)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated product status
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Updated product status information
+ * @returns {number} data.data.id - Product ID
+ * @returns {string} data.data.name - Product name
+ * @returns {string} data.data.status - Updated product status
+ * @returns {Object} data.data.vendor - Product vendor info
+ * @returns {Object} data.data.category - Product category info
+ * @throws {AppError} 404 - When product not found
+ * @api {patch} /api/v1/products/:id/admin/status Update Product Status (Admin)
+ * @private admin
+ * @example
+ * // Request
+ * PATCH /api/v1/products/123/admin/status
+ * Authorization: Bearer <admin_token>
+ * {
+ *   "status": "active"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "id": 123,
+ *     "name": "Wireless Headphones",
+ *     "status": "active",
+ *     "vendor": {"id": 1, "business_name": "Tech Store"},
+ *     "category": {"id": 1, "name": "Electronics"}
+ *   }
+ * }
  */
 const updateProductStatus = async (req, res, next) => {
   try {
@@ -703,9 +1153,60 @@ const updateProductStatus = async (req, res, next) => {
 };
 
 /**
- * @desc    Get products by status (Admin)
- * @route   GET /api/v1/products/admin/status/:status
- * @access  Private/Admin
+ * Retrieves products filtered by status with pagination.
+ * Use 'all' as status to get all products regardless of status.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {string} req.params.status - Product status filter ('active', 'inactive', 'all', etc.)
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=12] - Number of products per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with filtered products
+ * @returns {boolean} data.success - Success flag
+ * @returns {number} data.count - Number of products in current page
+ * @returns {number} data.total - Total number of products with specified status
+ * @returns {Array} data.data - Array of product objects
+ * @returns {number} data.data[].id - Product ID
+ * @returns {string} data.data[].name - Product name
+ * @returns {string} data.data[].slug - Product slug
+ * @returns {string} data.data[].description - Product description
+ * @returns {number} data.data[].price - Product price
+ * @returns {string} data.data[].status - Product status
+ * @returns {Object} data.data[].Category - Product category
+ * @returns {Object} data.data[].Vendor - Product vendor info
+ * @returns {Array} data.data[].images - Product images (first image only)
+ * @api {get} /api/v1/products/admin/status/:status Get Products by Status (Admin)
+ * @private admin
+ * @example
+ * // Request for active products
+ * GET /api/v1/products/admin/status/active?page=1&limit=20
+ * Authorization: Bearer <admin_token>
+ *
+ * // Request for all products
+ * GET /api/v1/products/admin/status/all?page=1&limit=20
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "count": 15,
+ *   "total": 150,
+ *   "data": [
+ *     {
+ *       "id": 1,
+ *       "name": "Wireless Headphones",
+ *       "slug": "wireless-headphones",
+ *       "description": "High-quality wireless headphones",
+ *       "price": 99.99,
+ *       "status": "active",
+ *       "Category": {"id": 1, "name": "Electronics"},
+ *       "Vendor": {"id": 5, "business_name": "Tech Store", "status": "approved"},
+ *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
+ *     }
+ *   ]
+ * }
  */
 const getProductsByStatus = async (req, res, next) => {
   try {
@@ -748,9 +1249,66 @@ const getProductsByStatus = async (req, res, next) => {
 };
 
 /**
- * @desc    Get product analytics/metrics
- * @route   GET /api/v1/products/:id/analytics
- * @access  Private (Vendor/Admin)
+ * Retrieves detailed analytics and metrics for a specific product.
+ * Includes sales data, revenue, conversion rates, and monthly performance.
+ * Vendors can only access analytics for their own products; admins can access any product.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Product ID for analytics
+ * @param {Object} req.user - Authenticated user info
+ * @param {Array} req.user.roles - User roles array
+ * @param {number} req.user.id - User ID for ownership verification
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with comprehensive product analytics
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Analytics data container
+ * @returns {Object} data.data.product - Basic product information
+ * @returns {Object} data.data.analytics - Detailed analytics metrics
+ * @returns {number} data.data.analytics.total_orders - Total number of orders
+ * @returns {number} data.data.analytics.total_units_sold - Total units sold
+ * @returns {number} data.data.analytics.total_revenue - Total revenue from product
+ * @returns {number} data.data.analytics.average_sale_price - Average sale price
+ * @returns {number} data.data.analytics.average_order_value - Average order value
+ * @returns {number} data.data.analytics.conversion_rate - Conversion rate percentage
+ * @returns {string} data.data.analytics.first_sale_date - Date of first sale
+ * @returns {string} data.data.analytics.last_sale_date - Date of last sale
+ * @returns {Array} data.data.analytics.monthly_sales - Monthly sales data for last 12 months
+ * @throws {AppError} 404 - When product not found
+ * @throws {AppError} 403 - When user lacks permission to view analytics
+ * @api {get} /api/v1/products/:id/analytics Get Product Analytics
+ * @private vendor, admin
+ * @example
+ * // Request
+ * GET /api/v1/products/123/analytics
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "product": {
+ *       "id": 123,
+ *       "name": "Wireless Headphones",
+ *       "impressions": 1250,
+ *       "sold_units": 45,
+ *       "status": "active"
+ *     },
+ *     "analytics": {
+ *       "total_orders": 38,
+ *       "total_units_sold": 45,
+ *       "total_revenue": 4495.50,
+ *       "average_sale_price": 99.90,
+ *       "average_order_value": 118.30,
+ *       "conversion_rate": 3.04,
+ *       "first_sale_date": "2024-01-15T10:30:00.000Z",
+ *       "last_sale_date": "2024-09-20T14:22:00.000Z",
+ *       "monthly_sales": [
+ *         {"month": "2024-09", "orders_count": 8, "units_sold": 12, "revenue": 1198.80}
+ *       ]
+ *     }
+ *   }
+ * }
  */
 const getProductAnalytics = async (req, res, next) => {
   try {
@@ -866,9 +1424,63 @@ const getProductAnalytics = async (req, res, next) => {
 };
 
 /**
- * @desc    Get vendor's products analytics summary
- * @route   GET /api/v1/products/analytics/vendor/
- * @access  Private (Vendor)
+ * Retrieves comprehensive analytics summary for all products owned by a vendor.
+ * Includes overall performance metrics, top-performing products, and aggregated statistics.
+ * Only accessible to the vendor themselves.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for vendor lookup
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor analytics summary
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Analytics data container
+ * @returns {Object} data.data.summary - Overall vendor performance summary
+ * @returns {number} data.data.summary.total_products - Total number of products
+ * @returns {number} data.data.summary.active_products - Number of active products
+ * @returns {number} data.data.summary.total_impressions - Total impressions across all products
+ * @returns {number} data.data.summary.total_sold_units - Total units sold across all products
+ * @returns {number} data.data.summary.avg_impressions_per_product - Average impressions per product
+ * @returns {number} data.data.summary.avg_sales_per_product - Average sales per product
+ * @returns {Array} data.data.top_products - Top 10 performing products
+ * @returns {number} data.data.top_products[].id - Product ID
+ * @returns {string} data.data.top_products[].name - Product name
+ * @returns {number} data.data.top_products[].impressions - Product impressions
+ * @returns {number} data.data.top_products[].sold_units - Units sold
+ * @returns {number} data.data.top_products[].total_revenue - Total revenue from product
+ * @returns {number} data.data.top_products[].total_orders - Total orders
+ * @throws {AppError} 404 - When vendor account not found
+ * @api {get} /api/v1/products/analytics/vendor Get Vendor Analytics Summary
+ * @private vendor
+ * @example
+ * // Request
+ * GET /api/v1/products/analytics/vendor
+ * Authorization: Bearer <vendor_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "summary": {
+ *       "total_products": 25,
+ *       "active_products": 20,
+ *       "total_impressions": 15420,
+ *       "total_sold_units": 380,
+ *       "avg_impressions_per_product": 616.80,
+ *       "avg_sales_per_product": 15.20
+ *     },
+ *     "top_products": [
+ *       {
+ *         "id": 123,
+ *         "name": "Wireless Headphones",
+ *         "impressions": 1250,
+ *         "sold_units": 45,
+ *         "total_revenue": 4495.50,
+ *         "total_orders": 38
+ *       }
+ *     ]
+ *   }
+ * }
  */
 const getVendorAnalytics = async (req, res, next) => {
   try {

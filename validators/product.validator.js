@@ -16,6 +16,22 @@ const messages = {
 };
 
 // Product validation rules
+/**
+ * Validation rules for creating a new product.
+ * Comprehensive validation including name, description, pricing, category, variants, images, and business rules.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} name - Required, 2-100 chars, trimmed
+ * @property {ValidationChain} description - Optional, max 2000 chars, trimmed
+ * @property {ValidationChain} price - Required, float 0.01-1,000,000
+ * @property {ValidationChain} category_id - Required, positive integer, validates category exists
+ * @property {ValidationChain} sku - Optional, max 100 chars, trimmed
+ * @property {ValidationChain} variants - Optional array with detailed variant validation
+ * @property {ValidationChain} images - Optional array with URL and featured image validation
+ * @returns {Array} Express validator middleware array for product creation
+ * @example
+ * // Use in route:
+ * router.post('/products', createProductValidation, createProduct);
+ */
 exports.createProductValidation = [
   // Basic product info
   // Product name
@@ -164,6 +180,23 @@ exports.createProductValidation = [
 ];
 
 // Update product validation
+/**
+ * Validation rules for updating an existing product.
+ * Validates product ID and optional field updates with existence checks.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required product ID parameter, validates product exists
+ * @property {ValidationChain} name - Optional, 3-255 chars, validates product ownership
+ * @property {ValidationChain} description - Optional, min 10 chars, validates product ownership
+ * @property {ValidationChain} price - Optional, positive float, validates product ownership
+ * @property {ValidationChain} category_id - Optional, positive integer, validates category exists
+ * @property {ValidationChain} sku - Optional, max 100 chars, validates product ownership
+ * @property {ValidationChain} stock - Optional, non-negative integer, validates product ownership
+ * @property {ValidationChain} status - Optional, validates against allowed status values
+ * @returns {Array} Express validator middleware array for product updates
+ * @example
+ * // Use in route:
+ * router.put('/products/:id', updateProductValidation, updateProduct);
+ */
 exports.updateProductValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid product ID')
@@ -257,6 +290,22 @@ exports.updateProductValidation = [
 ];
 
 // Get products validation
+/**
+ * Validation rules for retrieving paginated product lists.
+ * Validates pagination, category filtering, sorting, and vendor filtering.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} page - Optional, positive integer >= 1, max 100 items per page
+ * @property {ValidationChain} limit - Optional, integer 1-100
+ * @property {ValidationChain} category - Optional, validates category exists (by ID, name, or slug)
+ * @property {ValidationChain} sortBy - Optional, one of: price, createdAt, name
+ * @property {ValidationChain} sortOrder - Optional, ASC, DESC, asc, or desc
+ * @property {ValidationChain} vendor - Optional, positive integer, validates vendor exists
+ * @property {ValidationChain} search - Optional, min 2 chars, string search term
+ * @returns {Array} Express validator middleware array for product list retrieval
+ * @example
+ * // Use in route:
+ * router.get('/products', getProductsValidation, getProducts);
+ */
 exports.getProductsValidation = [
   query('page')
     .optional()
@@ -323,6 +372,16 @@ exports.getProductsValidation = [
 ];
 
 // Get product by ID or slug validation
+/**
+ * Validation rules for retrieving a product by ID or slug identifier.
+ * Handles both numeric IDs and string slugs with existence validation.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} identifier - Required product identifier (ID or slug), validates existence
+ * @returns {Array} Express validator middleware array for product retrieval by identifier
+ * @example
+ * // Use in route:
+ * router.get('/products/:identifier', getProductByIdentifierValidation, getProduct);
+ */
 exports.getProductByIdentifierValidation = [
   param('identifier')
     .notEmpty().withMessage('Product identifier is required')
@@ -348,6 +407,16 @@ exports.getProductByIdentifierValidation = [
 ];
 
 // Delete product validation
+/**
+ * Validation rules for deleting a product.
+ * Validates product ID and ownership/authorization for deletion.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required product ID, validates product exists and ownership
+ * @returns {Array} Express validator middleware array for product deletion
+ * @example
+ * // Use in route:
+ * router.delete('/products/:id', deleteProductValidation, deleteProduct);
+ */
 exports.deleteProductValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid product ID')
@@ -364,7 +433,23 @@ exports.deleteProductValidation = [
     })
 ];
 
-// Update product validation
+// Update product validation (second instance)
+/**
+ * Alternative validation rules for updating products.
+ * Similar to the first updateProductValidation but with different field requirements.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required product ID, validates product exists and ownership
+ * @property {ValidationChain} name - Optional, 3-255 chars, validates product ownership
+ * @property {ValidationChain} description - Optional, string validation
+ * @property {ValidationChain} price - Optional, positive float
+ * @property {ValidationChain} category_id - Optional, positive integer, validates category exists
+ * @property {ValidationChain} stock - Optional, non-negative integer
+ * @property {ValidationChain} status - Optional, validates against allowed status values
+ * @returns {Array} Alternative express validator middleware array for product updates
+ * @example
+ * // Use in route:
+ * router.put('/products/:id/admin', updateProductValidation, updateProduct);
+ */
 exports.updateProductValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid product ID')
@@ -425,6 +510,18 @@ exports.updateProductValidation = [
 ];
 
 // Get vendor products validation
+/**
+ * Validation rules for retrieving products owned by a specific vendor.
+ * Validates vendor ID and pagination parameters.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required vendor ID parameter, validates vendor exists
+ * @property {ValidationChain} page - Optional, positive integer >= 1
+ * @property {ValidationChain} limit - Optional, integer 1-100
+ * @returns {Array} Express validator middleware array for vendor product retrieval
+ * @example
+ * // Use in route:
+ * router.get('/products/vendor/:id', getVendorProductsValidation, getVendorProducts);
+ */
 exports.getVendorProductsValidation = [
   param('id')
     .isInt({ min: 1 }).withMessage('Invalid vendor ID')

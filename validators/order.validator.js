@@ -2,6 +2,22 @@ const { Address, Product, ProductVariant } = require("../models"); // Defer impo
 const { body, param, query } = require("express-validator");
 
 // Validation for creating an order
+/**
+ * Validation rules for creating a new order.
+ * Validates order items, address, shipping costs, tax amounts, and payment method.
+ * Includes complex validation for product existence, variant relationships, and stock availability.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} addressId - Required, positive integer, validates address exists
+ * @property {ValidationChain} items - Required array, minimum 1 item, validates product/variant relationships
+ * @property {ValidationChain} shippingCost - Required, positive float
+ * @property {ValidationChain} taxAmount - Required, positive float
+ * @property {ValidationChain} notes - Optional string
+ * @property {ValidationChain} paymentMethod - Required, one of: paystack, cash, card
+ * @returns {Array} Express validator middleware array for order creation
+ * @example
+ * // Use in route:
+ * router.post('/orders', createOrderSchema, createOrder);
+ */
 const createOrderSchema = [
   body("addressId")
     .notEmpty()
@@ -62,6 +78,17 @@ const createOrderSchema = [
 ];
 
 // Validation for updating an order
+/**
+ * Validation rules for updating order status.
+ * Validates order ID parameter and status updates.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required order ID parameter, positive integer
+ * @property {ValidationChain} status - Required, one of: pending, processing, shipped, delivered, cancelled
+ * @returns {Array} Express validator middleware array for order status updates
+ * @example
+ * // Use in route:
+ * router.patch('/orders/:id/status', updateOrderSchema, updateOrderStatus);
+ */
 const updateOrderSchema = [
   param("id")
     .notEmpty()
@@ -76,6 +103,17 @@ const updateOrderSchema = [
 ];
 
 // Validation for canceling an order
+/**
+ * Validation rules for canceling an order.
+ * Validates order ID parameter and cancellation reason.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required order ID parameter, positive integer
+ * @property {ValidationChain} reason - Required string reason for cancellation
+ * @returns {Array} Express validator middleware array for order cancellation
+ * @example
+ * // Use in route:
+ * router.patch('/orders/:id/cancel', cancelOrderSchema, cancelOrder);
+ */
 const cancelOrderSchema = [
   param("id")
     .notEmpty()
@@ -90,6 +128,16 @@ const cancelOrderSchema = [
 ];
 
 // Validation for verifying payment
+/**
+ * Validation rules for payment verification.
+ * Validates payment reference string.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} reference - Required payment reference string
+ * @returns {Array} Express validator middleware array for payment verification
+ * @example
+ * // Use in route:
+ * router.get('/orders/verify-payment/:reference', verifyPaymentSchema, verifyPayment);
+ */
 const verifyPaymentSchema = [
   param("reference")
     .notEmpty()
@@ -99,6 +147,17 @@ const verifyPaymentSchema = [
 ];
 
 // Validation for retrieving orders
+/**
+ * Validation rules for retrieving paginated order lists.
+ * Validates pagination parameters.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} page - Optional, positive integer >= 1
+ * @property {ValidationChain} limit - Optional, positive integer
+ * @returns {Array} Express validator middleware array for order list retrieval
+ * @example
+ * // Use in route:
+ * router.get('/orders', getOrdersSchema, getAllOrders);
+ */
 const getOrdersSchema = [
   query("page")
     .optional()
@@ -111,6 +170,16 @@ const getOrdersSchema = [
 ];
 
 // Validation for retrieving a specific order
+/**
+ * Validation rules for retrieving a single order by ID.
+ * Validates order ID parameter.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required order ID parameter, positive integer
+ * @returns {Array} Express validator middleware array for single order retrieval
+ * @example
+ * // Use in route:
+ * router.get('/orders/:id', getOrderSchema, getOrder);
+ */
 const getOrderSchema = [
   param("id")
     .notEmpty()
@@ -120,6 +189,18 @@ const getOrderSchema = [
 ];
 
 // Validation for retrieving user orders
+/**
+ * Validation rules for retrieving orders for the authenticated user.
+ * Validates pagination and optional status filtering.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} page - Optional, positive integer >= 1
+ * @property {ValidationChain} limit - Optional, positive integer
+ * @property {ValidationChain} status - Optional, one of: pending, processing, shipped, delivered, cancelled
+ * @returns {Array} Express validator middleware array for user order retrieval
+ * @example
+ * // Use in route:
+ * router.get('/orders/my-orders', getUserOrdersSchema, getUserOrders);
+ */
 const getUserOrdersSchema = [
   query("page")
     .optional()

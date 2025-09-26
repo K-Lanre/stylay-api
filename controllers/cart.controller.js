@@ -3,9 +3,28 @@ const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 
 /**
- * Get or create cart for authenticated user
- * @route GET /api/v1/cart
- * @access Private
+ * Get or create shopping cart for authenticated user
+ * Supports both authenticated users (with user_id) and guest users (with session_id).
+ * Returns full cart details including items, products, and variants with proper associations.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts (optional)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with cart data
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Cart object with items, totals, and product details
+ * @returns {Object} res.body.data.cart - Cart details (null if no cart found)
+ * @throws {Error} 500 - Server error during cart retrieval
+ * @api {get} /api/v1/cart Get cart
+ * @private Supports both authenticated and guest users
+ * @example
+ * GET /api/v1/cart
+ * Authorization: Bearer <jwt_token>
+ *
+ * // For guest users:
+ * GET /api/v1/cart
+ * x-session-id: abc123def456
  */
 const getCart = async (req, res, next) => {
   try {
@@ -90,9 +109,43 @@ const getCart = async (req, res, next) => {
 };
 
 /**
- * Add item to cart
- * @route POST /api/v1/cart/items
- * @access Private
+ * Add item to shopping cart
+ * Validates product availability, handles quantity updates, and supports product variants.
+ * Uses database transactions to ensure data consistency. Updates cart totals automatically.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {number} req.body.productId - Product ID to add (required)
+ * @param {number} [req.body.quantity=1] - Quantity to add (default: 1)
+ * @param {number} [req.body.variantId] - Product variant ID (optional)
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with added/updated item
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Item details with product and variant information
+ * @throws {AppError} 400 - Missing productId, invalid quantity, or insufficient stock
+ * @throws {AppError} 404 - Product or variant not found
+ * @throws {Error} 500 - Server error during cart operation
+ * @api {post} /api/v1/cart/items Add item to cart
+ * @private Supports both authenticated and guest users
+ * @example
+ * POST /api/v1/cart/items
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "productId": 123,
+ *   "quantity": 2,
+ *   "variantId": 456
+ * }
+ *
+ * // For guest users:
+ * POST /api/v1/cart/items
+ * x-session-id: abc123def456
+ * {
+ *   "productId": 123,
+ *   "quantity": 1
+ * }
  */
 const addToCart = async (req, res, next) => {
   const transaction = await Cart.sequelize.transaction();
@@ -215,8 +268,40 @@ const addToCart = async (req, res, next) => {
 
 /**
  * Update cart item quantity
- * @route PUT /api/v1/cart/items/:itemId
- * @access Private
+ * Validates new quantity, checks ownership, and updates cart totals.
+ * Uses database transactions for data consistency.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.itemId - Cart item ID to update
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {number} req.body.quantity - New quantity (must be >= 1)
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated item
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Updated item details
+ * @throws {AppError} 400 - Invalid quantity (less than 1)
+ * @throws {AppError} 403 - Access denied (item doesn't belong to user)
+ * @throws {AppError} 404 - Cart item not found
+ * @throws {Error} 500 - Server error during update
+ * @api {put} /api/v1/cart/items/:itemId Update cart item
+ * @private Supports both authenticated and guest users
+ * @example
+ * PUT /api/v1/cart/items/789
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "quantity": 3
+ * }
+ *
+ * // For guest users:
+ * PUT /api/v1/cart/items/789
+ * x-session-id: abc123def456
+ * {
+ *   "quantity": 1
+ * }
  */
 const updateCartItem = async (req, res, next) => {
   const transaction = await Cart.sequelize.transaction();
@@ -286,8 +371,31 @@ const updateCartItem = async (req, res, next) => {
 
 /**
  * Remove item from cart
- * @route DELETE /api/v1/cart/items/:itemId
- * @access Private
+ * Validates ownership and updates cart totals after removal.
+ * Uses database transactions for data consistency.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.itemId - Cart item ID to remove
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming removal
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Removed item ID
+ * @throws {AppError} 403 - Access denied (item doesn't belong to user)
+ * @throws {AppError} 404 - Cart item not found
+ * @throws {Error} 500 - Server error during removal
+ * @api {delete} /api/v1/cart/items/:itemId Remove cart item
+ * @private Supports both authenticated and guest users
+ * @example
+ * DELETE /api/v1/cart/items/789
+ * Authorization: Bearer <jwt_token>
+ *
+ * // For guest users:
+ * DELETE /api/v1/cart/items/789
+ * x-session-id: abc123def456
  */
 const removeFromCart = async (req, res, next) => {
   const transaction = await Cart.sequelize.transaction();
@@ -346,8 +454,29 @@ const removeFromCart = async (req, res, next) => {
 
 /**
  * Clear all items from cart
- * @route DELETE /api/v1/cart/clear
- * @access Private
+ * Removes all cart items and resets cart totals to zero.
+ * Uses database transactions for data consistency.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts (required for guests)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming cart clearance
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Cart ID that was cleared
+ * @throws {AppError} 400 - Session ID required for guest carts
+ * @throws {AppError} 404 - Cart not found
+ * @throws {Error} 500 - Server error during clearance
+ * @api {delete} /api/v1/cart/clear Clear cart
+ * @private Supports both authenticated and guest users
+ * @example
+ * DELETE /api/v1/cart/clear
+ * Authorization: Bearer <jwt_token>
+ *
+ * // For guest users:
+ * DELETE /api/v1/cart/clear
+ * x-session-id: abc123def456
  */
 const clearCart = async (req, res, next) => {
   const transaction = await Cart.sequelize.transaction();
@@ -409,9 +538,40 @@ const clearCart = async (req, res, next) => {
 };
 
 /**
- * Get cart summary (for checkout)
- * @route GET /api/v1/cart/summary
- * @access Private
+ * Get cart summary for checkout
+ * Provides comprehensive cart information including totals, shipping, and tax calculations.
+ * Used primarily during the checkout process to display final pricing.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with cart summary
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Cart summary object
+ * @returns {number} res.body.data.subtotal - Sum of all item subtotals
+ * @returns {number} res.body.data.shipping - Shipping cost (currently 0.00)
+ * @returns {number} res.body.data.tax - Tax amount (currently 0.00)
+ * @returns {number} res.body.data.total - Final total amount
+ * @returns {Array} res.body.data.items - Array of cart items with product details
+ * @throws {Error} 500 - Server error during summary calculation
+ * @api {get} /api/v1/cart/summary Get cart summary
+ * @private Supports both authenticated and guest users
+ * @example
+ * GET /api/v1/cart/summary
+ * Authorization: Bearer <jwt_token>
+ *
+ * // Response includes:
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "subtotal": 150.00,
+ *     "shipping": 0.00,
+ *     "tax": 0.00,
+ *     "total": 150.00,
+ *     "items": [...]
+ *   }
+ * }
  */
 const getCartSummary = async (req, res, next) => {
   try {

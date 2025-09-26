@@ -1,12 +1,12 @@
 'use strict';
 
-const { Product, Vendor, Inventory, InventoryHistory, VendorProductTag, sequelize } = require('../models');
+const { Product, Vendor, Inventory, InventoryHistory, VendorProductTag, sequelize, Sequelize } = require('../models');
 const { faker } = require('@faker-js/faker');
 
 // Configuration
 const CONFIG = {
   BATCH_SIZE: 100, // Number of supplies to process in each batch
-  SUPPLIES_PER_VENDOR: 5, // Number of supply records per vendor
+  SUPPLIES_PER_VENDOR: 150, // Number of supply records per vendor
   MIN_QUANTITY: 10,
   MAX_QUANTITY: 100
 };
@@ -46,12 +46,13 @@ module.exports = {
         include: [
           {
             model: Product,
-            as: 'Products', // Changed from 'products' to 'Products' to match model association
+            as: 'products', // Changed from 'Products' to 'products' to match model association
             attributes: ['id'],
             required: true
           },
           {
             model: sequelize.models.Store,
+            as: 'store',
             attributes: [],
             where: { is_verified: true },
             required: true
@@ -75,12 +76,14 @@ module.exports = {
       const products = await Product.findAll({
         include: [{
           model: Vendor,
+          as: 'vendor',
           where: {
             status: 'approved',
             id: { [Sequelize.Op.in]: vendors.map(v => v.id) }
           },
           include: [{
             model: sequelize.models.Store,
+            as: 'store',
             where: { is_verified: true },
             required: true
           }]
@@ -125,7 +128,6 @@ module.exports = {
             vendorProductTag = await VendorProductTag.create({
               vendor_id: vendorId,
               product_id: product.id,
-              tag_name: `tag-${vendorId}-${product.id}`, // Example tag name
               created_at: new Date()
             }, { transaction });
           }

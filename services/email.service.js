@@ -558,6 +558,11 @@ const notifyVendors = async (orderId) => {
             },
           ],
         },
+        {
+          model: OrderDetail,
+          as: "details",
+          required: false,
+        },
       ],
     });
 
@@ -609,6 +614,14 @@ const notifyVendors = async (orderId) => {
       const vendorItems = order.items
         .filter((item) => item.product?.vendor?.id === vendor.id)
         .map((item) => item.product.toJSON());
+
+      console.log("order details", order.details.toJSON());
+      // Get shipping address from order details
+      const addressId = order.details.toJSON().get("address_id");
+      console.log('addressId', addressId);
+      // const shippingAddress = Address.findByPk()
+
+      return;
       // Prepare order data for the template
       const orderData = {
         id: order.id,
@@ -632,7 +645,8 @@ const notifyVendors = async (orderId) => {
         orderUrl: `${process.env.VENDOR_PORTAL_URL}/orders/${orderId}`,
         appUrl: process.env.APP_URL || "https://stylay.com",
         supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
-        vendorDashboardUrl: process.env.VENDOR_PORTAL_URL || "https://vendor.stylay.com",
+        vendorDashboardUrl:
+          process.env.VENDOR_PORTAL_URL || "https://vendor.stylay.com",
       });
     });
 

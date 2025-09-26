@@ -2,9 +2,32 @@ const { Journal, Product } = require('../models');
 const { Op } = require('sequelize');
 
 /**
- * @desc    Create a new journal entry
- * @route   POST /api/v1/journals
- * @access  Private/Admin
+ * Create a new journal entry
+ * Journal entries can be standalone or linked to specific products.
+ * Admin access required for content management and publishing.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {string} req.body.title - Journal entry title (required)
+ * @param {string} req.body.content - Journal entry content (required)
+ * @param {number} [req.body.product_id] - Associated product ID (optional)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with created journal entry
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Created journal object with associations
+ * @throws {Object} 400 - Validation errors (missing title/content, invalid product)
+ * @throws {Error} 500 - Server error during creation
+ * @api {post} /api/v1/journals Create journal entry
+ * @private Requires admin authentication
+ * @example
+ * POST /api/v1/journals
+ * Authorization: Bearer <admin_jwt_token>
+ * {
+ *   "title": "Summer Fashion Trends 2024",
+ *   "content": "Exploring the latest trends in summer fashion...",
+ *   "product_id": 123
+ * }
  */
 const createJournal = async (req, res, next) => {
   try {
@@ -72,9 +95,30 @@ const createJournal = async (req, res, next) => {
 };
 
 /**
- * @desc    Get all journal entries
- * @route   GET /api/v1/journals
- * @access  Public
+ * Get all journal entries with optional filtering and pagination
+ * Returns journals in reverse chronological order with associated product information.
+ * Supports filtering by product ID for product-specific journals.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.query} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Journal entries per page
+ * @param {number} [req.query.product_id] - Filter by associated product ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated journal entries
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Journal entries with pagination info
+ * @returns {Array} res.body.data.journals - Array of journal objects
+ * @returns {number} res.body.data.total - Total number of journal entries
+ * @returns {number} res.body.data.page - Current page number
+ * @returns {number} res.body.data.pages - Total number of pages
+ * @returns {number} res.body.data.limit - Items per page
+ * @throws {Error} 500 - Server error during retrieval
+ * @api {get} /api/v1/journals Get journal entries
+ * @public
+ * @example
+ * GET /api/v1/journals?page=1&limit=5&product_id=123
  */
 const getAllJournals = async (req, res, next) => {
   try {
@@ -114,9 +158,24 @@ const getAllJournals = async (req, res, next) => {
 };
 
 /**
- * @desc    Get a single journal entry
- * @route   GET /api/v1/journals/:id
- * @access  Public
+ * Get a single journal entry by ID
+ * Returns detailed journal information including associated product data if linked.
+ * Public access for content consumption.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Journal entry ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with journal details
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Journal object with product association
+ * @throws {Object} 404 - Journal entry not found
+ * @throws {Error} 500 - Server error during retrieval
+ * @api {get} /api/v1/journals/:id Get journal by ID
+ * @public
+ * @example
+ * GET /api/v1/journals/456
  */
 const getJournalById = async (req, res, next) => {
   try {
@@ -152,9 +211,34 @@ const getJournalById = async (req, res, next) => {
 };
 
 /**
- * @desc    Update a journal entry
- * @route   PUT /api/v1/journals/:id
- * @access  Private/Admin
+ * Update a journal entry
+ * Supports partial updates to title, content, and product association.
+ * Validates product existence when product_id is being updated.
+ * Admin access required for content management.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Journal entry ID to update
+ * @param {import('express').Request.body} req.body - Request body with updateable fields
+ * @param {string} [req.body.title] - Updated journal title
+ * @param {string} [req.body.content] - Updated journal content
+ * @param {number} [req.body.product_id] - Updated associated product ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with updated journal
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Updated journal object with associations
+ * @throws {Object} 404 - Journal entry not found or invalid product ID
+ * @throws {Error} 500 - Server error during update
+ * @api {put} /api/v1/journals/:id Update journal entry
+ * @private Requires admin authentication
+ * @example
+ * PUT /api/v1/journals/456
+ * Authorization: Bearer <admin_jwt_token>
+ * {
+ *   "title": "Updated Summer Fashion Trends",
+ *   "content": "Revised content about summer fashion..."
+ * }
  */
 const updateJournal = async (req, res, next) => {
   try {
@@ -211,9 +295,25 @@ const updateJournal = async (req, res, next) => {
 };
 
 /**
- * @desc    Delete a journal entry
- * @route   DELETE /api/v1/journals/:id
- * @access  Private/Admin
+ * Delete a journal entry
+ * Permanently removes journal entry from database.
+ * Admin access required for content management.
+ *
+ * @param {import('express').Request} req - Express request object (admin authentication required)
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.id - Journal entry ID to delete
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming deletion
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Null data confirming deletion
+ * @throws {Object} 404 - Journal entry not found
+ * @throws {Error} 500 - Server error during deletion
+ * @api {delete} /api/v1/journals/:id Delete journal entry
+ * @private Requires admin authentication
+ * @example
+ * DELETE /api/v1/journals/456
+ * Authorization: Bearer <admin_jwt_token>
  */
 const deleteJournal = async (req, res, next) => {
   try {

@@ -23,9 +23,70 @@ const logger = require("../utils/logger");
 const { v4: uuidv4 } = require("uuid");
 
 /**
- * Create a new order
- * @route POST /api/orders
- * @access Private
+ * Creates a new order with inventory management, payment initialization, and vendor notifications.
+ * Handles complex order processing including stock validation, inventory deduction, payment gateway integration,
+ * and email notifications to both customer and vendors.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.body - Request body containing order data
+ * @param {number} req.body.addressId - Shipping address ID (required)
+ * @param {Array<Object>} req.body.items - Order items array (required)
+ * @param {number} req.body.items[].productId - Product ID (required)
+ * @param {number} req.body.items[].quantity - Item quantity (required)
+ * @param {number} [req.body.items[].variantId] - Product variant ID (optional)
+ * @param {number} [req.body.shippingCost=0] - Shipping cost
+ * @param {number} [req.body.taxAmount=0] - Tax amount
+ * @param {string} [req.body.notes] - Order notes
+ * @param {string} [req.body.paymentMethod="paystack"] - Payment method
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for order ownership
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with order details and payment data
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Response data container
+ * @returns {Object} data.order - Complete order information with associations
+ * @returns {number} data.order.id - Order ID
+ * @returns {string} data.order.order_date - Order creation date
+ * @returns {number} data.order.total_amount - Total order amount
+ * @returns {string} data.order.payment_status - Payment status ('pending')
+ * @returns {string} data.order.order_status - Order status ('pending')
+ * @returns {Array} data.order.items - Order items with product details
+ * @returns {Object} data.order.details - Order shipping and tax details
+ * @returns {Object} [data.order.paymentData] - Paystack payment initialization data (if applicable)
+ * @throws {Error} 400 - When items array is empty or invalid, insufficient stock, or address not found
+ * @api {post} /api/orders Create Order
+ * @private user
+ * @example
+ * // Request
+ * POST /api/orders
+ * Authorization: Bearer <token>
+ * {
+ *   "addressId": 123,
+ *   "items": [
+ *     {"productId": 456, "quantity": 2, "variantId": 789},
+ *     {"productId": 101, "quantity": 1}
+ *   ],
+ *   "shippingCost": 1500,
+ *   "taxAmount": 500,
+ *   "notes": "Please handle with care"
+ * }
+ *
+ * // Success Response (201)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "order": {
+ *       "id": 12345,
+ *       "order_date": "2024-09-26T05:00:00.000Z",
+ *       "total_amount": 25000,
+ *       "payment_status": "pending",
+ *       "order_status": "pending",
+ *       "items": [...],
+ *       "details": {...},
+ *       "paymentData": {...}
+ *     }
+ *   }
+ * }
  */
 async function createOrder(req, res) {
   const transaction = await sequelize.transaction();
@@ -396,9 +457,62 @@ async function createOrder(req, res) {
 }
 
 /**
- * Get order by ID
- * @route GET /api/orders/:id
- * @access Private
+ * Retrieves detailed information about a specific order by ID.
+ * Access control ensures users can only view their own orders, vendors can see orders containing their products,
+ * and admins have unrestricted access.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Order ID to retrieve
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for access control
+ * @param {Array} req.user.roles - User roles array for permission checking
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with comprehensive order details
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Response data container
+ * @returns {Object} data.order - Complete order information
+ * @returns {number} data.order.id - Order ID
+ * @returns {string} data.order.order_date - Order creation date
+ * @returns {number} data.order.total_amount - Total order amount
+ * @returns {string} data.order.payment_status - Payment status
+ * @returns {string} data.order.order_status - Order fulfillment status
+ * @returns {Object} data.order.User - Customer information
+ * @returns {Array} data.order.items - Order items with product details
+ * @returns {Object} data.order.details - Shipping and tax details with address
+ * @returns {Array} data.order.transactions - Payment transaction history
+ * @returns {Object} data.order.summary - Calculated order totals (subtotal, shipping, tax, total)
+ * @throws {AppError} 404 - When order not found or access denied
+ * @api {get} /api/orders/:id Get Order by ID
+ * @private user, vendor, admin
+ * @example
+ * // Request
+ * GET /api/orders/12345
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "order": {
+ *       "id": 12345,
+ *       "order_date": "2024-09-26T05:00:00.000Z",
+ *       "total_amount": 25000,
+ *       "payment_status": "paid",
+ *       "order_status": "processing",
+ *       "User": {"first_name": "John", "last_name": "Doe"},
+ *       "items": [...],
+ *       "details": {...},
+ *       "transactions": [...],
+ *       "summary": {
+ *         "subtotal": 20000,
+ *         "shipping": 1500,
+ *         "tax": 500,
+ *         "total": 22000
+ *       }
+ *     }
+ *   }
+ * }
  */
 async function getOrder(req, res) {
   try {
@@ -506,9 +620,51 @@ async function getOrder(req, res) {
 }
 
 /**
- * Update order status
- * @route PATCH /api/orders/:id/status
- * @access Private (Admin/Vendor)
+ * Updates the status of an order with business logic for different status transitions.
+ * Handles inventory restoration for cancellations, payment completion for deliveries,
+ * and email notifications to customers. Supports both admin and vendor access with appropriate restrictions.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Order ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.status - New order status ('processing', 'shipped', 'delivered', 'cancelled')
+ * @param {string} [req.body.notes] - Status update notes
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for audit trail
+ * @param {Array} req.user.roles - User roles for permission checking
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming status update
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Response data container
+ * @returns {number} data.order.id - Order ID
+ * @returns {string} data.order.status - Updated order status
+ * @returns {string} data.order.updatedAt - Last update timestamp
+ * @throws {Error} 400 - When invalid status provided or invalid status transition attempted
+ * @throws {Error} 404 - When order not found
+ * @throws {Error} 403 - When vendor tries to update order they don't have items in
+ * @api {patch} /api/orders/:id/status Update Order Status
+ * @private vendor, admin
+ * @example
+ * // Request - Mark as shipped
+ * PATCH /api/orders/12345/status
+ * Authorization: Bearer <vendor_token>
+ * {
+ *   "status": "shipped",
+ *   "notes": "Order shipped via DHL"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "order": {
+ *       "id": 12345,
+ *       "status": "shipped",
+ *       "updatedAt": "2024-09-26T06:00:00.000Z"
+ *     }
+ *   }
+ * }
  */
 async function updateOrderStatus(req, res) {
   const transaction = await sequelize.transaction();
@@ -692,9 +848,76 @@ async function updateOrderStatus(req, res) {
 }
 
 /**
- * Get orders for the authenticated user
- * @route GET /api/orders/my-orders
- * @access Private
+ * Retrieves a paginated list of orders belonging to the authenticated user.
+ * Provides comprehensive order history with item details, shipping information, and calculated totals.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} [req.query.status] - Filter orders by status ('pending', 'processing', 'shipped', 'delivered', 'cancelled')
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of orders per page
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for order filtering
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated user orders
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Response data container
+ * @returns {Array} data.orders - Array of order objects with formatted data
+ * @returns {number} data.orders[].id - Order ID
+ * @returns {string} data.orders[].order_number - Formatted order number (#000012345)
+ * @returns {string} data.orders[].status - Order status
+ * @returns {string} data.orders[].payment_status - Payment status
+ * @returns {string} data.orders[].order_date - Order creation date
+ * @returns {number} data.orders[].total_amount - Total order amount
+ * @returns {number} data.orders[].item_count - Number of items in order
+ * @returns {Array} data.orders[].items - Order items with product info
+ * @returns {Object} data.orders[].summary - Calculated order totals
+ * @returns {Object} data.orders[].shipping_address - Shipping address details
+ * @returns {Object} data.pagination - Pagination metadata
+ * @returns {number} data.pagination.total - Total number of orders
+ * @returns {number} data.pagination.total_pages - Total number of pages
+ * @returns {number} data.pagination.current_page - Current page number
+ * @returns {boolean} data.pagination.has_next_page - Whether next page exists
+ * @returns {boolean} data.pagination.has_previous_page - Whether previous page exists
+ * @api {get} /api/orders/my-orders Get User Orders
+ * @private user
+ * @example
+ * // Request
+ * GET /api/orders/my-orders?page=1&limit=5&status=delivered
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "orders": [
+ *       {
+ *         "id": 12345,
+ *         "order_number": "#000012345",
+ *         "status": "delivered",
+ *         "payment_status": "paid",
+ *         "order_date": "2024-09-26T05:00:00.000Z",
+ *         "total_amount": 25000,
+ *         "item_count": 3,
+ *         "items": [...],
+ *         "summary": {
+ *           "subtotal": 20000,
+ *           "shipping": 1500,
+ *           "tax": 500,
+ *           "total": 22000
+ *         },
+ *         "shipping_address": {...}
+ *       }
+ *     ],
+ *     "pagination": {
+ *       "total": 25,
+ *       "total_pages": 5,
+ *       "current_page": 1,
+ *       "has_next_page": true,
+ *       "has_previous_page": false
+ *     }
+ *   }
+ * }
  */
 async function getUserOrders(req, res) {
   try {
@@ -825,9 +1048,43 @@ async function getUserOrders(req, res) {
 }
 
 /**
- * Verify payment and update order status
- * @route GET /api/orders/verify-payment/:reference
- * @access Private
+ * Verifies payment completion with the payment gateway and updates order status accordingly.
+ * Handles successful payments by marking orders as paid and processing, failed payments by updating transaction status.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {string} req.params.reference - Payment reference from payment gateway
+ * @param {Object} [req.user] - Authenticated user info (optional for webhook calls)
+ * @param {number} [req.user.id] - User ID for additional validation
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with payment verification result
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @returns {Object} data - Response data container
+ * @returns {number} data.orderId - Order ID
+ * @returns {string} data.status - Updated order status ('processing')
+ * @returns {string} data.paymentStatus - Updated payment status ('paid')
+ * @returns {string} data.reference - Payment reference
+ * @throws {Error} 400 - When payment verification fails or invalid reference
+ * @throws {Error} 404 - When transaction not found
+ * @api {get} /api/orders/verify-payment/:reference Verify Payment
+ * @private user
+ * @example
+ * // Request
+ * GET /api/orders/verify-payment/STYLAY-1234567890-12345
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Payment verified successfully",
+ *   "data": {
+ *     "orderId": 12345,
+ *     "status": "processing",
+ *     "paymentStatus": "paid",
+ *     "reference": "STYLAY-1234567890-12345"
+ *   }
+ * }
  */
 async function verifyPayment(req, res) {
   const transaction = await sequelize.transaction();
@@ -998,9 +1255,36 @@ async function verifyPayment(req, res) {
 }
 
 /**
- * Handle payment webhook
- * @route POST /api/webhooks/payment
- * @access Public (called by payment gateway)
+ * Processes payment webhooks from the payment gateway.
+ * Handles asynchronous payment notifications and updates order status accordingly.
+ * This endpoint is called directly by the payment provider and should be secured.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.body - Webhook payload from payment gateway
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming webhook processing
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Webhook processing result
+ * @throws {Error} 400 - When webhook signature verification fails or processing errors occur
+ * @api {post} /api/webhooks/payment Handle Payment Webhook
+ * @public
+ * @example
+ * // Webhook payload (sent by payment gateway)
+ * POST /api/webhooks/payment
+ * {
+ *   "event": "charge.success",
+ *   "data": {
+ *     "reference": "STYLAY-1234567890-12345",
+ *     "amount": 25000,
+ *     "status": "success"
+ *   }
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Webhook processed successfully"
+ * }
  */
 async function handlePaymentWebhook(req, res) {
   const transaction = await sequelize.transaction();
@@ -1031,9 +1315,45 @@ async function handlePaymentWebhook(req, res) {
 }
 
 /**
- * Cancel an order
- * @route PATCH /api/orders/:id/cancel
- * @access Private
+ * Cancels a pending or processing order and restores inventory.
+ * Handles refund processing for paid orders and sends cancellation notifications.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Order ID to cancel
+ * @param {Object} req.body - Request body
+ * @param {string} [req.body.reason] - Reason for cancellation
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for ownership verification and audit trail
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming order cancellation
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @returns {Object} data - Response data container
+ * @returns {number} data.orderId - Cancelled order ID
+ * @returns {string} data.status - Order status ('cancelled')
+ * @returns {string} data.cancelledAt - Cancellation timestamp
+ * @throws {Error} 400 - When order cannot be cancelled (already shipped/delivered) or not found
+ * @api {patch} /api/orders/:id/cancel Cancel Order
+ * @private user
+ * @example
+ * // Request
+ * PATCH /api/orders/12345/cancel
+ * Authorization: Bearer <token>
+ * {
+ *   "reason": "Changed my mind about the purchase"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Order cancelled successfully",
+ *   "data": {
+ *     "orderId": 12345,
+ *     "status": "cancelled",
+ *     "cancelledAt": "2024-09-26T06:00:00.000Z"
+ *   }
+ * }
  */
 async function cancelOrder(req, res) {
   const transaction = await sequelize.transaction();
@@ -1206,9 +1526,61 @@ async function cancelOrder(req, res) {
 }
 
 /**
- * Get vendor's orders
- * @route GET /api/orders/vendor/orders
- * @access Private (Vendor)
+ * Retrieves orders that contain products from the authenticated vendor.
+ * Shows order information for vendor order management and fulfillment.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} [req.query.status] - Filter orders by status
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of orders per page
+ * @param {Object} req.user - Authenticated vendor user info
+ * @param {number} req.user.id - Vendor user ID for filtering
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor's orders
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Response data container
+ * @returns {number} data.total - Total number of orders
+ * @returns {number} data.page - Current page number
+ * @returns {number} data.limit - Items per page
+ * @returns {Array} data.orders - Array of order objects
+ * @returns {number} data.orders[].id - Order ID
+ * @returns {string} data.orders[].order_date - Order date
+ * @returns {number} data.orders[].total_amount - Order total
+ * @returns {string} data.orders[].order_status - Order status
+ * @returns {Array} data.orders[].order_items - Order items belonging to vendor
+ * @returns {Object} data.orders[].user - Customer information
+ * @api {get} /api/orders/vendor/orders Get Vendor Orders
+ * @private vendor
+ * @example
+ * // Request
+ * GET /api/orders/vendor/orders?page=1&limit=10&status=processing
+ * Authorization: Bearer <vendor_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "total": 25,
+ *     "page": 1,
+ *     "limit": 10,
+ *     "orders": [
+ *       {
+ *         "id": 12345,
+ *         "order_date": "2024-09-26T05:00:00.000Z",
+ *         "total_amount": 25000,
+ *         "order_status": "processing",
+ *         "order_items": [...],
+ *         "user": {
+ *           "id": 678,
+ *           "first_name": "John",
+ *           "last_name": "Doe",
+ *           "email": "john@example.com"
+ *         }
+ *       }
+ *     ]
+ *   }
+ * }
  */
 async function getVendorOrders(req, res) {
   try {
@@ -1269,9 +1641,47 @@ async function getVendorOrders(req, res) {
 }
 
 /**
- * Update order item status
- * @route PATCH /api/orders/items/:id/status
- * @access Private (Vendor)
+ * Updates the status of individual order items for vendor-specific fulfillment.
+ * Allows vendors to update status of their products within orders independently.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.id - Order item ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.status - New item status ('processing', 'shipped', 'cancelled')
+ * @param {string} [req.body.notes] - Status update notes
+ * @param {Object} req.user - Authenticated vendor user info
+ * @param {number} req.user.id - Vendor user ID for ownership verification
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming item status update
+ * @returns {boolean} status - Success status
+ * @returns {string} message - Success message
+ * @returns {Object} data - Response data container
+ * @returns {number} data.orderItemId - Updated order item ID
+ * @returns {string} data.status - New item status
+ * @returns {string} data.updatedAt - Update timestamp
+ * @throws {Error} 400 - When invalid status or item not found/belongs to different vendor
+ * @api {patch} /api/orders/items/:id/status Update Order Item Status
+ * @private vendor
+ * @example
+ * // Request
+ * PATCH /api/orders/items/987/status
+ * Authorization: Bearer <vendor_token>
+ * {
+ *   "status": "shipped",
+ *   "notes": "Item shipped via DHL"
+ * }
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "message": "Order item status updated successfully",
+ *   "data": {
+ *     "orderItemId": 987,
+ *     "status": "shipped",
+ *     "updatedAt": "2024-09-26T06:00:00.000Z"
+ *   }
+ * }
  */
 async function updateOrderItemStatus(req, res) {
   const transaction = await sequelize.transaction();
@@ -1372,9 +1782,76 @@ async function updateOrderItemStatus(req, res) {
 }
 
 /**
- * Get all orders (Admin)
- * @route GET /api/orders
- * @access Private (Admin)
+ * Retrieves a comprehensive list of all orders with admin-level filtering and pagination.
+ * Provides complete order information for administrative oversight and management.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} [req.query.status] - Filter orders by status
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=20] - Number of orders per page (higher default for admin)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with comprehensive order listing
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Response data container
+ * @returns {number} data.total - Total number of orders
+ * @returns {number} data.page - Current page number
+ * @returns {number} data.limit - Items per page
+ * @returns {Array} data.orders - Array of detailed order objects
+ * @returns {number} data.orders[].id - Order ID
+ * @returns {string} data.orders[].order_date - Order creation date
+ * @returns {string} data.orders[].order_status - Order fulfillment status
+ * @returns {string} data.orders[].payment_status - Payment status
+ * @returns {number} data.orders[].total_amount - Order total amount
+ * @returns {Object} data.orders[].user - Customer information
+ * @returns {Array} data.orders[].order_items - Order items with product and vendor details
+ * @api {get} /api/orders Get All Orders (Admin)
+ * @private admin
+ * @example
+ * // Request
+ * GET /api/orders?page=1&limit=20&status=processing
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "total": 150,
+ *     "page": 1,
+ *     "limit": 20,
+ *     "orders": [
+ *       {
+ *         "id": 12345,
+ *         "order_date": "2024-09-26T05:00:00.000Z",
+ *         "order_status": "processing",
+ *         "payment_status": "paid",
+ *         "total_amount": 25000,
+ *         "user": {
+ *           "id": 678,
+ *           "first_name": "John",
+ *           "last_name": "Doe",
+ *           "email": "john@example.com"
+ *         },
+ *         "order_items": [
+ *           {
+ *             "id": 987,
+ *             "quantity": 2,
+ *             "price": 12500,
+ *             "product": {
+ *               "id": 456,
+ *               "name": "Wireless Headphones"
+ *             },
+ *             "vendor": {
+ *               "id": 1,
+ *               "business_name": "Tech Store",
+ *               "email": "vendor@example.com"
+ *             }
+ *           }
+ *         ]
+ *       }
+ *     ]
+ *   }
+ * }
  */
 async function getAllOrders(req, res) {
   try {

@@ -3,9 +3,28 @@ const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 
 /**
- * Get user's wishlists
- * @route GET /api/v1/wishlists
- * @access Private
+ * Get all wishlists belonging to the authenticated user
+ * Returns wishlists ordered by default status first, then creation date.
+ * Optionally includes full item details with product and variant information.
+ *
+ * @param {import('express').Request} req - Express request object (authenticated user required)
+ * @param {import('express').Request.query} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=10] - Number of wishlists per page
+ * @param {boolean} [req.query.include_items=false] - Whether to include full item details
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with user's wishlists
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {number} res.body.results - Number of wishlists in current page
+ * @returns {Object} res.body.pagination - Pagination metadata
+ * @returns {Array} res.body.data - Array of wishlist objects with optional items
+ * @throws {Error} 500 - Server error during wishlist retrieval
+ * @api {get} /api/v1/wishlists Get user wishlists
+ * @private Requires authentication
+ * @example
+ * GET /api/v1/wishlists?page=1&limit=5&include_items=true
+ * Authorization: Bearer <jwt_token>
  */
 const getUserWishlists = async (req, res, next) => {
   try {

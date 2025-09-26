@@ -83,6 +83,20 @@ const deleteRoleValidation = [
 ];
 
 // Middleware to handle validation errors
+/**
+ * Express middleware to handle validation errors using express-validator.
+ * Formats validation errors with detailed field information and sends structured error response.
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} JSON error response if validation fails
+ * @returns {boolean} status - Error status
+ * @returns {string} message - "Validation failed"
+ * @returns {Array} errors - Array of validation error objects with field, message details
+ * @example
+ * // Use as middleware in routes:
+ * router.post('/roles', createRoleValidation, validate, createRole);
+ */
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
