@@ -56,9 +56,24 @@ module.exports = {
     await queryInterface.addIndex('carts', ['user_id', 'session_id'], {
       name: 'carts_user_session_idx'
     });
+
+    // Add foreign key constraint for user_id
+    await queryInterface.addConstraint('carts', {
+      fields: ['user_id'],
+      type: 'foreign key',
+      name: 'fk_carts_user_id',
+      references: {
+        table: 'users',
+        field: 'id'
+      },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE'
+    });
   },
 
   down: async (queryInterface, Sequelize) => {
+    // Remove foreign key constraint first
+    await queryInterface.removeConstraint('carts', 'fk_carts_user_id');
     await queryInterface.dropTable('carts');
   }
 };

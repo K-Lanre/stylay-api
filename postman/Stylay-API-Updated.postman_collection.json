@@ -2296,7 +2296,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{auth_token}}"
+                                "value": "Bearer {{vendor_token}}"
                             }
                         ],
                         "url": {

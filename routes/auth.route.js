@@ -13,7 +13,7 @@ const {
   resetPasswordValidation,
   updateProfileValidation,
   requestPhoneChangeValidation,
-  cancelPhoneChangeValidation
+  cancelPhoneChangeValidation,
 } = require("../validators/auth.validator");
 
 // Public routes
@@ -62,7 +62,7 @@ router.use(protect);
 // User routes
 router.get("/me", authController.getMe);
 router.put(
-  '/me',
+  "/me",
   updateProfileValidation,
   validate,
   authController.updateProfile
@@ -88,15 +88,18 @@ router.post(
   authController.cancelPhoneChange
 );
 
+// Logout (public but typically called by authenticated users)
+router.get("/logout", authController.logout);
+
 // Admin routes (require admin role)
-router.use(restrictTo('admin'));
+router.use(restrictTo("admin"));
 
 // Phone change admin routes
 router.get("/pending-phone-changes", authController.getPendingPhoneChanges);
-router.patch("/approve-phone-change/:userId", authController.approvePhoneChange);
+router.patch(
+  "/approve-phone-change/:userId",
+  authController.approvePhoneChange
+);
 router.patch("/reject-phone-change/:userId", authController.rejectPhoneChange);
-
-// Logout (public but typically called by authenticated users)
-router.get("/logout", authController.logout);
 
 module.exports = router;
