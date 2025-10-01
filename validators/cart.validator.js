@@ -58,6 +58,9 @@ exports.addToCartValidation = [
     .isInt({ min: 1, max: 100 })
     .withMessage('Quantity must be between 1 and 100')
     .custom(async (value, { req }) => {
+      if (req.body.selected_variants && Array.isArray(req.body.selected_variants) && req.body.selected_variants.length > 0) {
+        return true; // Stock check handled in selected_variants validation
+      }
       // Check if variant has sufficient stock if variant_id is provided
       if (req.body.variant_id) {
         const variant = await ProductVariant.findByPk(req.body.variant_id);
@@ -85,6 +88,9 @@ exports.addToCartValidation = [
     .isInt({ min: 1 })
     .withMessage('Variant ID must be a positive integer')
     .custom(async (value, { req }) => {
+      if (req.body.selected_variants && Array.isArray(req.body.selected_variants) && req.body.selected_variants.length > 0 && value) {
+        throw new Error('Cannot specify both variant_id and selected_variants');
+      }
       if (value) {
         const variant = await ProductVariant.findOne({
           where: { id: value, product_id: req.body.product_id }
@@ -94,6 +100,7 @@ exports.addToCartValidation = [
         }
         return true;
       }
+      return true;
     }),
 
   body('price')
@@ -122,8 +129,58 @@ exports.addToCartValidation = [
         }
       }
       return true;
-    })
+    }),
+    body('selected_variants')
+      .optional()
+      .isArray({ min: 0 })
+      .withMessage('Selected variants must be an array')
+      .custom(async (value, { req }) => {
+        if (!Array.isArray(value) || value.length === 0) return true;
+        const productId = req.body.product_id;
+        if (!productId) throw new Error('Product ID required for selected variants');
+
+        // Ensure productId is a number
+        const numericProductId = Number(productId);
+        if (isNaN(numericProductId)) {
+          throw new Error('Invalid product ID');
+        }
+
+        const productVariants = await ProductVariant.findAll({ where: { product_id: numericProductId } });
+        const variantMap = new Map(productVariants.map(v => [Number(v.id), v])); // Ensure ID is treated as number
+        const seenIds = new Set();
+
+        for (const sel of value) {
+          if (typeof sel !== 'object' || !sel.name || !sel.value) {
+            throw new Error('Invalid selected variant: requires name (str), value (str)');
+          }
+
+          // Ensure sel.id is treated as a number
+          const variantId = Number(sel.id);
+          if (isNaN(variantId)) {
+            throw new Error('Invalid variant ID: must be a number');
+          }
+
+          if (typeof sel.additional_price !== 'number' || sel.additional_price < 0) {
+            throw new Error('Invalid selected variant: additional_price must be a non-negative number');
+          }
+
+          if (seenIds.has(variantId)) throw new Error('Duplicate variant ID');
+          seenIds.add(variantId);
+
+          const variant = variantMap.get(variantId);
+          if (!variant) {
+            const availableIds = Array.from(variantMap.keys()).sort((a, b) => a - b).join(', ');
+            throw new Error(`Variant ${variantId} not found for product. Available variant IDs: ${availableIds || 'none'}`);
+          }
+
+          if (variant.stock !== null && variant.stock < req.body.quantity) {
+            throw new Error(`Low stock for ${sel.value}: ${variant.stock} available`);
+          }
+        }
+        return true;
+      })
 ];
+
 
 // Validation for updating cart item
 /**

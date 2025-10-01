@@ -86,16 +86,21 @@ const getNewArrivals = catchAsync(async (req, res, next) => {
   const { limit: limitNum, offset } = paginate(page, limit);
 
   const { count, rows: products } = await db.Product.findAndCountAll({
+    attributes: [
+      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
+      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
+      'impressions', 'sold_units', 'created_at', 'updated_at'
+    ],
     include: [
       {
         model: db.Supply,
         as: 'Supplies',
-        attributes: ['created_at'],
+        attributes: ['id', 'created_at'],
         order: [['created_at', 'DESC']]
       },
       {
         model: db.Category,
-        attributes: ['name', 'slug']
+        attributes: ['id', 'name', 'slug']
       },
       {
         model: db.Vendor,
@@ -103,7 +108,7 @@ const getNewArrivals = catchAsync(async (req, res, next) => {
         attributes: ['id'],
         include: [{
           model: db.User,
-          attributes: ['first_name', 'last_name']
+          attributes: ['id', 'first_name', 'last_name']
         }]
       }
     ],
@@ -165,10 +170,15 @@ const getNewArrivals = catchAsync(async (req, res, next) => {
  */
 const getTrendingNow = catchAsync(async (req, res, next) => {
   const products = await db.Product.findAll({
+    attributes: [
+      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
+      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
+      'impressions', 'sold_units', 'created_at', 'updated_at'
+    ],
     include: [
       {
         model: db.Category,
-        attributes: ['name', 'slug']
+        attributes: ['id', 'name', 'slug']
       },
       {
         model: db.Vendor,
@@ -176,7 +186,7 @@ const getTrendingNow = catchAsync(async (req, res, next) => {
         attributes: ['id'],
         include: [{
           model: db.User,
-          attributes: ['first_name', 'last_name']
+          attributes: ['id', 'first_name', 'last_name']
         }]
       }
     ],
@@ -478,12 +488,13 @@ const getVendorProducts = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.Category,
-        attributes: ['name', 'slug']
+        attributes: ['id', 'name', 'slug']
       }
     ],
     attributes: [
-      'id', 'name', 'price', 'discounted_price', 'status',
-      'viewers', 'sold_units', 'thumbnail', 'slug', 'description'
+      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
+      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
+      'viewers', 'sold_units', 'created_at', 'updated_at'
     ],
     order: [['created_at', 'DESC']],
     limit: limitNum,
@@ -706,15 +717,16 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
         model: db.Order,
         as: 'order',
         where: { payment_status: 'paid' },
-        attributes: ['id', 'order_date', 'total_amount']
+        attributes: ['id', 'order_date', 'total_amount', 'payment_status', 'status']
       },
       {
         model: db.Product,
-        attributes: ['id', 'name', 'price']
+        attributes: ['id', 'name', 'price', 'thumbnail']
       }
     ],
     attributes: [
-      'id', 'quantity', 'price', 'sub_total', 'created_at'
+      'id', 'order_id', 'product_id', 'vendor_id', 'quantity', 
+      'price', 'sub_total', 'created_at', 'updated_at'
     ],
     order: [['created_at', 'DESC']],
     limit: limitNum,
@@ -886,18 +898,24 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
   const salesStats = await db.Order.findAll({
     attributes: [
       [fn('MONTH', col('created_at')), 'month'],
+      [fn('YEAR', col('created_at')), 'year'],
       [fn('SUM', col('total_amount')), 'total_sales'],
-      [fn('COUNT', col('id')), 'order_count']
+      [fn('COUNT', col('id')), 'order_count'],
+      [fn('SUM', col('total_products')), 'total_products_sold']
     ],
     where: {
       payment_status: 'paid',
+      status: 'completed',
       created_at: {
         [Op.gte]: new Date(currentYear, 0, 1),
         [Op.lt]: new Date(currentYear + 1, 0, 1)
       }
     },
-    group: [fn('MONTH', col('created_at'))],
-    order: [[fn('MONTH', col('created_at')), 'ASC']],
+    group: [fn('YEAR', col('created_at')), fn('MONTH', col('created_at'))],
+    order: [
+      [fn('YEAR', col('created_at')), 'ASC'],
+      [fn('MONTH', col('created_at')), 'ASC']
+    ],
     raw: true
   });
 
@@ -964,14 +982,17 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
 
   const topCategories = await db.Category.findAll({
     attributes: [
-      'id', 'name', 'slug',
+      'id', 'name', 'slug', 'description', 'image',
       [fn('COUNT', col('products.id')), 'product_count'],
-      [fn('SUM', col('products.sold_units')), 'total_sold']
+      [fn('SUM', col('products.sold_units')), 'total_sold'],
+      [fn('SUM', col('products.price') * col('products.sold_units')), 'total_revenue']
     ],
     include: [{
       model: db.Product,
+      as: 'products',
       attributes: [],
       where: {
+        status: 'active',
         created_at: {
           [Op.gte]: currentMonth,
           [Op.lt]: nextMonth
@@ -979,10 +1000,10 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
       },
       required: false
     }],
-    group: ['Category.id'],
+    group: ['Category.id', 'Category.name', 'Category.slug', 'Category.description', 'Category.image'],
     order: [[fn('SUM', col('products.sold_units')), 'DESC']],
     limit: 10,
-    raw: true
+    subQuery: false
   });
 
   res.status(200).json({

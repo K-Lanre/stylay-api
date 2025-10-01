@@ -84,13 +84,10 @@ const restrictTo = (...roles) => {
     }
 
     // Safely get user roles, defaulting to an empty array if roles is undefined
-    const userRoles = req.user.roles ? req.user.roles.map(role => role.name.toLowerCase()) : [];
+    const userRoles = req.user.Roles ? req.user.Roles.map(role => role.name.toLowerCase()) : [];
     const requiredRoles = roles.map(role => role.toLowerCase());
     
     // Debug logging
-    console.log('User roles:', req.user.roles);
-    console.log('User role names:', userRoles);
-    console.log('Required roles:', requiredRoles);
     
     // Check if user has any of the required roles (case-insensitive)
     const hasRequiredRole = requiredRoles.some(role => 
@@ -155,7 +152,7 @@ const isAdmin = (req, res, next) => {
     return next(new AppError('Please log in to access this route', 401));
   }
 
-  const isAdmin = req.user.roles && req.user.roles.some(role => role.name === 'admin');
+  const isAdmin = req.user.Roles && req.user.Roles.some(role => role.name === 'admin');
   
   if (!isAdmin) {
     return next(
@@ -196,9 +193,9 @@ const isVendor = (req, res, next) => {
   }
 
   // Check if user has the vendor role (using lowercase 'roles' to match the model association)
-  const hasVendorRole = req.user.roles && 
-    Array.isArray(req.user.roles) && 
-    req.user.roles.some(role => role.name === 'vendor');
+  const hasVendorRole = req.user.Roles && 
+    Array.isArray(req.user.Roles) && 
+    req.user.Roles.some(role => role.name === 'vendor');
   
   if (!hasVendorRole) {
     return next(

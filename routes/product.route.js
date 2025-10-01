@@ -90,11 +90,11 @@ router.patch(
 
 /**
  * @desc    Get products by status (Admin)
- * @route   GET /api/v1/products/:id/admin/status/:status
+ * @route   GET /api/v1/products/admin/status/:status
  * @access  Private/Admin
  */
 router.get(
-  '/:id/admin/status/:status',
+  '/admin/status/:status',
   [
     param('status')
       .isIn(['active', 'inactive', 'banned', 'out_of_stock', 'draft', 'all'])

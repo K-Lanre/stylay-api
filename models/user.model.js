@@ -52,10 +52,22 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'following'
       });
+
+      // User can have multiple carts (for cart history)
       User.hasMany(models.Cart, {
         foreignKey: 'user_id',
         as: 'carts'
       });
+
+      // User has one active cart (convenience association)
+      User.hasOne(models.Cart, {
+        foreignKey: 'user_id',
+        as: 'activeCart',
+        scope: {
+          status: 'active'
+        }
+      });
+
     }
 
   }

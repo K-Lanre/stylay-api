@@ -19,10 +19,10 @@ module.exports = {
         allowNull: false,
         comment: 'ID of the product'
       },
-      variant_id: {
-        type: Sequelize.BIGINT.UNSIGNED,
+      selected_variants: {
+        type: Sequelize.JSON,
         allowNull: true,
-        comment: 'ID of the product variant (null if no variant)'
+        comment: 'Selected variants of the product'
       },
       quantity: {
         type: Sequelize.INTEGER.UNSIGNED,
@@ -61,17 +61,17 @@ module.exports = {
       name: 'cart_items_product_id_idx'
     });
 
-    await queryInterface.addIndex('cart_items', ['variant_id'], {
-      name: 'cart_items_variant_id_idx'
+    await queryInterface.addIndex('cart_items', ['selected_variants'], {
+      name: 'cart_items_selected_variants_idx'
     });
 
     // Add unique constraint to prevent duplicate items in the same cart
     await queryInterface.addConstraint('cart_items', {
-      fields: ['cart_id', 'product_id', 'variant_id'],
+      fields: ['cart_id', 'product_id', 'selected_variants'],
       type: 'unique',
       name: 'cart_items_unique_cart_product_variant',
       where: {
-        variant_id: {
+        selected_variants: {
           [Sequelize.Op.ne]: null
         }
       }
@@ -83,7 +83,7 @@ module.exports = {
       type: 'unique',
       name: 'cart_items_unique_cart_product_no_variant',
       where: {
-        variant_id: null
+        selected_variants: null
       }
     });
   },

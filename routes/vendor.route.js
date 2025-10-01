@@ -27,6 +27,13 @@ router.post(
 
 router.get("/", vendorController.getAllVendors);
 router.get("/:id", vendorController.getVendor);
+// Dynamic parameter routes (must come after specific routes)
+router.get(
+  "/:id/products",
+  getVendorProductsValidation,
+  validate,
+  vendorController.getVendorProducts
+);
 
 // Protected routes (require authentication)
 router.use(protect);
@@ -51,13 +58,6 @@ router.get(
   vendorController.getVendorProfile
 );
 
-// Dynamic parameter routes (must come after specific routes)
-router.get(
-  "/:id/products",
-  getVendorProductsValidation,
-  validate,
-  vendorController.getVendorProducts
-);
 
 
 // Complete vendor onboarding (vendor only)

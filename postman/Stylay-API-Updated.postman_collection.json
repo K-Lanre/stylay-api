@@ -838,14 +838,15 @@
                         "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/vendor/products?page=1&limit=10",
+                            "raw": "{{base_url}}/api/v1/vendors/:vendor_id/products?page=1&limit=10",
                             "host": [
                                 "{{base_url}}"
                             ],
                             "path": [
                                 "api",
                                 "v1",
-                                "vendor",
+                                "vendors",
+                                ":vendor_id",
                                 "products"
                             ],
                             "query": [
@@ -856,6 +857,12 @@
                                 {
                                     "key": "limit",
                                     "value": "10"
+                                }
+                            ],
+                            "variable": [
+                                {
+                                    "key": "vendor_id",
+                                    "value": "1"
                                 }
                             ]
                         }
@@ -2869,7 +2876,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"productId\": 1,\n    \"quantity\": 2\n}"
+                            "raw": "{\n    \"product_id\": 123,\n    \"quantity\": 2,\n    \"selected_variants\": [\n        {\n            \"name\": \"size\",\n            \"id\": 456,\n            \"value\": \"Large\",\n            \"additional_price\": 5.00\n        },\n        {\n            \"name\": \"color\",\n            \"id\": 789,\n            \"value\": \"Blue\",\n            \"additional_price\": 0.00\n        }\n    ]\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/cart/items",
@@ -2882,7 +2889,8 @@
                                 "cart",
                                 "items"
                             ]
-                        }
+                        },
+                        "description": "Add item to authenticated user's cart with variant support"
                     }
                 },
                 {
@@ -2902,10 +2910,10 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"quantity\": 3\n}"
+                            "raw": "{\n    \"quantity\": 5\n}"
                         },
                         "url": {
-                            "raw": "{{base_url}}/api/v1/cart/items/1",
+                            "raw": "{{base_url}}/api/v1/cart/items/:itemId",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -2914,13 +2922,21 @@
                                 "v1",
                                 "cart",
                                 "items",
-                                "1"
+                                ":itemId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "itemId",
+                                    "value": "1",
+                                    "type": "int"
+                                }
                             ]
-                        }
+                        },
+                        "description": "Update quantity of specific cart item"
                     }
                 },
                 {
-                    "name": "Remove from Cart",
+                    "name": "Remove Item from Cart",
                     "request": {
                         "method": "DELETE",
                         "header": [
@@ -2931,7 +2947,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/cart/items/1",
+                            "raw": "{{base_url}}/api/v1/cart/items/:itemId",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -2940,9 +2956,17 @@
                                 "v1",
                                 "cart",
                                 "items",
-                                "1"
+                                ":itemId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "itemId",
+                                    "value": "1",
+                                    "type": "int"
+                                }
                             ]
-                        }
+                        },
+                        "description": "Remove specific item from cart"
                     }
                 },
                 {
@@ -2967,7 +2991,8 @@
                                 "cart",
                                 "clear"
                             ]
-                        }
+                        },
+                        "description": "Clear all items from cart"
                     }
                 },
                 {
@@ -2992,7 +3017,8 @@
                                 "cart",
                                 "summary"
                             ]
-                        }
+                        },
+                        "description": "Get cart summary with stock validation for checkout"
                     }
                 }
             ]

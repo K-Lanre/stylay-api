@@ -6,7 +6,7 @@ const { faker } = require('@faker-js/faker');
 // Configuration
 const CONFIG = {
   BATCH_SIZE: 100, // Number of supplies to process in each batch
-  SUPPLIES_PER_VENDOR: 150, // Number of supply records per vendor
+  SUPPLIES_PER_VENDOR: 100, // Number of supply records per vendor
   MIN_QUANTITY: 10,
   MAX_QUANTITY: 100
 };

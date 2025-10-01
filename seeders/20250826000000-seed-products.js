@@ -386,8 +386,8 @@ module.exports = {
     const subCategories = allCategories.filter(cat => cat.parent_id !== null);
     const vendorIds = vendors.map(v => v.id);
 
-    // Generate 150 products per vendor (total: 100 vendors × 150 products = 15,000 products)
-    const productsPerVendor = 150;
+    // Generate 100 products per vendor (total: 50 vendors × 100 products = 5,000 products)
+    const productsPerVendor = 100;
     let totalProducts = 0;
     let totalVariants = 0;
     let totalImages = 0;

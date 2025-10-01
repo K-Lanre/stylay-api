@@ -1,6 +1,6 @@
-const { Cart, CartItem, Product, ProductVariant, User } = require('../models');
-const AppError = require('../utils/appError');
-const { Op } = require('sequelize');
+const { Cart, CartItem, Product, ProductVariant, User } = require("../models");
+const AppError = require("../utils/appError");
+const { Op } = require("sequelize");
 
 /**
  * Get or create shopping cart for authenticated user
@@ -37,71 +37,47 @@ const getCart = async (req, res, next) => {
         where: { user_id: userId },
         defaults: {
           total_items: 0,
-          total_amount: 0.00
-        }
+          total_amount: 0.0,
+        },
       });
 
       // Load full cart details
       cart = await cart.getFullCart();
     } else {
       // Handle guest cart using session_id
-      const sessionId = req.session?.id || req.headers['x-session-id'];
+      const sessionId = req.session?.id || req.headers["x-session-id"];
 
       if (!sessionId) {
         return res.status(200).json({
-          status: 'success',
+          status: "success",
           data: {
             cart: null,
-            message: 'No cart found. Please log in or provide session ID.'
-          }
+            message: "No cart found. Please log in or provide session ID.",
+          },
         });
       }
 
       cart = await Cart.findOne({
         where: { session_id: sessionId },
-        include: [
-          {
-            model: CartItem,
-            as: 'items',
-            include: [
-              {
-                model: Product,
-                as: 'product',
-                attributes: ['id', 'name', 'slug', 'thumbnail', 'price', 'discounted_price', 'status'],
-                include: [
-                  {
-                    model: ProductVariant,
-                    as: 'variants',
-                    attributes: ['id', 'name', 'value', 'additional_price'],
-                    required: false
-                  }
-                ]
-              },
-              {
-                model: ProductVariant,
-                as: 'variant',
-                attributes: ['id', 'name', 'value', 'additional_price'],
-                required: false
-              }
-            ]
-          }
-        ]
       });
 
       if (!cart) {
         return res.status(200).json({
-          status: 'success',
+          status: "success",
           data: {
             cart: null,
-            message: 'No cart found for this session.'
-          }
+            message: "No cart found for this session.",
+          },
         });
       }
+
+      // Load full cart details consistently
+      cart = await cart.getFullCart();
     }
 
     res.status(200).json({
-      status: 'success',
-      data: { cart }
+      status: "success",
+      data: cart,
     });
   } catch (error) {
     next(error);
@@ -152,38 +128,121 @@ const addToCart = async (req, res, next) => {
 
   try {
     const userId = req.user?.id;
-    const { productId, quantity = 1, variantId } = req.body;
+    const {
+      product_id,
+      quantity = 1,
+      variant_id,
+      selected_variants = [],
+    } = req.body;
 
     // Validate required fields
-    if (!productId) {
-      return next(new AppError('Product ID is required', 400));
+    if (!product_id) {
+      return next(new AppError("Product ID is required", 400));
     }
 
-    // Get product with variant if specified
-    const product = await Product.findByPk(productId, {
-      include: variantId ? [{
-        model: ProductVariant,
-        as: 'variants',
-        where: { id: variantId },
-        required: true // This ensures the variant exists
-      }] : []
+    // Fetch product with all variants
+    const product = await Product.findByPk(product_id, {
+      include: [
+        {
+          model: ProductVariant,
+          as: "variants",
+          required: false,
+        },
+      ],
     });
 
     if (!product) {
-      return next(new AppError('Product not found', 404));
+      return next(new AppError("Product not found", 404));
     }
 
-    if (product.status !== 'active') {
-      return next(new AppError('Product is not available', 400));
+    if (product.status !== "active") {
+      return next(new AppError("Product is not available", 400));
     }
 
-    // Check if variant exists when variantId is provided
-    if (variantId && (!product.variants || product.variants.length === 0)) {
-      return next(new AppError('Product variant not found', 404));
+    let finalSelectedVariants = [...selected_variants];
+    let basePrice = product.price;
+    let totalAdditionalPrice = 0;
+    let finalVariantId = null;
+
+    if (finalSelectedVariants.length > 0) {
+      // Validate and calculate additional price
+      const variantMap = new Map(
+        product.variants.map((v) => [Number(v.id), v])
+      ); // Ensure ID is treated as number
+      const seen = new Set();
+      for (const sel of finalSelectedVariants) {
+        // Ensure sel.id is treated as a number
+        const variantId = Number(sel.id);
+        if (isNaN(variantId)) {
+          return next(
+            new AppError("Invalid variant ID: must be a number", 400)
+          );
+        }
+
+        if (seen.has(variantId)) {
+          return next(
+            new AppError("Duplicate variant ID in selected_variants", 400)
+          );
+        }
+        seen.add(variantId);
+
+        const variant = variantMap.get(variantId);
+        if (!variant) {
+          return next(
+            new AppError(`Variant ${variantId} not found for product`, 404)
+          );
+        }
+        if (variant.stock !== null && variant.stock < quantity) {
+          return next(
+            new AppError(
+              `Low stock for ${sel.value}: ${variant.stock} available`,
+              400
+            )
+          );
+        }
+        totalAdditionalPrice += sel.additional_price || 0;
+      }
+      finalVariantId = null;
+    } else if (variant_id) {
+      // Backward compatibility: single variant
+      const variant = product.variants.find((v) => v.id === variant_id);
+      if (!variant) {
+        return next(new AppError("Product variant not found", 404));
+      }
+      if (variant.stock !== null && variant.stock < quantity) {
+        return next(
+          new AppError(`Low stock for variant: ${variant.stock} available`, 400)
+        );
+      }
+      finalSelectedVariants = [
+        {
+          name: variant.name,
+          id: variant.id,
+          value: variant.value,
+          additional_price: variant.additional_price || 0,
+        },
+      ];
+      totalAdditionalPrice = variant.additional_price || 0;
+      finalVariantId = null;
+    } else {
+      // No variants, check product inventory if applicable
+      const inventory = await product.getInventory();
+      if (inventory && inventory.stock !== null && inventory.stock < quantity) {
+        return next(
+          new AppError(
+            `Low stock for product: ${inventory.stock} available`,
+            400
+          )
+        );
+      }
     }
 
-    // Calculate price (use variant price if available, otherwise product price)
-    const price = variant ? (variant.additional_price || product.price) : product.price;
+    const price = basePrice + totalAdditionalPrice;
+
+    // Sort variants for consistent string
+    const sortedSelectedVariants = [...finalSelectedVariants].sort(
+      (a, b) => a.id - b.id
+    );
 
     // Get or create cart
     let cart;
@@ -192,76 +251,87 @@ const addToCart = async (req, res, next) => {
         where: { user_id: userId },
         defaults: {
           total_items: 0,
-          total_amount: 0.00
+          total_amount: 0.0,
         },
-        transaction
+        transaction,
       });
     } else {
       // Handle guest cart
-      const sessionId = req.session?.id || req.headers['x-session-id'] || `guest_${Date.now()}`;
+      const sessionId =
+        req.session?.id || req.headers["x-session-id"] || `guest_${Date.now()}`;
       [cart] = await Cart.findOrCreate({
         where: { session_id: sessionId },
         defaults: {
           total_items: 0,
-          total_amount: 0.00
+          total_amount: 0.0,
         },
-        transaction
+        transaction,
       });
     }
+
+    // Lock the cart row to prevent concurrent updates
+    await cart.reload({ lock: true, transaction });
 
     // Check if item already exists in cart
     const existingItem = await CartItem.findOne({
       where: {
         cart_id: cart.id,
-        product_id: productId,
-        variant_id: variantId || null
+        product_id: product_id,
+        selected_variants: sortedSelectedVariants,
       },
-      transaction
+      transaction,
     });
 
     if (existingItem) {
       // Update quantity if item exists
       const newQuantity = existingItem.quantity + quantity;
-      await existingItem.update({
-        quantity: newQuantity,
-        total_price: newQuantity * price
-      }, { transaction });
+      await existingItem.update(
+        {
+          quantity: newQuantity,
+        },
+        { transaction }
+      );
 
-      const item = await existingItem.getFullDetails();
+      await existingItem.updateTotalPrice(transaction);
+
       await transaction.commit();
 
+      const item = await existingItem.getFullDetails();
+
       return res.status(200).json({
-        status: 'success',
-        message: 'Cart item updated successfully',
-        data: { item }
+        status: "success",
+        message: "Cart item updated successfully",
+        data: { item },
       });
     }
 
     // Create new cart item
-    const cartItem = await CartItem.create({
-      cart_id: cart.id,
-      product_id: productId,
-      variant_id: variantId || null,
-      quantity: quantity,
-      price: price,
-      total_price: quantity * price
-    }, { transaction });
+    const cartItem = await CartItem.create(
+      {
+        cart_id: cart.id,
+        product_id: product_id,
+        selected_variants: sortedSelectedVariants,
+        quantity: quantity,
+        price: basePrice,
+        total_price: quantity * price,
+      },
+      { transaction }
+    );
 
-    // Update cart totals
-    await cart.updateTotals();
+    await transaction.commit();
 
     // Get full item details
     const item = await cartItem.getFullDetails();
 
-    await transaction.commit();
-
     res.status(201).json({
-      status: 'success',
-      message: 'Item added to cart successfully',
-      data: { item }
+      status: "success",
+      message: "Item added to cart successfully",
+      data: { item },
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -313,7 +383,7 @@ const updateCartItem = async (req, res, next) => {
 
     // Validate quantity
     if (!quantity || quantity < 1) {
-      return next(new AppError('Quantity must be at least 1', 400));
+      return next(new AppError("Quantity must be at least 1", 400));
     }
 
     // Find cart item
@@ -321,50 +391,56 @@ const updateCartItem = async (req, res, next) => {
       include: [
         {
           model: Cart,
-          as: 'cart',
-          include: [{ model: User, as: 'user' }]
-        }
+          as: "cart",
+          include: [{ model: User, as: "user" }],
+        },
       ],
-      transaction
+      transaction,
     });
 
     if (!cartItem) {
-      return next(new AppError('Cart item not found', 404));
+      return next(new AppError("Cart item not found", 404));
     }
 
     // Check if user owns the cart (if authenticated)
     if (userId && cartItem.cart.user_id !== userId) {
-      return next(new AppError('Access denied', 403));
+      return next(new AppError("Access denied", 403));
     }
 
     // Handle guest cart access
     if (!userId) {
-      const sessionId = req.session?.id || req.headers['x-session-id'];
+      const sessionId = req.session?.id || req.headers["x-session-id"];
       if (cartItem.cart.session_id !== sessionId) {
-        return next(new AppError('Access denied', 403));
+        return next(new AppError("Access denied", 403));
       }
     }
 
-    // Update item quantity
-    await cartItem.update({
-      quantity: quantity,
-      total_price: quantity * cartItem.price
-    }, { transaction });
+    // Lock the cart row to prevent concurrent updates
+    await cartItem.cart.reload({ lock: true, transaction });
 
-    // Update cart totals
-    await cartItem.cart.updateTotals();
+    // Update item quantity
+    await cartItem.update(
+      {
+        quantity: quantity,
+      },
+      { transaction }
+    );
+
+    await cartItem.updateTotalPrice(transaction);
 
     const updatedItem = await cartItem.getFullDetails();
 
     await transaction.commit();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Cart item updated successfully',
-      data: { item: updatedItem }
+      status: "success",
+      message: "Cart item updated successfully",
+      data: { item: updatedItem },
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -409,45 +485,47 @@ const removeFromCart = async (req, res, next) => {
       include: [
         {
           model: Cart,
-          as: 'cart',
-          include: [{ model: User, as: 'user' }]
-        }
+          as: "cart",
+          include: [{ model: User, as: "user" }],
+        },
       ],
-      transaction
+      transaction,
     });
 
     if (!cartItem) {
-      return next(new AppError('Cart item not found', 404));
+      return next(new AppError("Cart item not found", 404));
     }
 
     // Check if user owns the cart (if authenticated)
     if (userId && cartItem.cart.user_id !== userId) {
-      return next(new AppError('Access denied', 403));
+      return next(new AppError("Access denied", 403));
     }
 
     // Handle guest cart access
     if (!userId) {
-      const sessionId = req.session?.id || req.headers['x-session-id'];
+      const sessionId = req.session?.id || req.headers["x-session-id"];
       if (cartItem.cart.session_id !== sessionId) {
-        return next(new AppError('Access denied', 403));
+        return next(new AppError("Access denied", 403));
       }
     }
+
+    // Lock the cart row to prevent concurrent updates
+    await cartItem.cart.reload({ lock: true, transaction });
 
     // Delete the cart item
     await cartItem.destroy({ transaction });
 
-    // Update cart totals
-    await cartItem.cart.updateTotals();
-
     await transaction.commit();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Item removed from cart successfully',
-      data: { itemId: parseInt(itemId) }
+      status: "success",
+      message: "Item removed from cart successfully",
+      data: { itemId: parseInt(itemId) },
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -489,50 +567,58 @@ const clearCart = async (req, res, next) => {
       // Clear authenticated user's cart
       cart = await Cart.findOne({
         where: { user_id: userId },
-        transaction
+        transaction,
       });
 
       if (!cart) {
-        return next(new AppError('Cart not found', 404));
+        return next(new AppError("Cart not found", 404));
       }
     } else {
       // Handle guest cart
-      const sessionId = req.session?.id || req.headers['x-session-id'];
+      const sessionId = req.session?.id || req.headers["x-session-id"];
       if (!sessionId) {
-        return next(new AppError('Session ID required for guest cart', 400));
+        return next(new AppError("Session ID required for guest cart", 400));
       }
 
       cart = await Cart.findOne({
         where: { session_id: sessionId },
-        transaction
+        transaction,
       });
 
       if (!cart) {
-        return next(new AppError('Cart not found', 404));
+        return next(new AppError("Cart not found", 404));
       }
     }
+
+    // Lock the cart row to prevent concurrent updates
+    await cart.reload({ lock: true, transaction });
 
     // Delete all cart items
     await CartItem.destroy({
       where: { cart_id: cart.id },
-      transaction
+      transaction,
     });
 
     // Reset cart totals
-    await cart.update({
-      total_items: 0,
-      total_amount: 0.00
-    }, { transaction });
+    await cart.update(
+      {
+        total_items: 0,
+        total_amount: 0.0,
+      },
+      { transaction }
+    );
 
     await transaction.commit();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Cart cleared successfully',
-      data: { cartId: cart.id }
+      status: "success",
+      message: "Cart cleared successfully",
+      data: { cartId: cart.id },
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(error);
   }
 };
@@ -581,73 +667,77 @@ const getCartSummary = async (req, res, next) => {
     if (userId) {
       cart = await Cart.findOne({
         where: { user_id: userId },
-        include: [{
-          model: CartItem,
-          as: 'items',
-          include: [
-            {
-              model: Product,
-              as: 'product',
-              attributes: ['id', 'name', 'thumbnail', 'price', 'discounted_price']
-            },
-            {
-              model: ProductVariant,
-              as: 'variant',
-              attributes: ['id', 'name', 'value'],
-              required: false
-            }
-          ]
-        }]
+        include: [
+          {
+            model: CartItem,
+            as: "items",
+            include: [
+              {
+                model: Product,
+                as: "product",
+                attributes: [
+                  "id",
+                  "name",
+                  "thumbnail",
+                  "price",
+                  "discounted_price",
+                ],
+              },
+            ],
+          },
+        ],
       });
     } else {
-      const sessionId = req.session?.id || req.headers['x-session-id'];
+      const sessionId = req.session?.id || req.headers["x-session-id"];
       if (!sessionId) {
         return res.status(200).json({
-          status: 'success',
+          status: "success",
           data: {
             summary: null,
-            message: 'No cart found. Please log in or provide session ID.'
-          }
+            message: "No cart found. Please log in or provide session ID.",
+          },
         });
       }
 
       cart = await Cart.findOne({
         where: { session_id: sessionId },
-        include: [{
-          model: CartItem,
-          as: 'items',
-          include: [
-            {
-              model: Product,
-              as: 'product',
-              attributes: ['id', 'name', 'thumbnail', 'price', 'discounted_price']
-            },
-            {
-              model: ProductVariant,
-              as: 'variant',
-              attributes: ['id', 'name', 'value'],
-              required: false
-            }
-          ]
-        }]
+        include: [
+          {
+            model: CartItem,
+            as: "items",
+            include: [
+              {
+                model: Product,
+                as: "product",
+                attributes: [
+                  "id",
+                  "name",
+                  "thumbnail",
+                  "price",
+                  "discounted_price",
+                ],
+              },
+            ],
+          },
+        ],
       });
     }
 
     if (!cart) {
       return res.status(200).json({
-        status: 'success',
+        status: "success",
         data: {
           summary: null,
-          message: 'Cart is empty'
-        }
+          message: "Cart is empty",
+        },
       });
     }
 
     // Calculate summary
     const items = cart.items || [];
     const subtotal = parseFloat(cart.total_amount);
-    const shipping = 0.00; // TODO: Calculate shipping based on location
-    const tax = 0.00; // TODO: Calculate tax based on location
+    const shipping = 0.0; // TODO: Calculate shipping based on location
+    const tax = 0.0; // TODO: Calculate tax based on location
     const total = subtotal + shipping + tax;
 
     const summary = {
@@ -657,23 +747,20 @@ const getCartSummary = async (req, res, next) => {
       shipping,
       tax,
       total,
-      items: items.map(item => ({
+      items: items.map((item) => ({
         id: item.id,
         productId: item.product_id,
-        variantId: item.variant_id,
         productName: item.product.name,
-        variantName: item.variant?.name || null,
-        variantValue: item.variant?.value || null,
         thumbnail: item.product.thumbnail,
         quantity: item.quantity,
         price: item.price,
-        totalPrice: item.total_price
-      }))
+        totalPrice: item.total_price,
+      })),
     };
 
     res.status(200).json({
-      status: 'success',
-      data: { summary }
+      status: "success",
+      data: summary,
     });
   } catch (error) {
     next(error);
@@ -686,5 +773,5 @@ module.exports = {
   updateCartItem,
   removeFromCart,
   clearCart,
-  getCartSummary
+  getCartSummary,
 };

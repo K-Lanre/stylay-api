@@ -307,6 +307,23 @@ const getProducts = async (req, res, next) => {
     }
 
     const { count, rows: products } = await Product.findAndCountAll({
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at"
+      ],
       where: whereClause,
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -764,6 +781,23 @@ const getProductsByVendor = async (req, res, next) => {
     }
 
     const { count, rows: products } = await Product.findAndCountAll({
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at"
+      ],
       where: { vendor_id: req.params.id },
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -860,6 +894,23 @@ const getAllProducts = async (req, res, next) => {
     if (vendor) whereClause.vendor_id = vendor;
 
     const { count, rows: products } = await Product.findAndCountAll({
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at"
+      ],
       where: whereClause,
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -1222,6 +1273,23 @@ const getProductsByStatus = async (req, res, next) => {
     }
 
     const { count, rows: products } = await Product.findAndCountAll({
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at"
+      ],
       where: whereClause,
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -1313,10 +1381,8 @@ const getProductsByStatus = async (req, res, next) => {
 const getProductAnalytics = async (req, res, next) => {
   try {
     const productId = req.params.id;
-    const isAdmin =
-      req.user.roles && req.user.roles.some((role) => role.name === "admin");
-    const isVendor =
-      req.user.roles && req.user.roles.some((role) => role.name === "vendor");
+    const isAdmin = req.user.roles.some(role => role.name === 'admin');
+    const isVendor = req.user.roles.some(role => role.name === 'vendor');
 
     // Find the product
     const product = await Product.findByPk(productId, {

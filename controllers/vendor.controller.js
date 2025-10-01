@@ -2,7 +2,10 @@ const {
   User,
   Role,
   Vendor,
+  Product,
   Store,
+  Category,
+  ProductImage,
   VendorFollower,
 } = require("../models");
 const bcrypt = require("bcryptjs");

@@ -27,7 +27,7 @@ router.put('/items/:itemId', updateCartItemValidation, validate, cartController.
 // Remove item from cart
 router.delete('/items/:itemId', removeFromCartValidation, validate, cartController.removeFromCart);
 
-// Clear cart
+// Clear cart (alternative route)
 router.delete('/clear', clearCartValidation, validate, cartController.clearCart);
 
 // Get cart summary (for checkout)

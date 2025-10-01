@@ -204,14 +204,14 @@ module.exports = {
     let vendorId = maxVendorId || 1;
     let storeId = maxStoreId || 1;
 
-    // Generate 100 vendors
-    for (let i = 0; i < 100; i++) {
+    // Generate 50 vendors
+    for (let i = 0; i < 50; i++) {
       const firstName = person.firstName();
       const lastName = person.lastName();
       // Ensure unique email for each vendor
       const email = `vendor${i + 1}@stylay.com`; // Using stylay.com domain for test accounts
       // Use a stronger password and ensure it meets validation requirements
-      const password = await bcrypt.hash("Vendor@123", 10);
+      const password = await bcrypt.hash(process.env.DEFAULT_VENDOR_PASSWORD, 10);
       // Generate a unique business name
       const businessName = `Vendor ${i + 1} ${generateBusinessName()}`;
       const socialMedia = generateSocialMedia();

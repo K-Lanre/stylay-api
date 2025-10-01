@@ -35,7 +35,8 @@ module.exports = (sequelize, DataTypes) => {
         as: 'images'
       });
       Product.hasMany(models.ProductVariant, {
-        foreignKey: 'product_id'
+        foreignKey: 'product_id',
+        as: 'variants'
       });
       Product.hasMany(models.Review, {
         foreignKey: 'product_id'
@@ -54,7 +55,8 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT({ unsigned: true }),
       allowNull: false,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
+      field: 'id' // Explicitly specify the field name
     },
     vendor_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
