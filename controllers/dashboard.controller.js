@@ -383,7 +383,7 @@ const getVendorDashboard = catchAsync(async (req, res, next) => {
   }) || 0;
 
   // Product Views
-  const totalViews = await db.Product.sum('viewers', {
+  const totalViews = await db.Product.sum('impressions', {
     where: { vendor_id: vendorId }
   }) || 0;
 
@@ -494,7 +494,7 @@ const getVendorProducts = catchAsync(async (req, res, next) => {
     attributes: [
       'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
       'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-      'viewers', 'sold_units', 'created_at', 'updated_at'
+      'impressions', 'sold_units', 'created_at', 'updated_at'
     ],
     order: [['created_at', 'DESC']],
     limit: limitNum,
@@ -717,10 +717,11 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
         model: db.Order,
         as: 'order',
         where: { payment_status: 'paid' },
-        attributes: ['id', 'order_date', 'total_amount', 'payment_status', 'status']
+        attributes: ['id', 'order_date', 'total_amount', 'payment_status', 'order_status']
       },
       {
         model: db.Product,
+        as: 'product',
         attributes: ['id', 'name', 'price', 'thumbnail']
       }
     ],
@@ -901,11 +902,11 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
       [fn('YEAR', col('created_at')), 'year'],
       [fn('SUM', col('total_amount')), 'total_sales'],
       [fn('COUNT', col('id')), 'order_count'],
-      [fn('SUM', col('total_products')), 'total_products_sold']
+      [fn('SUM', literal('(SELECT SUM(oi.quantity) FROM order_items AS oi WHERE oi.order_id = `Order`.`id`)')), 'total_products_sold']
     ],
     where: {
       payment_status: 'paid',
-      status: 'completed',
+      order_status: 'completed',
       created_at: {
         [Op.gte]: new Date(currentYear, 0, 1),
         [Op.lt]: new Date(currentYear + 1, 0, 1)
@@ -983,13 +984,13 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
   const topCategories = await db.Category.findAll({
     attributes: [
       'id', 'name', 'slug', 'description', 'image',
-      [fn('COUNT', col('products.id')), 'product_count'],
-      [fn('SUM', col('products.sold_units')), 'total_sold'],
-      [fn('SUM', col('products.price') * col('products.sold_units')), 'total_revenue']
+      [fn('COUNT', col('Products.id')), 'product_count'],
+      [fn('SUM', col('Products.sold_units')), 'total_sold'],
+      [fn('SUM', literal('COALESCE(Products.price, 0) * COALESCE(Products.sold_units, 0)')), 'total_revenue']
     ],
     include: [{
       model: db.Product,
-      as: 'products',
+      as: 'Products',
       attributes: [],
       where: {
         status: 'active',
@@ -1001,7 +1002,7 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
       required: false
     }],
     group: ['Category.id', 'Category.name', 'Category.slug', 'Category.description', 'Category.image'],
-    order: [[fn('SUM', col('products.sold_units')), 'DESC']],
+    order: [[fn('SUM', col('Products.sold_units')), 'DESC']],
     limit: 10,
     subQuery: false
   });

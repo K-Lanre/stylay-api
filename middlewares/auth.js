@@ -84,7 +84,7 @@ const restrictTo = (...roles) => {
     }
 
     // Safely get user roles, defaulting to an empty array if roles is undefined
-    const userRoles = req.user.Roles ? req.user.Roles.map(role => role.name.toLowerCase()) : [];
+    const userRoles = req.user.roles ? req.user.roles.map(role => role.name.toLowerCase()) : [];
     const requiredRoles = roles.map(role => role.toLowerCase());
     
     // Debug logging
