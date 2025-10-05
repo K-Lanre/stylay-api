@@ -9,7 +9,8 @@ const {
   updateCartItemValidation,
   removeFromCartValidation,
   clearCartValidation,
-  getCartSummaryValidation
+  getCartSummaryValidation,
+  syncCartValidation
 } = require('../validators/cart.validator');
 
 // All cart routes require authentication (users must be logged in or provide session ID)
@@ -29,6 +30,9 @@ router.delete('/items/:itemId', removeFromCartValidation, validate, cartControll
 
 // Clear cart (alternative route)
 router.delete('/clear', clearCartValidation, validate, cartController.clearCart);
+
+// Sync cart (merge local cart into server cart)
+router.post('/sync', syncCartValidation, validate, cartController.syncCart);
 
 // Get cart summary (for checkout)
 router.get('/summary', getCartSummaryValidation, validate, cartController.getCartSummary);

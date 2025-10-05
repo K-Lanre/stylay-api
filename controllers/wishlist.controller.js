@@ -53,7 +53,7 @@ const getUserWishlists = async (req, res, next) => {
             include: [
               {
                 model: ProductVariant,
-                as: 'variant',
+                as: 'variants',
                 attributes: ['id', 'name', 'value', 'additional_price'],
                 required: false
               }
@@ -120,7 +120,7 @@ const getWishlist = async (req, res, next) => {
               include: [
                 {
                   model: ProductVariant,
-                  as: 'variant',
+                  as: 'variants',
                   attributes: ['id', 'name', 'value', 'additional_price'],
                   required: false
                 }
@@ -560,7 +560,7 @@ const getWishlistItems = async (req, res, next) => {
           include: [
             {
               model: ProductVariant,
-              as: 'variant',
+              as: 'variants',
               attributes: ['id', 'name', 'value', 'additional_price'],
               required: false
             }

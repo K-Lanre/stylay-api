@@ -180,7 +180,7 @@ const createProduct = async (req, res, next) => {
     // Fetch the created product with associations
     const createdProduct = await Product.findByPk(product.id, {
       include: [
-        { model: ProductVariant },
+        { model: ProductVariant, as: "variants" },
         { model: ProductImage, as: "images" },
         { model: Category, attributes: ["id", "name", "slug"] },
         {
@@ -440,7 +440,7 @@ const getProductByIdentifier = async (req, res, next) => {
             },
           ],
         },
-        { model: ProductVariant },
+        { model: ProductVariant, as: "variants" },
         { model: ProductImage, as: "images" },
       ],
     });
@@ -654,7 +654,7 @@ const updateProduct = async (req, res, next) => {
             },
           ],
         },
-        { model: ProductVariant },
+        { model: ProductVariant, as: "variants" },
         { model: ProductImage, as: "images" },
       ],
     });
@@ -922,7 +922,7 @@ const getAllProducts = async (req, res, next) => {
           as: "vendor",
         },
         { model: ProductImage, limit: 1, as: "images" },
-        { model: ProductVariant },
+        { model: ProductVariant, as: "variants" },
       ],
       order: [["created_at", "DESC"]],
     });
@@ -1011,7 +1011,7 @@ const adminUpdateProduct = async (req, res, next) => {
             attributes: ["id", "business_name"],
           },
         },
-        { model: ProductVariant },
+        { model: ProductVariant, as: "variants" },
         { model: ProductImage, as: "images" },
       ],
     });
@@ -1072,7 +1072,7 @@ const adminUpdateProduct = async (req, res, next) => {
             },
           ],
         },
-        { model: ProductVariant },
+        { model: ProductVariant, as: "variants" },
         { model: ProductImage, as: "images" },
       ],
     });

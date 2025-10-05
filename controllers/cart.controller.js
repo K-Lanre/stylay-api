@@ -767,6 +767,282 @@ const getCartSummary = async (req, res, next) => {
   }
 };
 
+/**
+ * Sync local cart with server cart on user login
+ * Sync local cart with server cart on user login
+ * Merges local Redux cart items into authenticated user's server cart.
+ * Handles conflicts by combining quantities for same products/variants and validates stock.
+ * Uses database transactions for data consistency.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.body} req.body - Request body
+ * @param {Array} req.body.localItems - Array of local cart items to sync
+ * @param {string} req.body.localItems[].productId - Product ID (as string, converted to number)
+ * @param {number} req.body.localItems[].quantity - Quantity
+ * @param {number} req.body.localItems[].price - Base product price
+ * @param {Array} [req.body.localItems[].selected_variants] - Array of variant objects
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with synchronized cart and sync report
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Success message
+ * @returns {Object} res.body.data - Cart object and sync report
+ * @returns {Object} res.body.data.cart - Synchronized cart with items
+ * @returns {Object} res.body.data.sync_report - Report of sync operations
+ * @throws {AppError} 400 - Invalid local cart data or stock issues
+ * @throws {Error} 500 - Server error during sync
+ * @api {post} /api/v1/cart/sync Sync cart
+ * @private Requires authentication
+ * @example
+ * POST /api/v1/cart/sync
+ * Authorization: Bearer <jwt_token>
+ * {
+ *   "localItems": [
+ *     {
+ *       "productId": 1,
+ *       "quantity": 2,
+ *       "price": 25.00,
+ *       "selected_variants": [
+ *         { "id": 101, "name": "Color", "value": "Red", "additional_price": 5.00 }
+ *       ]
+ *     }
+ *   ]
+ * }
+ */
+const syncCart = async (req, res, next) => {
+  const transaction = await Cart.sequelize.transaction();
+
+  try {
+    const userId = req.user?.id;
+    const { localItems } = req.body;
+
+    // Must be authenticated user
+    if (!userId) {
+      return next(new AppError("Authentication required for cart sync", 401));
+    }
+
+    // Initialize sync report
+    const syncReport = {
+      successful_merges: [],
+      new_items_added: [],
+      quantity_adjusted: [],
+      failed_items: [],
+    };
+
+    // Get or create user's cart
+    let [cart] = await Cart.findOrCreate({
+      where: { user_id: userId },
+      defaults: {
+        total_items: 0,
+        total_amount: 0.0,
+      },
+      transaction,
+    });
+
+    // Lock the cart row to prevent concurrent updates
+    await cart.reload({ lock: true, transaction });
+
+    // Process each local cart item
+    for (const localItem of localItems) {
+      try {
+        const {
+          productId,
+          quantity,
+          price,
+          selected_variants = [],
+        } = localItem;
+
+        // Fetch product with variants
+        const product = await Product.findByPk(productId, {
+          include: [
+            {
+              model: ProductVariant,
+              as: "variants",
+              required: false,
+            },
+          ],
+          transaction,
+        });
+
+        if (!product || product.status !== "active") {
+          syncReport.failed_items.push({
+            productId,
+            reason: "Product not found or not available",
+          });
+          continue;
+        }
+
+        // Sort selected variants for consistent comparison
+        const sortedSelectedVariants = [...selected_variants].sort(
+          (a, b) => a.id - b.id
+        );
+
+        // Find existing cart item with same product and variants
+        const existingItem = await CartItem.findOne({
+          where: {
+            cart_id: cart.id,
+            product_id: productId,
+            selected_variants:
+              sortedSelectedVariants.length > 0 ? sortedSelectedVariants : null,
+          },
+          transaction,
+        });
+
+        // Check stock availability
+        let availableStock = null;
+        if (sortedSelectedVariants.length > 0) {
+          // Check variant stock
+          const variantMap = new Map(
+            product.variants.map((v) => [Number(v.id), v])
+          );
+          let hasLowStock = false;
+          for (const sel of sortedSelectedVariants) {
+            const variant = variantMap.get(Number(sel.id));
+            if (variant && variant.stock !== null) {
+              availableStock = Math.min(
+                availableStock ?? variant.stock,
+                variant.stock
+              );
+            }
+          }
+        } else {
+          // Check product stock
+          const inventory = await product.getInventory({ transaction });
+          availableStock = inventory?.stock ?? null;
+        }
+
+        const requestedQuantity = existingItem
+          ? existingItem.quantity + quantity
+          : quantity;
+
+        if (availableStock !== null && requestedQuantity > availableStock) {
+          // Adjust quantity to maximum available
+          const adjustedQuantity = availableStock;
+
+          if (existingItem) {
+            // Update existing item with adjusted quantity
+            await existingItem.update(
+              { quantity: adjustedQuantity },
+              { transaction }
+            );
+            await existingItem.updateTotalPrice(transaction);
+
+            syncReport.successful_merges.push({
+              productId,
+              oldQuantity: existingItem.quantity,
+              newQuantity: adjustedQuantity,
+            });
+          } else {
+            // Create new item with adjusted quantity
+            const newItem = await CartItem.create(
+              {
+                cart_id: cart.id,
+                product_id: productId,
+                selected_variants:
+                  sortedSelectedVariants.length > 0
+                    ? sortedSelectedVariants
+                    : null,
+                quantity: adjustedQuantity,
+                price: price,
+                total_price: adjustedQuantity * price,
+              },
+              { transaction }
+            );
+
+            syncReport.new_items_added.push({
+              productId,
+              quantity: adjustedQuantity,
+            });
+          }
+
+          syncReport.quantity_adjusted.push({
+            productId,
+            variantIds: sortedSelectedVariants.map((v) => v.id),
+            requestedQuantity,
+            adjustedQuantity,
+            reason: "Insufficient stock",
+          });
+        } else {
+          // Sufficient stock available
+          if (existingItem) {
+            // Update existing item quantity
+            await existingItem.update(
+              { quantity: requestedQuantity },
+              { transaction }
+            );
+            await existingItem.updateTotalPrice(transaction);
+
+            syncReport.successful_merges.push({
+              productId,
+              oldQuantity: existingItem.quantity,
+              newQuantity: requestedQuantity,
+            });
+          } else {
+            // Create new cart item
+            const totalVariantPrice = sortedSelectedVariants.reduce(
+              (sum, v) => sum + (v.additional_price || 0),
+              0
+            );
+            const totalPrice = quantity * (price + totalVariantPrice);
+
+            const newItem = await CartItem.create(
+              {
+                cart_id: cart.id,
+                product_id: productId,
+                selected_variants:
+                  sortedSelectedVariants.length > 0
+                    ? sortedSelectedVariants
+                    : null,
+                quantity: quantity,
+                price: price,
+                total_price: totalPrice,
+              },
+              { transaction }
+            );
+
+            syncReport.new_items_added.push({
+              productId,
+              quantity,
+            });
+          }
+        }
+      } catch (itemError) {
+        // Log individual item errors but continue processing other items
+        console.error(
+          `Error syncing cart item ${localItem.productId}:`,
+          itemError
+        );
+        syncReport.failed_items.push({
+          productId: localItem.productId,
+          reason: itemError.message || "Unknown error",
+        });
+      }
+    }
+
+    // Update cart totals
+    await cart.updateTotals(transaction);
+
+    await transaction.commit();
+
+    // Get full synchronized cart
+    const synchronizedCart = await cart.getFullCart();
+
+    res.status(200).json({
+      status: "success",
+      message: "Cart synchronized successfully",
+      data: {
+        cart: synchronizedCart,
+        sync_report: syncReport,
+      },
+    });
+  } catch (error) {
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   getCart,
   addToCart,
@@ -774,4 +1050,6 @@ module.exports = {
   removeFromCart,
   clearCart,
   getCartSummary,
+  syncCart,
 };
+

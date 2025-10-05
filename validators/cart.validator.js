@@ -400,3 +400,100 @@ exports.canAccessCart = (cart, userId = null, sessionId = null) => {
 
   return false;
 };
+
+// Validation for syncing cart
+/**
+ * Validation rules for syncing local cart with server cart.
+ * Validates local cart items array and their individual properties.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} localItems - Required array of cart items with custom validation for each item's properties
+ * @returns {Array} Express validator middleware array for cart sync
+ * @example
+ * // Use in route:
+ * router.post('/cart/sync', syncCartValidation, syncCart);
+ */
+exports.syncCartValidation = [
+  body('localItems')
+    .exists({ checkFalsy: true })
+    .withMessage('Local cart items are required')
+    .isArray()
+    .withMessage('Local cart items must be an array')
+    .custom(async (value) => {
+      console.log('Validating localItems array:', JSON.stringify(value, null, 2));
+      for (let i = 0; i < value.length; i++) {
+        const item = value[i];
+        console.log(`Validating item at index ${i}:`, item);
+
+        if (!item) {
+          throw new Error(`Item at index ${i} is undefined or null`);
+        }
+
+        // Validate productId
+        if (!item.productId) {
+          throw new Error('Product ID is required for each item');
+        }
+        if (typeof item.productId !== 'string') {
+          throw new Error('Product ID must be a string');
+        }
+        const numericProductId = parseInt(item.productId, 10);
+        if (isNaN(numericProductId) || numericProductId <= 0) {
+          throw new Error('Product ID must be a valid positive integer string');
+        }
+        const product = await Product.findByPk(numericProductId);
+        if (!product) {
+          throw new Error('Product not found');
+        }
+        if (product.status !== 'active') {
+          throw new Error('Product is not available for purchase');
+        }
+
+        // Validate quantity
+        if (!item.quantity || typeof item.quantity !== 'number' || item.quantity < 1 || item.quantity > 100) {
+          throw new Error('Quantity must be between 1 and 100');
+        }
+
+        // Validate price
+        if (!item.price || typeof item.price !== 'number' || item.price < 0) {
+          throw new Error('Price must be a non-negative number');
+        }
+
+        // Validate selected_variants
+        if (item.selected_variants !== undefined) {
+          if (!Array.isArray(item.selected_variants)) {
+            throw new Error('Selected variants must be an array');
+          }
+          if (item.selected_variants.length > 0) {
+            const productVariants = await ProductVariant.findAll({
+              where: { product_id: numericProductId }
+            });
+            const variantMap = new Map(productVariants.map(v => [Number(v.id), v]));
+            const seenIds = new Set();
+
+            for (const sel of item.selected_variants) {
+              if (typeof sel !== 'object' || !sel.name || !sel.value) {
+                throw new Error('Invalid selected variant: requires name and value');
+              }
+
+              const variantId = Number(sel.id);
+              if (isNaN(variantId) || variantId < 1) {
+                throw new Error('Invalid variant ID: must be a positive integer');
+              }
+
+              if (typeof sel.additional_price !== 'number' || sel.additional_price < 0) {
+                throw new Error('Invalid selected variant: additional_price must be a non-negative number');
+              }
+
+              if (seenIds.has(variantId)) throw new Error('Duplicate variant ID');
+              seenIds.add(variantId);
+
+              const variant = variantMap.get(variantId);
+              if (!variant) {
+                throw new Error(`Variant ${variantId} not found for product`);
+              }
+            }
+          }
+        }
+      }
+      return true;
+    })
+];
