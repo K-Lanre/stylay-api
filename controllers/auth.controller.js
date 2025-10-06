@@ -6,7 +6,7 @@ const { Op } = require("sequelize");
 const AppError = require("../utils/appError");
 const { sendWelcomeEmail } = require("../services/email.service");
 const logger = require("../utils/logger");
-const { syncUserCart } = require("../utils/cartSync");
+
 
 // Generate a random 6-digit code and expiration time (10 minutes from now)
 const generateVerificationCode = () => {
