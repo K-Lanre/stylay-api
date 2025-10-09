@@ -1893,6 +1893,37 @@
                     }
                 },
                 {
+                    "name": "Get Reviews by Product",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/products/1/reviews?page=1&limit=10",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "products",
+                                "1",
+                                "reviews"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Get all reviews for a specific product"
+                    }
+                },
+                {
                     "name": "Vendor Routes (Auth Required)",
                     "item": [
                         {
@@ -4176,6 +4207,41 @@
                                 },
                                 "description": "Get recent journal entries ordered by updated date"
                             }
+                        },
+                        {
+                            "name": "Get Product Overview",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/product/123?includeReviews=true",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "product",
+                                        "123"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "includeReviews",
+                                            "value": "true",
+                                            "description": "Whether to include product reviews in response (default: true)"
+                                        }
+                                    ],
+                                    "variable": [
+                                        {
+                                            "key": "id",
+                                            "value": "123",
+                                            "description": "Product ID"
+                                        }
+                                    ]
+                                },
+                                "description": "Get comprehensive product overview including images, category, price, SKU, stock status, views, availability status, and reviews"
+                            }
                         }
                     ]
                 },
@@ -4195,7 +4261,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/vendor/dashboard",
+                                    "raw": "{{base_url}}/api/v1/dashboard/vendor/metrics",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -4204,7 +4270,7 @@
                                         "v1",
                                         "dashboard",
                                         "vendor",
-                                        "dashboard"
+                                        "metrics"
                                     ]
                                 },
                                 "description": "Get vendor dashboard overview with live products, sales, units sold, and views"
@@ -4333,7 +4399,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/dashboard",
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/metrics",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -4342,7 +4408,7 @@
                                         "v1",
                                         "dashboard",
                                         "admin",
-                                        "dashboard"
+                                        "metrics"
                                     ]
                                 },
                                 "description": "Get admin dashboard overview with total vendors, monthly income, products, sales, and pending orders"
@@ -4401,8 +4467,280 @@
                                 },
                                 "description": "Get top performing product categories with monthly metrics"
                             }
+                        },
+                        {
+                            "name": "Get Recent Orders",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/recent-orders?page=1&limit=10",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "admin",
+                                        "recent-orders"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "10",
+                                            "description": "Number of items per page"
+                                        }
+                                    ]
+                                },
+                                "description": "Get recent orders for admin dashboard"
+                            }
+                        },
+                        {
+                            "name": "Get Top Selling Vendors",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/top-selling-vendors?limit=10",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "admin",
+                                        "top-selling-vendors"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "limit",
+                                            "value": "10",
+                                            "description": "Number of top vendors to return (max 50)"
+                                        }
+                                    ]
+                                },
+                                "description": "Get top selling vendors with their order metrics, sales data, and performance indicators"
+                            }
+                        },
+                        {
+                            "name": "Get Top Selling Items",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/dashboard/admin/top-selling-items",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "dashboard",
+                                        "admin",
+                                        "top-selling-items"
+                                    ]
+                                },
+                                "description": "Get top selling items for admin dashboard"
+                            }
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "name": "Review Management",
+            "description": "Review management endpoints for products",
+            "item": [
+                {
+                    "name": "Get All Reviews",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/reviews?page=1&limit=10&rating=5",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "reviews"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "description": "Page number for pagination"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10",
+                                    "description": "Number of reviews per page"
+                                },
+                                {
+                                    "key": "rating",
+                                    "value": "5",
+                                    "description": "Filter by rating (1-5)",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "productId",
+                                    "value": "",
+                                    "description": "Filter by product ID",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "Get all reviews with optional filtering and pagination"
+                    }
+                },
+                {
+                    "name": "Get Review by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/reviews/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "reviews",
+                                "1"
+                            ]
+                        },
+                        "description": "Get a specific review by its ID"
+                    }
+                },
+                {
+                    "name": "Create Review",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"product_id\": 1,\n    \"rating\": 5,\n    \"title\": \"Excellent Product!\",\n    \"comment\": \"This product exceeded my expectations. Great quality and fast delivery.\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/reviews",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "reviews"
+                            ]
+                        },
+                        "description": "Create a new review for a product (Authenticated users only)"
+                    }
+                },
+                {
+                    "name": "Update Review",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rating\": 4,\n    \"title\": \"Updated Review Title\",\n    \"comment\": \"Updated review comment with additional feedback.\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/reviews/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "reviews",
+                                "1"
+                            ]
+                        },
+                        "description": "Update an existing review (Review owner only)"
+                    }
+                },
+                {
+                    "name": "Delete Review",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/reviews/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "reviews",
+                                "1"
+                            ]
+                        },
+                        "description": "Delete a review (Review owner only)"
+                    }
                 }
             ]
         }
@@ -4410,7 +4748,7 @@
     "variable": [
         {
             "key": "base_url",
-            "value": "http://localhost:3000",
+            "value": "https://merry-jennet-lenient.ngrok-free.app",
             "type": "string",
             "description": "Base URL for the API"
         },

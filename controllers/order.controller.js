@@ -533,6 +533,7 @@ async function getOrder(req, res) {
       include: [
         {
           model: User,
+          as: 'user',
           attributes: ["id", "first_name", "last_name", "email", "phone"],
         },
         {
@@ -685,8 +686,8 @@ async function updateOrderStatus(req, res) {
     const order = await Order.findOne({
       where: { id },
       include: [
-        { model: OrderItem, as: "items", include: [Product] },
-        { model: User, attributes: ["id", "email", "first_name"] },
+        { model: OrderItem, as: "items", include: [{ model: Product, as: 'product' }] },
+        { model: User, as: 'user', attributes: ["id", "email", "first_name"] },
       ],
       transaction,
     });
@@ -936,10 +937,12 @@ async function getUserOrders(req, res) {
       include: [
         {
           model: OrderItem,
+          as: "items",
           attributes: ["id", "quantity", "price", "sub_total"],
           include: [
             {
               model: Product,
+              as: 'product',
               attributes: ["id", "name", "slug", "images"],
               include: [
                 {
@@ -1370,8 +1373,8 @@ async function cancelOrder(req, res) {
         order_status: ["pending", "processing"],
       },
       include: [
-        { model: OrderItem, as: "items", include: [Product] },
-        { model: User, attributes: ["id", "email", "first_name"] },
+        { model: OrderItem, as: "items", include: [{ model: Product, as: 'product' }] },
+        { model: User, as: 'user', attributes: ["id", "email", "first_name"] },
       ],
       transaction,
     });
@@ -1601,9 +1604,11 @@ async function getVendorOrders(req, res) {
       include: [
         {
           model: OrderItem,
+          as: "items",
           include: [
             {
               model: Product,
+              as: 'product',
               attributes: ["id", "name", "price"],
               where: { vendor_id: vendorId },
             },
@@ -1704,6 +1709,7 @@ async function updateOrderItemStatus(req, res) {
       include: [
         {
           model: Product,
+          as: 'product',
           where: { vendor_id: vendorId },
           attributes: ["id", "vendor_id"],
         },
@@ -1873,15 +1879,23 @@ async function getAllOrders(req, res) {
         },
         {
           model: OrderItem,
+          as: "items",
           include: [
             {
               model: Product,
+              as: 'product',
               attributes: ["id", "name", "price"],
               include: [
                 {
-                  model: User,
+                  model: Vendor,
                   as: "vendor",
-                  attributes: ["id", "business_name", "email"],
+                  attributes: ["id"],
+                  include: [
+                    {
+                      model: User,
+                      attributes: ["id", "first_name", "last_name", "email"],
+                    },
+                  ],
                 },
               ],
             },

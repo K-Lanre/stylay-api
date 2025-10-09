@@ -17,9 +17,9 @@ module.exports = {
         slug: "women"
       },
       { 
-        name: "Kids", 
+        name: "Kiddies", 
         description: "Cute and comfortable clothing for children",
-        slug: "kids"
+        slug: "kiddies"
       }
     ];
 
@@ -27,7 +27,7 @@ module.exports = {
     const subcategories = [
       { name: "T-shirts", slug: "t-shirts", description: "Comfortable and stylish T-shirts" },
       { name: "Shorts", slug: "shorts", description: "Casual and trendy shorts" },
-      { name: "Skirts", slug: "skirts", description: "Fashionable skirts for all occasions" },
+      { name: "Shirts", slug: "shirts", description: "Fashionable shirts for all occasions" },
       { name: "Hoodies", slug: "hoodies", description: "Warm and cozy hoodies" },
       { name: "Jeans", slug: "jeans", description: "Durable and stylish jeans" }
     ];
