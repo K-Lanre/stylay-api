@@ -24,11 +24,11 @@ const router = express.Router();
 router.get('/new-arrivals', getNewArrivals);
 router.get('/trending-now', getTrendingNow);
 router.get('/latest-journal', getLatestJournal);
-router.get('/product/:id', getProductOverview);
 
 // Vendor routes (vendor authentication required)
 router.get('/vendor/metrics', auth.protect, auth.restrictTo('vendor'), getVendorDashboard);
 router.get('/vendor/products', auth.protect, auth.restrictTo('vendor'), getVendorProducts);
+router.get('/product/:id', auth.protect, auth.restrictTo('vendor'), getProductOverview);
 router.get('/vendor/earnings', auth.protect, auth.restrictTo('vendor'), getVendorEarnings);
 router.get('/vendor/earnings-breakdown', auth.protect, auth.restrictTo('vendor'), getVendorEarningsBreakdown);
 
