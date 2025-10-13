@@ -1,12 +1,12 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const passport = require('passport');
-const { User, Role} = require("../models");
+const { User, Role } = require("../models");
 const { Op } = require("sequelize");
 const AppError = require("../utils/appError");
-const { sendWelcomeEmail } = require("../services/email.service");
+const { sendWelcomeEmail, sendPasswordResetEmail } = require("../services/email.service"); // Assuming sendPasswordResetEmail is here
 const logger = require("../utils/logger");
-
+const rateLimit = require('express-rate-limit'); // Import rate-limiter
 
 // Generate a random 6-digit code and expiration time (10 minutes from now)
 const generateVerificationCode = () => {
@@ -48,6 +48,19 @@ const createSendToken = (user, statusCode, res) => {
     data: user,
   });
 };
+
+// Rate limiting configurations
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many login attempts from this IP, please try again after 15 minutes'
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit each IP to 5 password reset requests per hour
+  message: 'Too many password reset attempts. Please try again after an hour.'
+});
 
 /**
  * Register a new user account
@@ -158,7 +171,8 @@ exports.register = async (req, res, next) => {
 
     createSendToken(newUser, 201, res);
   } catch (err) {
-    next(err);
+    logger.error(`Error in register: ${err.message}`, { error: err });
+    next(new AppError("An error occurred during registration. Please try again.", 500));
   }
 };
 
@@ -365,30 +379,35 @@ exports.login = async (req, res, next) => {
       return next(new AppError("Please provide email and password!", 400));
     }
 
-    // 2) Use Passport's local strategy for authentication
-    passport.authenticate('local', { session: false }, async (err, user, info) => {
-      try {
-        if (err) {
-          return next(err);
-        }
+    // Apply login rate limiting
+    loginLimiter(req, res, async () => {
+      // 2) Use Passport's local strategy for authentication
+      passport.authenticate('local', { session: false }, async (err, user, info) => {
+        try {
+          if (err) {
+            return next(err);
+          }
 
-        if (!user) {
-          return next(new AppError(info?.message || 'Authentication failed', 401));
-        }
+          if (!user) {
+            return next(new AppError(info?.message || 'Authentication failed', 401));
+          }
 
-        // 3) Check if email is verified
-        if (!user.email_verified_at) {
-          return next(new AppError("Please verify your email address first", 401));
-        }
+          // 3) Check if email is verified
+          if (!user.email_verified_at) {
+            return next(new AppError("Please verify your email address first", 401));
+          }
 
-        // 4) Send token to client
-        createSendToken(user, 200, res);
-      } catch (err) {
-        next(err);
-      }
-    })(req, res, next);
+          // 4) Send token to client
+          createSendToken(user, 200, res);
+        } catch (err) {
+          logger.error(`Error in login passport authenticate callback: ${err.message}`, { error: err });
+          next(new AppError("An error occurred during login. Please try again.", 500));
+        }
+      })(req, res, next);
+    });
   } catch (err) {
-    next(err);
+    logger.error(`Error in login: ${err.message}`, { error: err });
+    next(new AppError("An error occurred during login. Please try again.", 500));
   }
 };
 
@@ -478,7 +497,12 @@ exports.updateProfile = async (req, res, next) => {
       userId: req.user?.id,
       error: error.stack
     });
-    next(error);
+    // Ensure a user-friendly error is passed to the next middleware
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      next(new AppError("An error occurred while updating your profile. Please try again.", 500));
+    }
   }
 };
 
@@ -521,7 +545,8 @@ exports.getMe = async (req, res, next) => {
       },
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error fetching user profile for ${req.user.id}: ${err.message}`, { error: err });
+    next(new AppError("An error occurred while fetching your profile. Please try again.", 500));
   }
 };
 
@@ -699,7 +724,13 @@ exports.updatePassword = async (req, res, next) => {
     // 5) Log user in, send JWT
     createSendToken(user, 200, res);
   } catch (err) {
-    next(err);
+    logger.error(`Error updating password: ${err.message}`, { userId: req.user?.id, error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while updating your password. Please try again.", 500));
+    }
   }
 };
 
@@ -751,18 +782,19 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    // 2) Invalidate any existing password reset codes for this user
-
-    // 3) Generate a new 6-digit reset code
+    // 2) Generate a new 6-digit reset code and set expiration (e.g., 15 minutes)
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedCode = hashVerificationCode(resetCode);
+    const resetTokenExpires = new Date();
+    resetTokenExpires.setMinutes(resetTokenExpires.getMinutes() + 15); // Token expires in 15 minutes
 
-    // 4) Save the verification code to the database
+    // 3) Save the reset code and its expiration to the database
     await user.update({
       password_reset_token: hashedCode,
+      password_reset_expires: resetTokenExpires, // Store expiration timestamp
     });
 
-    // 5) Send the reset code to the user's email
+    // 4) Send the reset code to the user's email
     await sendPasswordResetEmail(
       user.email,
       `${user.first_name} ${user.last_name}`,
@@ -792,12 +824,12 @@ exports.forgotPassword = async (req, res, next) => {
     logger.error(`Error in forgotPassword for ${email}: ${err.message}`, {
       error: err,
     });
-    next(
-      new AppError(
-        "An error occurred while processing your request. Please try again later.",
-        500
-      )
-    );
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while processing your request. Please try again later.", 500));
+    }
   }
 };
 
@@ -837,6 +869,7 @@ exports.logout = (req, res) => {
   } catch (err) {
     // Even if there's an error, we still want to return a success response
     // to prevent the user from being stuck in a logged-in state
+    logger.error(`Error during logout: ${err.message}`, { error: err });
     res.status(200).json({
       status: "success",
       message: "Successfully logged out",
@@ -889,11 +922,20 @@ exports.resetPassword = async (req, res, next) => {
     // Find and validate reset code
     const isCodeValid = await bcrypt.compare(code, user.password_reset_token);
     if (!isCodeValid) {
+      // Clear potentially invalid token and expiration
+      await user.update({ password_reset_token: null, password_reset_expires: null });
       return next(new AppError("Invalid or expired reset code", 400));
     }
 
-    // Mark code as used
-    await user.update({ password_reset_token: null });
+    // Check if the token has expired
+    if (user.password_reset_expires && new Date() > user.password_reset_expires) {
+      // Clear the expired token and expiration from the database
+      await user.update({ password_reset_token: null, password_reset_expires: null });
+      return next(new AppError("Password reset code has expired. Please request a new one.", 400));
+    }
+
+    // Mark code as used by clearing it and its expiration
+    await user.update({ password_reset_token: null, password_reset_expires: null });
 
     // Update password
     user.password = await bcrypt.hash(newPassword, 12);
@@ -904,7 +946,13 @@ exports.resetPassword = async (req, res, next) => {
       message: "Password updated successfully",
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error resetting password for ${email}: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while resetting your password. Please try again.", 500));
+    }
   }
 };
 
@@ -978,9 +1026,22 @@ exports.requestPhoneChange = async (req, res, next) => {
       phone_change_token_expires: tokenExpires
     });
 
-    // TODO: Send admin notification
-    // For now, we'll log it
-    logger.info(`Phone change requested by user ${userId}: ${user.phone} -> ${newPhone}`);
+    // Send admin notification
+    try {
+      await sendAdminPhoneChangeNotification(
+        process.env.ADMIN_EMAIL || "admin@stylay.com", // Default admin email if not set
+        {
+          name: `${user.first_name} ${user.last_name}`,
+          email: user.email,
+          currentPhone: user.phone,
+          newPhone: newPhone,
+          requestedAt: user.phone_change_requested_at,
+        }
+      );
+    } catch (emailErr) {
+      logger.error(`Error sending admin phone change notification: ${emailErr.message}`);
+      // Don't fail the request if admin email fails
+    }
 
     // Send user notification email
     try {
@@ -1005,7 +1066,13 @@ exports.requestPhoneChange = async (req, res, next) => {
       }
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error requesting phone change for user ${req.user.id}: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while processing your phone change request. Please try again.", 500));
+    }
   }
 };
 
@@ -1075,7 +1142,13 @@ exports.verifyPhoneChange = async (req, res, next) => {
       }
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error verifying phone change for user ${req.user?.id || 'unknown'}: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred during phone change verification. Please try again.", 500));
+    }
   }
 };
 
@@ -1121,7 +1194,13 @@ exports.cancelPhoneChange = async (req, res, next) => {
       message: "Phone change request cancelled successfully"
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error cancelling phone change for user ${userId}: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while cancelling your phone change request. Please try again.", 500));
+    }
   }
 };
 
@@ -1197,7 +1276,13 @@ exports.approvePhoneChange = async (req, res, next) => {
       }
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error approving phone change for user ${userId}: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while approving the phone change. Please try again.", 500));
+    }
   }
 };
 
@@ -1258,7 +1343,13 @@ exports.rejectPhoneChange = async (req, res, next) => {
       }
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error rejecting phone change for user ${userId}: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while rejecting the phone change. Please try again.", 500));
+    }
   }
 };
 
@@ -1313,6 +1404,12 @@ exports.getPendingPhoneChanges = async (req, res, next) => {
       data: users
     });
   } catch (err) {
-    next(err);
+    logger.error(`Error retrieving pending phone changes: ${err.message}`, { error: err });
+    // Ensure a user-friendly error is passed to the next middleware
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while retrieving pending phone changes. Please try again.", 500));
+    }
   }
 };

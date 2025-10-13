@@ -12,9 +12,18 @@ const {
   deleteProductValidation,
   getVendorProductsValidation
 } = require('../validators/product.validator');
-
+const reviewController = require('../controllers/review.controller');
+const { listReviewsValidation } = require('../validators/review.validator');
 // Public routes
 // More specific routes first (with constraints)
+
+/**
+ * @desc    Get reviews for a specific product
+ * @route   GET /api/v1/products/:productId/reviews
+ * @access  Public
+ */
+router.get('/:productId/reviews', listReviewsValidation, reviewController.getReviewsByProduct);
+
 router.get('/:identifier', getProductByIdentifierValidation, validate, productController.getProductByIdentifier);
 
 // General route for listing products with query parameters

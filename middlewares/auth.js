@@ -152,7 +152,7 @@ const isAdmin = (req, res, next) => {
     return next(new AppError('Please log in to access this route', 401));
   }
 
-  const isAdmin = req.user.Roles && req.user.Roles.some(role => role.name === 'admin');
+  const isAdmin = req.user.roles && req.user.roles.some(role => role.name === 'admin');
   
   if (!isAdmin) {
     return next(

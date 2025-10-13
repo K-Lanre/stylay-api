@@ -32,7 +32,7 @@ const cartRoutes = require('./routes/cart.route');
 const orderRoutes = require('./routes/order.route');
 const webhookRoutes = require('./routes/webhook.route');
 const dashboardRoutes = require('./routes/dashboard.route');
-// const reviewRoutes = require('./routes/reviews');
+const reviewRoutes = require('./routes/review.route');
 
 // Initialize express app
 const app = express();
@@ -255,7 +255,7 @@ app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
-// app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/v1/reviews', reviewRoutes);
 
 // Serve static files in production
 

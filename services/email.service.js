@@ -82,6 +82,10 @@ const emailTemplates = {
     template: "vendor-approved.ejs",
     subject: "Your Vendor Account Has Been Approved!",
   },
+  ADMIN_PHONE_CHANGE_REQUEST: {
+    template: "admin-phone-change-request.ejs",
+    subject: "New Phone Number Change Request - Action Required",
+  },
 };
 
 /**
@@ -680,11 +684,34 @@ const sendPhoneChangeNotificationEmail = async (to, name, newPhone, token) => {
   });
 };
 
+/**
+ * Send admin notification for phone change request
+ * @param {string} to - Recipient email address (admin)
+ * @param {Object} userData - User details
+ * @param {string} userData.name - User's full name
+ * @param {string} userData.email - User's email
+ * @param {string} userData.currentPhone - User's current phone number
+ * @param {string} userData.newPhone - User's requested new phone number
+ * @param {Date} userData.requestedAt - Timestamp of the request
+ * @returns {Promise} - Promise that resolves when email is sent
+ */
+const sendAdminPhoneChangeNotification = async (to, userData) => {
+  const adminUrl = process.env.ADMIN_URL || "http://localhost:3001/admin"; // Assuming an admin URL is configured
+
+  return sendEmail(to, "ADMIN_PHONE_CHANGE_REQUEST", {
+    user: userData,
+    adminUrl,
+    appName: process.env.APP_NAME || "Stylay",
+    year: new Date().getFullYear(),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
   sendPhoneChangeNotificationEmail,
+  sendAdminPhoneChangeNotification, // Export the new function
   sendOrderConfirmation,
   sendPaymentReceived,
   sendPaymentFailed,

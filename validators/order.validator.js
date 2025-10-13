@@ -31,34 +31,82 @@ const createOrderSchema = [
       }
       return true;
     }),
-  body("items")
-    .notEmpty()
-    .withMessage("Items are required")
-    .isArray({ min: 1 })
-    .withMessage("Items must be an array")
-    .custom(async (value) => {
-      for (const item of value) {
-        if (!item.productId || !item.quantity || !item.variantId) {
-          throw new Error(
-            "Items should contain productId, quantity and variantId"
-          );
-        }
+ body("items")
+   .notEmpty()
+   .withMessage("Items are required")
+   .isArray({ min: 1 })
+   .withMessage("Items must be an array")
+   .custom(async (value) => {
+     for (const item of value) {
+       if (!item.productId || !item.quantity) {
+         throw new Error(
+           "Items should contain productId and quantity"
+         );
+       }
 
-        const product = await Product.findByPk(parseInt(item.productId));
-        if (!product) {
-          throw new Error(`Product ${item.productId} not found`);
-        }
+       // Check if neither selected_variants nor variantId is provided
+       if (!item.selected_variants && !item.variantId) {
+         throw new Error(
+           "Items should contain either selected_variants array or variantId"
+         );
+       }
 
-        const variant = await ProductVariant.findOne({
-          where: { id: parseInt(item.variantId), product_id: product.id },
-        });
-        if (!variant) {
-          throw new Error(
-            `Variant ${item.variantId} not found or does not belong to product ${item.productId}`
-          );
-        }
-      }
-    }),
+       // Check if both are provided (not allowed)
+       if (item.selected_variants && item.variantId) {
+         throw new Error(
+           "Items cannot contain both selected_variants and variantId"
+         );
+       }
+
+       const product = await Product.findByPk(parseInt(item.productId));
+       if (!product) {
+         throw new Error(`Product ${item.productId} not found`);
+       }
+
+       if (item.selected_variants) {
+         // New multi-variant validation
+         if (!Array.isArray(item.selected_variants)) {
+           throw new Error("selected_variants must be an array");
+         }
+
+         if (item.selected_variants.length === 0) {
+           throw new Error("selected_variants cannot be empty");
+         }
+
+         // Check for duplicates in selected_variants
+         const variantIds = item.selected_variants.map(v => v.id);
+         if (new Set(variantIds).size !== variantIds.length) {
+           throw new Error("Duplicate variant IDs in selected_variants");
+         }
+
+         // Validate each variant exists and belongs to the product
+         for (const variantObj of item.selected_variants) {
+           if (!variantObj.id) {
+             throw new Error("Each selected variant must have an id");
+           }
+
+           const variant = await ProductVariant.findOne({
+             where: { id: parseInt(variantObj.id), product_id: product.id },
+           });
+           if (!variant) {
+             throw new Error(
+               `Variant ${variantObj.id} not found or does not belong to product ${item.productId}`
+             );
+           }
+         }
+       } else if (item.variantId) {
+         // Backward compatibility: single variant validation
+         const variant = await ProductVariant.findOne({
+           where: { id: parseInt(item.variantId), product_id: product.id },
+         });
+         if (!variant) {
+           throw new Error(
+             `Variant ${item.variantId} not found or does not belong to product ${item.productId}`
+           );
+         }
+       }
+     }
+   }),
   body("shippingCost")
     .notEmpty()
     .withMessage("Shipping cost is required")

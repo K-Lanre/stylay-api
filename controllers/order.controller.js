@@ -32,7 +32,12 @@ const { v4: uuidv4 } = require("uuid");
  * @param {Array<Object>} req.body.items - Order items array (required)
  * @param {number} req.body.items[].productId - Product ID (required)
  * @param {number} req.body.items[].quantity - Item quantity (required)
- * @param {number} [req.body.items[].variantId] - Product variant ID (optional)
+ * @param {number} [req.body.items[].variantId] - Product variant ID (optional, for backward compatibility)
+ * @param {Array<Object>} [req.body.items[].selected_variants] - Selected variants array (required if no variantId, for multiple variant support)
+ * @param {number} req.body.items[].selected_variants[].id - Variant ID
+ * @param {string} req.body.items[].selected_variants[].name - Variant name
+ * @param {string} req.body.items[].selected_variants[].value - Variant value
+ * @param {number} req.body.items[].selected_variants[].additional_price - Variant additional price
  * @param {number} [req.body.shippingCost=0] - Shipping cost
  * @param {number} [req.body.taxAmount=0] - Tax amount
  * @param {string} [req.body.notes] - Order notes
@@ -63,8 +68,19 @@ const { v4: uuidv4 } = require("uuid");
  * {
  *   "addressId": 123,
  *   "items": [
- *     {"productId": 456, "quantity": 2, "variantId": 789},
- *     {"productId": 101, "quantity": 1}
+ *     {
+ *       "productId": 456,
+ *       "quantity": 2,
+ *       "variantId": 789
+ *     },
+ *     {
+ *       "productId": 101,
+ *       "quantity": 1,
+ *       "selected_variants": [
+ *         {"id": 102, "name": "Size", "value": "Large", "additional_price": 500},
+ *         {"id": 103, "name": "Color", "value": "Blue", "additional_price": 200}
+ *       ]
+ *     }
  *   ],
  *   "shippingCost": 1500,
  *   "taxAmount": 500,
@@ -122,7 +138,6 @@ async function createOrder(req, res) {
 
     // Process order items and calculate total
     let totalAmount = 0;
-    const orderItems = [];
     const vendorItems = new Map(); // Track items by vendor for notifications
 
     // First pass: Validate stock, get prices, and calculate total amount
@@ -138,10 +153,33 @@ async function createOrder(req, res) {
         throw new Error(`Vendor not found for product ${product.id}`);
 
       let itemPrice = product.discounted_price || product.price;
-      let variant = null;
+      let selectedVariants = [];
 
-      if (item.variantId) {
-        variant = await ProductVariant.findByPk(item.variantId, {
+      if (item.selected_variants && item.selected_variants.length > 0) {
+        // Handle multiple variants
+        const variantIds = item.selected_variants.map(v => v.id);
+        const variants = await ProductVariant.findAll({
+          where: { id: variantIds, product_id: item.productId },
+          transaction,
+        });
+
+        if (variants.length !== item.selected_variants.length) {
+          throw new Error(
+            `Some variants not found for product ${item.productId}`
+          );
+        }
+
+        // Calculate total additional price from all selected variants
+        const totalVariantPrice = item.selected_variants.reduce(
+          (sum, selectedVariant) => sum + (parseFloat(selectedVariant.additional_price) || 0),
+          0
+        );
+        itemPrice += totalVariantPrice;
+
+        selectedVariants = item.selected_variants;
+      } else if (item.variantId) {
+        // Backward compatibility: single variant
+        const variant = await ProductVariant.findByPk(item.variantId, {
           where: { product_id: item.productId },
           transaction,
         });
@@ -163,6 +201,12 @@ async function createOrder(req, res) {
 
         // Use variant price if available, otherwise use product price
         itemPrice = variant.price || itemPrice;
+        selectedVariants = [{
+          id: variant.id,
+          name: variant.name,
+          value: variant.value,
+          additional_price: variant.additional_price || 0
+        }];
       } else if (
         !product.inventory ||
         product.inventory.stock < item.quantity
@@ -174,6 +218,7 @@ async function createOrder(req, res) {
         ...item,
         price: itemPrice,
         vendorId: product.vendor.id,
+        selected_variants: selectedVariants,
       });
 
       totalAmount += item.quantity * itemPrice;
@@ -200,6 +245,7 @@ async function createOrder(req, res) {
           quantity: item.quantity,
           price: item.price,
           sub_total: item.quantity * item.price,
+          selected_variants: item.selected_variants || null,
         })),
         details: {
           address_id: addressId,
@@ -255,8 +301,18 @@ async function createOrder(req, res) {
         { transaction }
       );
 
-      // Decrement variant stock if variantId is provided
-      if (item.variantId) {
+      // Decrement variant stock for multiple variants or single variant
+      if (item.selected_variants && item.selected_variants.length > 0) {
+        // Handle multiple variants
+        for (const variant of item.selected_variants) {
+          await ProductVariant.decrement("stock", {
+            by: item.quantity,
+            where: { id: variant.id },
+            transaction,
+          });
+        }
+      } else if (item.variantId) {
+        // Backward compatibility: single variant
         await ProductVariant.decrement("stock", {
           by: item.quantity,
           where: { id: item.variantId },
@@ -273,6 +329,7 @@ async function createOrder(req, res) {
           product_id: product.id,
           vendor_id: product.vendor_id,
           variant_id: item.variantId || null,
+          selected_variants: item.selected_variants || null,
           quantity: item.quantity,
           price: item.price,
           product: product.toJSON(),
@@ -302,6 +359,7 @@ async function createOrder(req, res) {
           id: item.productId,
           quantity: item.quantity,
           variantId: item.variantId,
+          selected_variants: item.selected_variants,
         })),
       },
     });
@@ -533,6 +591,7 @@ async function getOrder(req, res) {
       include: [
         {
           model: User,
+          as: 'user',
           attributes: ["id", "first_name", "last_name", "email", "phone"],
         },
         {
@@ -685,8 +744,8 @@ async function updateOrderStatus(req, res) {
     const order = await Order.findOne({
       where: { id },
       include: [
-        { model: OrderItem, as: "items", include: [Product] },
-        { model: User, attributes: ["id", "email", "first_name"] },
+        { model: OrderItem, as: "items", include: [{ model: Product, as: 'product' }] },
+        { model: User, as: 'user', attributes: ["id", "email", "first_name"] },
       ],
       transaction,
     });
@@ -936,10 +995,12 @@ async function getUserOrders(req, res) {
       include: [
         {
           model: OrderItem,
+          as: "items",
           attributes: ["id", "quantity", "price", "sub_total"],
           include: [
             {
               model: Product,
+              as: 'product',
               attributes: ["id", "name", "slug", "images"],
               include: [
                 {
@@ -1370,8 +1431,8 @@ async function cancelOrder(req, res) {
         order_status: ["pending", "processing"],
       },
       include: [
-        { model: OrderItem, as: "items", include: [Product] },
-        { model: User, attributes: ["id", "email", "first_name"] },
+        { model: OrderItem, as: "items", include: [{ model: Product, as: 'product' }] },
+        { model: User, as: 'user', attributes: ["id", "email", "first_name"] },
       ],
       transaction,
     });
@@ -1428,10 +1489,23 @@ async function cancelOrder(req, res) {
         return true;
       })
     );
-      // Restore variant stock if variantId is provided
+      // Restore variant stock for multiple variants or single variant
       await Promise.all(
         order.order_items.map(async (item) => {
-          if (item.variant_id) {
+          if (item.selected_variants && item.selected_variants.length > 0) {
+            // Handle multiple variants restoration
+            const variants = typeof item.selected_variants === 'string'
+              ? JSON.parse(item.selected_variants)
+              : item.selected_variants;
+            for (const variant of variants) {
+              await ProductVariant.increment("stock", {
+                by: item.quantity,
+                where: { id: variant.id },
+                transaction,
+              });
+            }
+          } else if (item.variant_id) {
+            // Backward compatibility: single variant restoration
             await ProductVariant.increment("stock", {
               by: item.quantity,
               where: { id: item.variant_id },
@@ -1601,9 +1675,11 @@ async function getVendorOrders(req, res) {
       include: [
         {
           model: OrderItem,
+          as: "items",
           include: [
             {
               model: Product,
+              as: 'product',
               attributes: ["id", "name", "price"],
               where: { vendor_id: vendorId },
             },
@@ -1704,6 +1780,7 @@ async function updateOrderItemStatus(req, res) {
       include: [
         {
           model: Product,
+          as: 'product',
           where: { vendor_id: vendorId },
           attributes: ["id", "vendor_id"],
         },
@@ -1873,15 +1950,23 @@ async function getAllOrders(req, res) {
         },
         {
           model: OrderItem,
+          as: "items",
           include: [
             {
               model: Product,
+              as: 'product',
               attributes: ["id", "name", "price"],
               include: [
                 {
-                  model: User,
+                  model: Vendor,
                   as: "vendor",
-                  attributes: ["id", "business_name", "email"],
+                  attributes: ["id"],
+                  include: [
+                    {
+                      model: User,
+                      attributes: ["id", "first_name", "last_name", "email"],
+                    },
+                  ],
                 },
               ],
             },

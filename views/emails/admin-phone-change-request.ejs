@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= subject %></title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .header { background-color: #f4f4f4; padding: 10px 20px; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; }
+        .header h1 { margin: 0; font-size: 24px; color: #333; }
+        .content { padding: 20px; }
+        .content p { margin-bottom: 15px; }
+        .details { background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .details strong { display: inline-block; width: 150px; }
+        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #777; }
+        .button { display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px; }
+        .button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><%= appName %> - New Phone Change Request</h1>
+        </div>
+        <div class="content">
+            <p>Hello Admin,</p>
+            <p>A user has requested to change their phone number. Please review the details below:</p>
+            
+            <div class="details">
+                <p><strong>User Name:</strong> <%= user.name %></p>
+                <p><strong>User Email:</strong> <%= user.email %></p>
+                <p><strong>Previous Phone:</strong> <%= user.currentPhone %></p>
+                <p><strong>Requested New Phone:</strong> <%= user.newPhone %></p>
+                <p><strong>Request Date:</strong> <%= user.requestedAt %></p>
+            </div>
+
+            <p>To manage this request, please log in to the admin panel:</p>
+            <p><a href="<%= adminUrl %>/users/phone-changes" class="button">Go to Admin Panel</a></p>
+            
+            <p>Thank you.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; <%= year %> <%= appName %>. All rights reserved.</p>
+            <p>If you received this email in error, please disregard it.</p>
+        </div>
+    </div>
+</body>
+</html>
