@@ -172,14 +172,14 @@ const isCustomer = (req, res, next) => {
     return next(new AppError('Please log in to access this route', 401));
   }
 
-  const isCustomer = req.user.Roles.some(role => role.name === 'customer');
-  
+  const isCustomer = req.user.roles.some(role => role.name === 'customer');
+
   if (!isCustomer) {
     return next(
       new AppError('This action is restricted to customers only', 403)
     );
   }
-  
+
   next();
 };
 
@@ -192,17 +192,17 @@ const isVendor = (req, res, next) => {
     return next(new AppError('Please log in to access this route', 401));
   }
 
-  // Check if user has the vendor role (using lowercase 'roles' to match the model association)
-  const hasVendorRole = req.user.Roles && 
-    Array.isArray(req.user.Roles) && 
-    req.user.Roles.some(role => role.name === 'vendor');
-  
+  // Check if user has the vendor role
+  const hasVendorRole = req.user.roles &&
+    Array.isArray(req.user.roles) &&
+    req.user.roles.some(role => role.name === 'vendor');
+
   if (!hasVendorRole) {
     return next(
       new AppError('This action is restricted to vendors only', 403)
     );
   }
-  
+
   next();
 };
 
@@ -215,9 +215,9 @@ const hasRole = (...roles) => {
   return [
     protect,
     (req, res, next) => {
-      const userRoles = req.user.Roles.map(role => role.name);
+      const userRoles = req.user.roles.map(role => role.name);
       const hasRequiredRole = roles.some(role => userRoles.includes(role));
-      
+
       if (!hasRequiredRole) {
         return next(
           new AppError('You do not have permission to perform this action', 403)
@@ -245,8 +245,8 @@ const isOwnerOrAdmin = (model, idParam = 'id', userIdField = 'userId') => {
           return next(new AppError('No resource found with that ID', 404));
         }
 
-        const userRoles = req.user.Roles.map(role => role.name);
-        
+        const userRoles = req.user.roles.map(role => role.name);
+
         // Grant access if user is admin
         if (userRoles.includes('admin')) {
           return next();
@@ -275,8 +275,8 @@ const isOwnerOrAdmin = (model, idParam = 'id', userIdField = 'userId') => {
  * @returns {boolean} - True if user has any of the specified roles
  */
 const hasAnyRole = (user, ...roles) => {
-  if (!user?.Roles) return false;
-  const userRoles = user.Roles.map(role => role.name);
+  if (!user?.roles) return false;
+  const userRoles = user.roles.map(role => role.name);
   return roles.some(role => userRoles.includes(role));
 };
 
@@ -287,8 +287,8 @@ const hasAnyRole = (user, ...roles) => {
  * @returns {boolean} - True if user has all of the specified roles
  */
 const hasAllRoles = (user, ...roles) => {
-  if (!user?.Roles) return false;
-  const userRoles = user.Roles.map(role => role.name);
+  if (!user?.roles) return false;
+  const userRoles = user.roles.map(role => role.name);
   return roles.every(role => userRoles.includes(role));
 };
 

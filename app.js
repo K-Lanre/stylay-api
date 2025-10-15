@@ -19,7 +19,6 @@ const { initializePassport } = require('./config/passport');
 // Import routes
 const authRoutes = require('./routes/auth.route');
 const userRoutes = require('./routes/user.route');
-const roleRoutes = require('./routes/role.route');
 const vendorRoutes = require('./routes/vendor.route');
 const categoryRoutes = require('./routes/category.route');
 const collectionRoutes = require('./routes/collection.route');
@@ -33,6 +32,7 @@ const orderRoutes = require('./routes/order.route');
 const webhookRoutes = require('./routes/webhook.route');
 const dashboardRoutes = require('./routes/dashboard.route');
 const reviewRoutes = require('./routes/review.route');
+const adminRoutes = require('./routes/admin');
 
 // Initialize express app
 const app = express();
@@ -124,50 +124,50 @@ app.use(hpp({
   ]
 }));
 
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3001',
-  'http://localhost:5173',  // Vite default port
-  'http://127.0.0.1:5173',  // Vite default port with IP
-  'https://merry-jennet-lenient.ngrok-free.app',  // Current ngrok URL
-  'http://localhost:3000',  // React default port
-  'http://localhost:3001',  // Common React port
-  /https?:\/\/.*\.ngrok\.io$/,  // Allow any ngrok.io subdomain
-  /https?:\/\/.*\.ngrok-free\.app$/,  // Allow ngrok-free.app subdomains
-  /^http:\/\/localhost:\d+$/,  // Allow any localhost with any port
-  /^https?:\/\/localhost:\d+$/  // Allow any localhost with any port (https)
-];
-
+// CORS configuration - Simplified and more reliable
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    // In development, allow all origins
+
+    // In development, allow all origins for easier testing
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
     }
-    
-    // Check if the origin matches any of the allowed patterns
-    const isAllowed = allowedOrigins.some(pattern => {
-      if (typeof pattern === 'string') {
-        return pattern === origin;
-      } else if (pattern instanceof RegExp) {
-        return pattern.test(origin);
-      }
-      return false;
-    });
 
-    if (isAllowed) {
-      return callback(null, true);
+    // Allow common development origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3001',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:4173',
+      'http://127.0.0.1:4173'
+    ];
+
+    // Allow ngrok URLs (both ngrok.io and ngrok-free.app)
+    const ngrokPatterns = [
+      /https?:\/\/.*\.ngrok\.io$/,
+      /https?:\/\/.*\.ngrok-free\.app$/
+    ];
+
+    // Allow localtunnel URLs
+    const localtunnelPatterns = [
+      /https?:\/\/.*\.localtunnel\.me$/
+    ];
+
+    const isOriginAllowed = allowedOrigins.includes(origin) ||
+                           ngrokPatterns.some(pattern => pattern.test(origin)) ||
+                           localtunnelPatterns.some(pattern => pattern.test(origin));
+
+    if (isOriginAllowed) {
+      callback(null, true);
+    } else {
+      console.log(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
-    
-    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
-    console.error(msg);
-    return callback(new Error(msg), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -175,61 +175,23 @@ const corsOptions = {
     'Content-Type',
     'Authorization',
     'X-Requested-With',
-    'X-Forwarded-For',
     'Accept',
-    'Accept-Version',
-    'Content-Length',
-    'Content-MD5',
-    'Date',
-    'X-Api-Version',
-    'X-Response-Time',
-    'X-PINGOTHER',
-    'X-CSRF-Token',
     'Origin',
-    'X-Access-Token',
-    'ngrok-skip-browser-warning',
-    'access-control-allow-origin',
-    'access-control-allow-credentials',
-    'withCredentials'
+    'ngrok-skip-browser-warning'
   ],
-  exposedHeaders: [
-    'Content-Range',
-    'X-Total-Count',
-    'X-Access-Token',
-    'X-Refresh-Token',
-    'Access-Control-Allow-Origin',
-    'Access-Control-Allow-Credentials',
-    'Access-Control-Expose-Headers'
-  ],
-  maxAge: 86400 // 24 hours
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
 // Enable CORS with options
 app.use(cors(corsOptions));
 
-// Handle preflight requests for all routes
-app.options('*', cors(corsOptions));
-
-// Add manual CORS headers as a fallback
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.some(pattern => {
-    if (typeof pattern === 'string') return pattern === origin;
-    if (pattern instanceof RegExp) return pattern.test(origin);
-    return false;
-  })) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-  }
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Forwarded-For, Accept, Origin, X-Access-Token, ngrok-skip-browser-warning');
-    return res.status(200).end();
-  }
-  
-  next();
+// Handle preflight requests more reliably
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, ngrok-skip-browser-warning');
+  res.sendStatus(200);
 });
 
 // Initialize Passport
@@ -242,7 +204,6 @@ app.use(compression());
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/vendors', vendorRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/collections', collectionRoutes);
@@ -256,6 +217,7 @@ app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve static files in production
 

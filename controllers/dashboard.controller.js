@@ -40,10 +40,10 @@
  * for better performance and reliability in production environments.
  */
 
-const { Op, Sequelize, fn, col, literal } = require('sequelize');
-const db = require('../models');
-const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/appError');
+const { Op, Sequelize, fn, col, literal } = require("sequelize");
+const db = require("../models");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 // Helper function for pagination with validation
 const paginate = (page = 1, limit = 20) => {
@@ -53,7 +53,7 @@ const paginate = (page = 1, limit = 20) => {
     const offset = (pageNum - 1) * limitNum;
     return { limit: limitNum, offset };
   } catch (error) {
-    throw new Error('Invalid pagination parameters');
+    throw new Error("Invalid pagination parameters");
   }
 };
 
@@ -68,8 +68,8 @@ const createPaginationResponse = (data, page, limit, total) => {
       totalItems: total,
       itemsPerPage: parseInt(limit),
       hasNextPage: page < totalPages,
-      hasPrevPage: page > 1
-    }
+      hasPrevPage: page > 1,
+    },
   };
 };
 
@@ -135,46 +135,58 @@ const getNewArrivals = catchAsync(async (req, res, next) => {
 
   const { count, rows: products } = await db.Product.findAndCountAll({
     attributes: [
-      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
-      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-      'impressions', 'sold_units', 'created_at', 'updated_at'
+      "id",
+      "vendor_id",
+      "category_id",
+      "name",
+      "slug",
+      "description",
+      "thumbnail",
+      "price",
+      "discounted_price",
+      "sku",
+      "status",
+      "impressions",
+      "sold_units",
+      "created_at",
+      "updated_at",
     ],
     include: [
       {
         model: db.Supply,
-        as: 'Supplies',
-        attributes: ['id', 'created_at'],
-        order: [['created_at', 'DESC']]
+        as: "Supplies",
+        attributes: ["id", "created_at"],
+        order: [["created_at", "DESC"]],
       },
       {
         model: db.Category,
-        attributes: ['id', 'name', 'slug']
+        attributes: ["id", "name", "slug"],
       },
       {
         model: db.Vendor,
-        as: 'vendor',
-        attributes: ['id'],
-        include: [{
-          model: db.User,
-          attributes: ['id', 'first_name', 'last_name']
-        }]
-      }
+        as: "vendor",
+        attributes: ["id"],
+        include: [
+          {
+            model: db.User,
+            attributes: ["id", "first_name", "last_name"],
+          },
+        ],
+      },
     ],
     where: {
-      status: 'active'
+      status: "active",
     },
-    order: [
-      [{ model: db.Supply, as: 'Supplies' }, 'created_at', 'DESC']
-    ],
+    order: [[{ model: db.Supply, as: "Supplies" }, "created_at", "DESC"]],
     limit: limitNum,
     offset,
-    distinct: true
+    distinct: true,
   });
 
   const response = createPaginationResponse(products, page, limit, count);
   res.status(200).json({
-    status: 'success',
-    ...response
+    status: "success",
+    ...response,
   });
 });
 
@@ -219,35 +231,49 @@ const getNewArrivals = catchAsync(async (req, res, next) => {
 const getTrendingNow = catchAsync(async (req, res, next) => {
   const products = await db.Product.findAll({
     attributes: [
-      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
-      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-      'impressions', 'sold_units', 'created_at', 'updated_at'
+      "id",
+      "vendor_id",
+      "category_id",
+      "name",
+      "slug",
+      "description",
+      "thumbnail",
+      "price",
+      "discounted_price",
+      "sku",
+      "status",
+      "impressions",
+      "sold_units",
+      "created_at",
+      "updated_at",
     ],
     include: [
       {
         model: db.Category,
-        attributes: ['id', 'name', 'slug']
+        attributes: ["id", "name", "slug"],
       },
       {
         model: db.Vendor,
-        as: 'vendor',
-        attributes: ['id'],
-        include: [{
-          model: db.User,
-          attributes: ['id', 'first_name', 'last_name']
-        }]
-      }
+        as: "vendor",
+        attributes: ["id"],
+        include: [
+          {
+            model: db.User,
+            attributes: ["id", "first_name", "last_name"],
+          },
+        ],
+      },
     ],
     where: {
-      status: 'active'
+      status: "active",
     },
-    order: [['updated_at', 'DESC']],
-    limit: 12
+    order: [["updated_at", "DESC"]],
+    limit: 12,
   });
 
   res.status(200).json({
-    status: 'success',
-    data: products
+    status: "success",
+    data: products,
   });
 });
 
@@ -322,23 +348,25 @@ const getLatestJournal = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.Product,
-        as: 'product',
-        attributes: ['id', 'name', 'slug', 'thumbnail'],
-        include: [{
-          model: db.Category,
-          attributes: ['name']
-        }]
-      }
+        as: "product",
+        attributes: ["id", "name", "slug", "thumbnail"],
+        include: [
+          {
+            model: db.Category,
+            attributes: ["name"],
+          },
+        ],
+      },
     ],
-    order: [['updated_at', 'DESC']],
+    order: [["updated_at", "DESC"]],
     limit: limitNum,
-    offset
+    offset,
   });
 
   const response = createPaginationResponse(journals, page, limit, count);
   res.status(200).json({
-    status: 'success',
-    ...response
+    status: "success",
+    ...response,
   });
 });
 
@@ -381,12 +409,12 @@ const getVendorDashboard = catchAsync(async (req, res, next) => {
   const vendor = await db.Vendor.findOne({
     where: {
       user_id: req.user.id,
-      status: 'approved' // Only get approved vendors
-    }
+      status: "approved", // Only get approved vendors
+    },
   });
 
   if (!vendor) {
-    return next(new AppError('Vendor not found or not approved', 404));
+    return next(new AppError("Vendor not found or not approved", 404));
   }
 
   const vendorId = vendor.id;
@@ -395,19 +423,22 @@ const getVendorDashboard = catchAsync(async (req, res, next) => {
   const liveProductsCount = await db.Product.count({
     where: {
       vendor_id: vendorId,
-      status: 'active'
-    }
+      status: "active",
+    },
   });
 
   // Total Sales
-  const totalSales = await db.OrderItem.sum('sub_total', {
-    where: { vendor_id: vendorId },
-    include: [{
-      model: db.Order,
-      as: 'order',
-      where: { payment_status: 'paid' }
-    }]
-  }) || 0;
+  const totalSales =
+    (await db.OrderItem.sum("sub_total", {
+      where: { vendor_id: vendorId },
+      include: [
+        {
+          model: db.Order,
+          as: "order",
+          where: { payment_status: "paid" },
+        },
+      ],
+    })) || 0;
 
   // Units Sold Monthly
   const currentMonth = new Date();
@@ -415,34 +446,38 @@ const getVendorDashboard = catchAsync(async (req, res, next) => {
   const nextMonth = new Date(currentMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-  const monthlyUnitsSold = await db.OrderItem.sum('quantity', {
-    where: {
-      vendor_id: vendorId,
-      created_at: {
-        [Op.gte]: currentMonth,
-        [Op.lt]: nextMonth
-      }
-    },
-    include: [{
-      model: db.Order,
-      as: 'order',
-      where: { payment_status: 'paid' }
-    }]
-  }) || 0;
+  const monthlyUnitsSold =
+    (await db.OrderItem.sum("quantity", {
+      where: {
+        vendor_id: vendorId,
+        created_at: {
+          [Op.gte]: currentMonth,
+          [Op.lt]: nextMonth,
+        },
+      },
+      include: [
+        {
+          model: db.Order,
+          as: "order",
+          where: { payment_status: "paid" },
+        },
+      ],
+    })) || 0;
 
   // Product Views
-  const totalViews = await db.Product.sum('impressions', {
-    where: { vendor_id: vendorId }
-  }) || 0;
+  const totalViews =
+    (await db.Product.sum("impressions", {
+      where: { vendor_id: vendorId },
+    })) || 0;
 
   res.status(200).json({
-    status: 'success',
+    status: "success",
     data: {
       liveProducts: liveProductsCount,
       totalSales: parseFloat(totalSales).toFixed(2),
       monthlyUnitsSold,
-      totalViews
-    }
+      totalViews,
+    },
   });
 });
 
@@ -519,12 +554,12 @@ const getVendorProducts = catchAsync(async (req, res, next) => {
   const vendor = await db.Vendor.findOne({
     where: {
       user_id: req.user.id,
-      status: 'approved' // Only get approved vendors
-    }
+      status: "approved", // Only get approved vendors
+    },
   });
 
   if (!vendor) {
-    return next(new AppError('Vendor not found or not approved', 404));
+    return next(new AppError("Vendor not found or not approved", 404));
   }
 
   const vendorId = vendor.id;
@@ -536,23 +571,34 @@ const getVendorProducts = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.Category,
-        attributes: ['id', 'name', 'slug']
-      }
+        attributes: ["id", "name", "slug"],
+      },
     ],
     attributes: [
-      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
-      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-      'impressions', 'sold_units', 'created_at', 'updated_at'
+      "id",
+      "vendor_id",
+      "category_id",
+      "name",
+      "slug",
+      "description",
+      "thumbnail",
+      "price",
+      "discounted_price",
+      "sku",
+      "status",
+      "impressions",
+      "sold_units",
+      "created_at",
+      "updated_at",
     ],
-    order: [['created_at', 'DESC']],
+    order: [["created_at", "DESC"]],
     limit: limitNum,
-    offset
+    offset,
   });
-
   const response = createPaginationResponse(products, page, limit, count);
   res.status(200).json({
-    status: 'success',
-    ...response
+    status: "success",
+    ...response,
   });
 });
 
@@ -595,25 +641,28 @@ const getVendorEarnings = catchAsync(async (req, res, next) => {
   const vendor = await db.Vendor.findOne({
     where: {
       user_id: req.user.id,
-      status: 'approved' // Only get approved vendors
-    }
+      status: "approved", // Only get approved vendors
+    },
   });
 
   if (!vendor) {
-    return next(new AppError('Vendor not found or not approved', 404));
+    return next(new AppError("Vendor not found or not approved", 404));
   }
 
   const vendorId = vendor.id;
 
   // Total Earnings
-  const totalEarnings = await db.OrderItem.sum('sub_total', {
-    where: { vendor_id: vendorId },
-    include: [{
-      model: db.Order,
-      as: 'order',
-      where: { payment_status: 'paid' }
-    }]
-  }) || 0;
+  const totalEarnings =
+    (await db.OrderItem.sum("sub_total", {
+      where: { vendor_id: vendorId },
+      include: [
+        {
+          model: db.Order,
+          as: "order",
+          where: { payment_status: "paid" },
+        },
+      ],
+    })) || 0;
 
   // Monthly Sales
   const currentMonth = new Date();
@@ -621,57 +670,63 @@ const getVendorEarnings = catchAsync(async (req, res, next) => {
   const nextMonth = new Date(currentMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-  const monthlySales = await db.OrderItem.sum('sub_total', {
-    where: {
-      vendor_id: vendorId,
-      created_at: {
-        [Op.gte]: currentMonth,
-        [Op.lt]: nextMonth
-      }
-    },
-    include: [{
-      model: db.Order,
-      as: 'order',
-      where: { payment_status: 'paid' }
-    }]
-  }) || 0;
+  const monthlySales =
+    (await db.OrderItem.sum("sub_total", {
+      where: {
+        vendor_id: vendorId,
+        created_at: {
+          [Op.gte]: currentMonth,
+          [Op.lt]: nextMonth,
+        },
+      },
+      include: [
+        {
+          model: db.Order,
+          as: "order",
+          where: { payment_status: "paid" },
+        },
+      ],
+    })) || 0;
 
   // Completed Payouts Monthly
   const monthlyPayouts = await db.Payout.count({
     where: {
       vendor_id: vendorId,
-      status: 'paid',
+      status: "paid",
       payout_date: {
         [Op.gte]: currentMonth,
-        [Op.lt]: nextMonth
-      }
-    }
+        [Op.lt]: nextMonth,
+      },
+    },
   });
 
   // Products Sold Monthly
-  const monthlyProductsSold = await db.OrderItem.sum('quantity', {
-    where: {
-      vendor_id: vendorId,
-      created_at: {
-        [Op.gte]: currentMonth,
-        [Op.lt]: nextMonth
-      }
-    },
-    include: [{
-      model: db.Order,
-      as: 'order',
-      where: { payment_status: 'paid' }
-    }]
-  }) || 0;
+  const monthlyProductsSold =
+    (await db.OrderItem.sum("quantity", {
+      where: {
+        vendor_id: vendorId,
+        created_at: {
+          [Op.gte]: currentMonth,
+          [Op.lt]: nextMonth,
+        },
+      },
+      include: [
+        {
+          model: db.Order,
+          as: "order",
+          where: { payment_status: "paid" },
+        },
+      ],
+    })) || 0;
 
   res.status(200).json({
-    status: 'success',
+    status: "success",
     data: {
       totalEarnings: parseFloat(totalEarnings).toFixed(2),
       monthlySales: parseFloat(monthlySales).toFixed(2),
       monthlyPayouts,
-      monthlyProductsSold
-    }
+      monthlyProductsSold,
+    },
   });
 });
 
@@ -746,12 +801,12 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
   const vendor = await db.Vendor.findOne({
     where: {
       user_id: req.user.id,
-      status: 'approved' // Only get approved vendors
-    }
+      status: "approved", // Only get approved vendors
+    },
   });
 
   if (!vendor) {
-    return next(new AppError('Vendor not found or not approved', 404));
+    return next(new AppError("Vendor not found or not approved", 404));
   }
 
   const vendorId = vendor.id;
@@ -763,37 +818,53 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.Order,
-        as: 'order',
-        where: { payment_status: 'paid' },
-        attributes: ['id', 'order_date', 'total_amount', 'payment_status', 'order_status']
+        as: "order",
+        where: { payment_status: "paid" },
+        attributes: [
+          "id",
+          "order_date",
+          "total_amount",
+          "payment_status",
+          "order_status",
+        ],
       },
       {
         model: db.Product,
-        as: 'product',
-        attributes: ['id', 'name', 'price', 'thumbnail']
-      }
+        as: "product",
+        attributes: ["id", "name", "price", "thumbnail"],
+      },
     ],
     attributes: [
-      'id', 'order_id', 'product_id', 'vendor_id', 'quantity', 
-      'price', 'sub_total', 'created_at', 'updated_at'
+      "id",
+      "order_id",
+      "product_id",
+      "vendor_id",
+      "quantity",
+      "price",
+      "sub_total",
+      "created_at",
+      "updated_at",
     ],
-    order: [['created_at', 'DESC']],
+    order: [["created_at", "DESC"]],
     limit: limitNum,
-    offset
+    offset,
   });
 
   // Get payout dates for all earnings in a single optimized query
   const payoutDates = await db.Payout.findAll({
     where: { vendor_id: vendorId },
-    attributes: ['id', 'payout_date', 'created_at'],
-    order: [['created_at', 'DESC']]
+    attributes: ["id", "payout_date", "created_at"],
+    order: [["created_at", "DESC"]],
   });
 
   // Create a map for efficient payout lookup
   const payoutMap = new Map();
-  payoutDates.forEach(payout => {
+  payoutDates.forEach((payout) => {
     const payoutTime = payout.created_at.getTime();
-    if (!payoutMap.has(payoutTime) || payout.created_at > payoutMap.get(payoutTime).created_at) {
+    if (
+      !payoutMap.has(payoutTime) ||
+      payout.created_at > payoutMap.get(payoutTime).created_at
+    ) {
       payoutMap.set(payoutTime, payout);
     }
   });
@@ -813,18 +884,23 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
 
     return {
       date: earning.created_at,
-      product: earning.Product?.name || 'Unknown Product',
+      product: earning.Product?.name || "Unknown Product",
       orderId: earning.Order?.id || 0,
       earnings: parseFloat(earning.sub_total || 0).toFixed(2),
       units: earning.quantity || 0,
-      payoutDate
+      payoutDate,
     };
   });
 
-  const response = createPaginationResponse(earningsWithPayouts, page, limit, count);
+  const response = createPaginationResponse(
+    earningsWithPayouts,
+    page,
+    limit,
+    count
+  );
   res.status(200).json({
-    status: 'success',
-    ...response
+    status: "success",
+    ...response,
   });
 });
 
@@ -864,7 +940,7 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
 const getAdminDashboard = catchAsync(async (req, res, next) => {
   // Total Vendors
   const totalVendors = await db.Vendor.count({
-    where: { status: 'approved' }
+    where: { status: "approved" },
   });
 
   // Platform Income Monthly
@@ -873,58 +949,60 @@ const getAdminDashboard = catchAsync(async (req, res, next) => {
   const nextMonth = new Date(currentMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-  const monthlyIncome = await db.PaymentTransaction.sum('amount', {
-    where: {
-      type: 'commission',
-      status: 'completed',
-      created_at: {
-        [Op.gte]: currentMonth,
-        [Op.lt]: nextMonth
-      }
-    }
-  }) || 0;
+  const monthlyIncome =
+    (await db.PaymentTransaction.sum("amount", {
+      where: {
+        type: "commission",
+        status: "completed",
+        created_at: {
+          [Op.gte]: currentMonth,
+          [Op.lt]: nextMonth,
+        },
+      },
+    })) || 0;
 
   // Total Products
   const totalProducts = await db.Product.count();
 
   // Total Sales Monthly
-  const monthlySales = await db.Order.sum('total_amount', {
-    where: {
-      payment_status: 'paid',
-      created_at: {
-        [Op.gte]: currentMonth,
-        [Op.lt]: nextMonth
-      }
-    }
-  }) || 0;
+  const monthlySales =
+    (await db.Order.sum("total_amount", {
+      where: {
+        payment_status: "paid",
+        created_at: {
+          [Op.gte]: currentMonth,
+          [Op.lt]: nextMonth,
+        },
+      },
+    })) || 0;
 
   const orderStatuses = {
     delivered: await db.Order.count({
-      where: { order_status: 'delivered' }
+      where: { order_status: "delivered" },
     }),
     shipped: await db.Order.count({
-      where: { order_status: 'shipped' }
+      where: { order_status: "shipped" },
     }),
     processing: await db.Order.count({
-      where: { order_status: 'processing' }
+      where: { order_status: "processing" },
     }),
     pending: await db.Order.count({
-      where: { order_status: 'pending' }
+      where: { order_status: "pending" },
     }),
     cancelled: await db.Order.count({
-      where: { order_status: 'cancelled' }
-    })
+      where: { order_status: "cancelled" },
+    }),
   };
 
   res.status(200).json({
-    status: 'success',
+    status: "success",
     data: {
       totalVendors,
       monthlyIncome: parseFloat(monthlyIncome).toFixed(2),
       totalProducts,
       monthlySales: parseFloat(monthlySales).toFixed(2),
-      orderStatuses
-    }
+      orderStatuses,
+    },
   });
 });
 /**
@@ -989,53 +1067,55 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
   // First, get aggregated sales data by vendor
   const vendorSales = await db.OrderItem.findAll({
     attributes: [
-      'vendor_id',
-      [fn('COUNT', col('order_id')), 'total_orders'],
-      [fn('SUM', col('sub_total')), 'total_sales'],
-      [fn('SUM', col('quantity')), 'total_units_sold']
+      "vendor_id",
+      [fn("COUNT", col("order_id")), "total_orders"],
+      [fn("SUM", col("sub_total")), "total_sales"],
+      [fn("SUM", col("quantity")), "total_units_sold"],
     ],
-    include: [{
-      model: db.Order,
-      as: 'order',
-      where: { payment_status: 'paid' },
-      attributes: []
-    }],
+    include: [
+      {
+        model: db.Order,
+        as: "order",
+        where: { payment_status: "paid" },
+        attributes: [],
+      },
+    ],
     where: {
-      vendor_id: { [Op.ne]: null }
+      vendor_id: { [Op.ne]: null },
     },
-    group: ['vendor_id'],
-    order: [[fn('SUM', col('sub_total')), 'DESC']],
+    group: ["vendor_id"],
+    order: [[fn("SUM", col("sub_total")), "DESC"]],
     limit: limitNum,
-    raw: true
+    raw: true,
   });
 
   if (vendorSales.length === 0) {
     return res.status(200).json({
-      status: 'success',
-      data: []
+      status: "success",
+      data: [],
     });
   }
 
   // Get vendor details for the top selling vendors
-  const vendorIds = vendorSales.map(item => item.vendor_id);
+  const vendorIds = vendorSales.map((item) => item.vendor_id);
 
   const vendors = await db.Vendor.findAll({
-    attributes: ['id', 'status'],
+    attributes: ["id", "status"],
     include: [
       {
         model: db.Store,
-        as: 'store',
-        attributes: ['id', 'business_name']
+        as: "store",
+        attributes: ["id", "business_name"],
       },
       {
         model: db.User,
-        attributes: ['id', 'first_name', 'last_name']
-      }
+        attributes: ["id", "first_name", "last_name"],
+      },
     ],
     where: {
       id: { [Op.in]: vendorIds },
-      status: 'approved'
-    }
+      status: "approved",
+    },
   });
 
   // Get active product counts for each vendor
@@ -1044,8 +1124,8 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
       const count = await db.Product.count({
         where: {
           vendor_id: vendorId,
-          status: 'active'
-        }
+          status: "active",
+        },
       });
       return { vendor_id: vendorId, active_products: count };
     })
@@ -1053,35 +1133,39 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
 
   // Create a map for efficient product count lookup
   const productCountMap = new Map();
-  activeProductCounts.forEach(item => {
+  activeProductCounts.forEach((item) => {
     productCountMap.set(item.vendor_id, item.active_products);
   });
 
   // Combine all data
-  const topSellingVendors = vendorSales.map(salesItem => {
-    const vendor = vendors.find(v => v.id === salesItem.vendor_id);
-    const activeProducts = productCountMap.get(salesItem.vendor_id) || 0;
-    const totalSales = parseFloat(salesItem.total_sales) || 0;
-    const totalOrders = parseInt(salesItem.total_orders) || 0;
-    const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+  const topSellingVendors = vendorSales
+    .map((salesItem) => {
+      const vendor = vendors.find((v) => v.id === salesItem.vendor_id);
+      const activeProducts = productCountMap.get(salesItem.vendor_id) || 0;
+      const totalSales = parseFloat(salesItem.total_sales) || 0;
+      const totalOrders = parseInt(salesItem.total_orders) || 0;
+      const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-    return {
-      vendor_id: salesItem.vendor_id,
-      vendor_name: vendor?.store?.business_name || 'Unknown Store',
-      vendor_owner: vendor?.User ?
-        `${vendor.User.first_name || ''} ${vendor.User.last_name || ''}`.trim() || 'Unknown Owner' :
-        'Unknown Owner',
-      total_orders: totalOrders,
-      total_sales: totalSales.toFixed(2),
-      total_units_sold: parseInt(salesItem.total_units_sold) || 0,
-      active_products: activeProducts,
-      average_order_value: averageOrderValue.toFixed(2)
-    };
-  }).filter(vendor => vendor.total_sales > 0); // Only return vendors with actual sales
+      return {
+        vendor_id: salesItem.vendor_id,
+        vendor_name: vendor?.store?.business_name || "Unknown Store",
+        vendor_owner: vendor?.User
+          ? `${vendor.User.first_name || ""} ${
+              vendor.User.last_name || ""
+            }`.trim() || "Unknown Owner"
+          : "Unknown Owner",
+        total_orders: totalOrders,
+        total_sales: totalSales.toFixed(2),
+        total_units_sold: parseInt(salesItem.total_units_sold) || 0,
+        active_products: activeProducts,
+        average_order_value: averageOrderValue.toFixed(2),
+      };
+    })
+    .filter((vendor) => vendor.total_sales > 0); // Only return vendors with actual sales
 
   res.status(200).json({
-    status: 'success',
-    data: topSellingVendors
+    status: "success",
+    data: topSellingVendors,
   });
 });
 
@@ -1134,25 +1218,25 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
   // First get the monthly order aggregations
   const orderStats = await db.Order.findAll({
     attributes: [
-      [fn('MONTH', col('created_at')), 'month'],
-      [fn('YEAR', col('created_at')), 'year'],
-      [fn('SUM', col('total_amount')), 'total_sales'],
-      [fn('COUNT', col('id')), 'order_count']
+      [fn("MONTH", col("created_at")), "month"],
+      [fn("YEAR", col("created_at")), "year"],
+      [fn("SUM", col("total_amount")), "total_sales"],
+      [fn("COUNT", col("id")), "order_count"],
     ],
     where: {
-      payment_status: 'paid',
-      order_status: 'completed',
+      payment_status: "paid",
+      order_status: "completed",
       created_at: {
         [Op.gte]: new Date(currentYear, 0, 1),
-        [Op.lt]: new Date(currentYear + 1, 0, 1)
-      }
+        [Op.lt]: new Date(currentYear + 1, 0, 1),
+      },
     },
-    group: [fn('YEAR', col('created_at')), fn('MONTH', col('created_at'))],
+    group: [fn("YEAR", col("created_at")), fn("MONTH", col("created_at"))],
     order: [
-      [fn('YEAR', col('created_at')), 'ASC'],
-      [fn('MONTH', col('created_at')), 'ASC']
+      [fn("YEAR", col("created_at")), "ASC"],
+      [fn("MONTH", col("created_at")), "ASC"],
     ],
-    raw: true
+    raw: true,
   });
 
   // Then get the total products sold for each month using a separate query
@@ -1161,34 +1245,37 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
       const monthStart = new Date(currentYear, stat.month - 1, 1);
       const monthEnd = new Date(currentYear, stat.month, 1);
 
-      const productsSold = await db.OrderItem.sum('quantity', {
-        include: [{
-          model: db.Order,
-          as: 'order',
-          where: {
-            payment_status: 'paid',
-            order_status: 'completed',
-            created_at: {
-              [Op.gte]: monthStart,
-              [Op.lt]: monthEnd
-            }
-          },
-          attributes: []
-        }]
-      }) || 0;
+      const productsSold =
+        (await db.OrderItem.sum("quantity", {
+          include: [
+            {
+              model: db.Order,
+              as: "order",
+              where: {
+                payment_status: "paid",
+                order_status: "completed",
+                created_at: {
+                  [Op.gte]: monthStart,
+                  [Op.lt]: monthEnd,
+                },
+              },
+              attributes: [],
+            },
+          ],
+        })) || 0;
 
       return {
         month: parseInt(stat.month),
         year: parseInt(stat.year),
         total_sales: parseFloat(stat.total_sales) || 0,
         order_count: parseInt(stat.order_count) || 0,
-        total_products_sold: parseInt(productsSold) || 0
+        total_products_sold: parseInt(productsSold) || 0,
       };
     })
   );
 
   res.status(200).json({
-    status: 'success',
+    status: "success",
     data: salesStatsWithProducts,
   });
 });
@@ -1250,45 +1337,67 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
 
   const topCategories = await db.Category.findAll({
     attributes: [
-      'id', 'name', 'slug', 'description', 'image',
-      [fn('COUNT', col('Products.id')), 'product_count'],
-      [fn('SUM', col('Products.sold_units')), 'total_sold'],
-      [fn('SUM', literal('COALESCE(Products.price, 0) * COALESCE(Products.sold_units, 0)')), 'total_revenue']
+      "id",
+      "name",
+      "slug",
+      "description",
+      "image",
+      [fn("COUNT", col("Products.id")), "product_count"],
+      [fn("SUM", col("Products.sold_units")), "total_sold"],
+      [
+        fn(
+          "SUM",
+          literal(
+            "COALESCE(Products.price, 0) * COALESCE(Products.sold_units, 0)"
+          )
+        ),
+        "total_revenue",
+      ],
     ],
-    include: [{
-      model: db.Product,
-      as: 'Products',
-      attributes: [],
-      where: {
-        status: 'active',
-        created_at: {
-          [Op.gte]: currentMonth,
-          [Op.lt]: nextMonth
-        }
+    include: [
+      {
+        model: db.Product,
+        as: "Products",
+        attributes: [],
+        where: {
+          status: "active",
+          created_at: {
+            [Op.gte]: currentMonth,
+            [Op.lt]: nextMonth,
+          },
+        },
+        required: false,
       },
-      required: false
-    }],
-    group: ['Category.id', 'Category.name', 'Category.slug', 'Category.description', 'Category.image'],
-    order: [[fn('SUM', col('Products.sold_units')), 'DESC']], // Order by total sold units descending
+    ],
+    group: [
+      "Category.id",
+      "Category.name",
+      "Category.slug",
+      "Category.description",
+      "Category.image",
+    ],
+    order: [[fn("SUM", col("Products.sold_units")), "DESC"]], // Order by total sold units descending
     limit: 10,
-    subQuery: false
+    subQuery: false,
   });
 
   // Validate and format the response data
-  const validatedCategories = topCategories.map(category => ({
-    id: category.id,
-    name: category.name || 'Unknown Category',
-    slug: category.slug || '',
-    description: category.description || '',
-    image: category.image || '',
-    product_count: parseInt(category.dataValues.product_count) || 0,
-    total_sold: parseInt(category.dataValues.total_sold) || 0,
-    total_revenue: parseFloat(category.dataValues.total_revenue) || 0
-  })).filter(category => category.total_sold > 0); // Only return categories with actual sales
+  const validatedCategories = topCategories
+    .map((category) => ({
+      id: category.id,
+      name: category.name || "Unknown Category",
+      slug: category.slug || "",
+      description: category.description || "",
+      image: category.image || "",
+      product_count: parseInt(category.dataValues.product_count) || 0,
+      total_sold: parseInt(category.dataValues.total_sold) || 0,
+      total_revenue: parseFloat(category.dataValues.total_revenue) || 0,
+    }))
+    .filter((category) => category.total_sold > 0); // Only return categories with actual sales
 
   res.status(200).json({
-    status: 'success',
-    data: validatedCategories
+    status: "success",
+    data: validatedCategories,
   });
 });
 
@@ -1358,8 +1467,14 @@ const getRecentOrders = catchAsync(async (req, res, next) => {
   const { limit: limitNum, offset } = paginate(page, limit);
 
   // Validate query parameters
-  const validOrderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-  const validPaymentStatuses = ['pending', 'paid', 'failed', 'refunded'];
+  const validOrderStatuses = [
+    "pending",
+    "processing",
+    "shipped",
+    "delivered",
+    "cancelled",
+  ];
+  const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
 
   // Build where clause for filters with validation
   const whereClause = {};
@@ -1372,27 +1487,34 @@ const getRecentOrders = catchAsync(async (req, res, next) => {
 
   const { count, rows: orders } = await db.Order.findAndCountAll({
     attributes: [
-      'id', 'user_id', 'order_date', 'total_amount', 'payment_status',
-      'payment_method', 'order_status', 'created_at', 'updated_at'
+      "id",
+      "user_id",
+      "order_date",
+      "total_amount",
+      "payment_status",
+      "payment_method",
+      "order_status",
+      "created_at",
+      "updated_at",
     ],
     include: [
       {
         model: db.User,
-        as: 'user',
-        attributes: ['id', 'first_name', 'last_name', 'email']
-      }
+        as: "user",
+        attributes: ["id", "first_name", "last_name", "email"],
+      },
     ],
     where: whereClause,
-    order: [['created_at', 'DESC']],
+    order: [["created_at", "DESC"]],
     limit: limitNum,
     offset,
-    distinct: true
+    distinct: true,
   });
 
   const response = createPaginationResponse(orders, page, limit, count);
   res.status(200).json({
-    status: 'success',
-    ...response
+    status: "success",
+    ...response,
   });
 });
 /**
@@ -1451,78 +1573,96 @@ const getTopSellingItems = catchAsync(async (req, res, next) => {
 
   // First, get the top selling products by quantity
   const topSellingProducts = await db.OrderItem.findAll({
-    attributes: [
-      'product_id',
-      [fn('SUM', col('quantity')), 'total_quantity']
-    ],
+    attributes: ["product_id", [fn("SUM", col("quantity")), "total_quantity"]],
     include: [
       {
         model: db.Order,
-        as: 'order',
-        where: { payment_status: 'paid' },
-        attributes: []
-      }
+        as: "order",
+        where: { payment_status: "paid" },
+        attributes: [],
+      },
     ],
     where: {
-      product_id: { [Op.ne]: null }
+      product_id: { [Op.ne]: null },
     },
-    group: ['product_id'],
-    order: [[fn('SUM', col('quantity')), 'DESC']],
+    group: ["product_id"],
+    order: [[fn("SUM", col("quantity")), "DESC"]],
     limit: limitNum,
-    raw: true
+    raw: true,
   });
 
   // Then get the complete product details for these top sellers
-  const productIds = topSellingProducts.map(item => item.product_id);
+  const productIds = topSellingProducts.map((item) => item.product_id);
 
   if (productIds.length === 0) {
     return res.status(200).json({
-      status: 'success',
-      data: []
+      status: "success",
+      data: [],
     });
   }
 
   const products = await db.Product.findAll({
     attributes: [
-      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
-      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-      'impressions', 'sold_units', 'created_at', 'updated_at'
+      "id",
+      "vendor_id",
+      "category_id",
+      "name",
+      "slug",
+      "description",
+      "thumbnail",
+      "price",
+      "discounted_price",
+      "sku",
+      "status",
+      "impressions",
+      "sold_units",
+      "created_at",
+      "updated_at",
     ],
     include: [
       {
         model: db.Category,
-        attributes: ['id', 'name', 'slug']
+        attributes: ["id", "name", "slug"],
       },
       {
         model: db.Vendor,
-        as: 'vendor',
-        attributes: ['id'],
-        include: [{
-          model: db.User,
-          attributes: ['id', 'first_name', 'last_name']
-        }]
-      }
+        as: "vendor",
+        attributes: ["id"],
+        include: [
+          {
+            model: db.User,
+            attributes: ["id", "first_name", "last_name"],
+          },
+        ],
+      },
     ],
     where: {
       id: { [Op.in]: productIds },
-      status: 'active'
-    }
+      status: "active",
+    },
   });
 
   // Combine the sales data with product details
-  const topSellingItems = topSellingProducts.map(salesItem => {
-    const product = products.find(p => p.id === salesItem.product_id);
-    return {
-      product_id: salesItem.product_id,
-      total_quantity: parseInt(salesItem.total_quantity) || 0,
-      product: product || null
-    };
-  }).filter(item => item.product !== null); // Remove products that weren't found
+  const topSellingItems = topSellingProducts
+    .map((salesItem) => {
+      const product = products.find((p) => p.id === salesItem.product_id);
+      return {
+        product_id: salesItem.product_id,
+        total_quantity: parseInt(salesItem.total_quantity) || 0,
+        product: product || null,
+      };
+    })
+    .filter((item) => item.product !== null); // Remove products that weren't found
 
-  const response = createPaginationResponse(topSellingItems, page, limit, topSellingProducts.length);
+  const response = createPaginationResponse(
+    topSellingItems,
+    page,
+    limit,
+    topSellingProducts.length
+  );
   res.status(200).json({
-    status: 'success',
-    ...response
+    status: "success",
+    ...response,
   });
 });
 
@@ -1622,91 +1762,97 @@ const getProductOverview = catchAsync(async (req, res, next) => {
   // Validate product ID
   const productId = parseInt(id);
   if (isNaN(productId) || productId <= 0) {
-    return next(new AppError('Invalid product ID', 400));
+    return next(new AppError("Invalid product ID", 400));
   }
 
   // Build include array based on query parameters
-  const includeArray = [
-    {
-      model: db.Category,
-      attributes: ['id', 'name', 'slug']
-    },
-    {
-      model: db.ProductImage,
-      as: 'images',
-      attributes: ['id', 'image_url', 'is_featured'],
-      order: [
-        ['is_featured', 'DESC'], // Featured images first
-        ['id', 'ASC']
-      ]
-    },
-    {
-      model: db.Inventory,
-      attributes: ['id', 'stock'],
-      required: false // Left join to handle products without inventory
-    },
-    {
-      model: db.Vendor,
-      as: 'vendor',
-      attributes: ['id'],
-      include: [{
-        model: db.User,
-        attributes: ['id', 'first_name', 'last_name']
-      }],
-      required: false
-    }
-  ];
+  // const includeArray = [
+  //   {
+  //     model: db.Category,
+  //     attributes: ["id", "name", "slug"],
+  //   },
+  //   {
+  //     model: db.ProductImage,
+  //     as: "images",
+  //     attributes: ["id", "image_url", "is_featured"],
+  //     order: [
+  //       ["is_featured", "DESC"], // Featured images first
+  //       ["id", "ASC"],
+  //     ],
+  //   },
+  //   {
+  //     model: db.Inventory,
+  //     attributes: ["id", "stock"],
+  //     required: false, // Left join to handle products without inventory
+  //   },
+  //   {
+  //     model: db.Vendor,
+  //     as: "vendor",
+  //     attributes: ["id"],
+  //     include: [
+  //       {
+  //         model: db.User,
+  //         attributes: ["id", "first_name", "last_name"],
+  //       },
+  //     ],
+  //     required: false,
+  //   },
+  // ];
 
   // Include reviews if requested
-  if (includeReviews === 'true' || includeReviews === true) {
-    includeArray.push({
-      model: db.Review,
-      attributes: ['id', 'rating', 'comment', 'created_at'],
-      include: [{
-        model: db.User,
-        attributes: ['id', 'first_name', 'last_name']
-      }],
-      order: [['created_at', 'DESC']],
-      required: false
-    });
-  }
+  // if (includeReviews === "true" || includeReviews === true) {
+  //   includeArray.push({
+  //     model: db.Review,
+  //     as: "reviews",
+  //     attributes: ["id", "rating", "comment", "created_at"],
+  //     include: [
+  //       {
+  //         model: db.User,
+  //         attributes: ["id", "first_name", "last_name"],
+  //       },
+  //     ],
+  //     order: [["created_at", "DESC"]],
+  //     required: false,
+  //   });
+  // }
 
   // Fetch product with all associations
   const product = await db.Product.findOne({
     attributes: [
-      'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
-      'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-      'impressions', 'sold_units', 'created_at', 'updated_at'
+      "id",
+      "vendor_id",
+      "category_id",
+      "name",
+      "slug",
+      "description",
+      "thumbnail",
+      "price",
+      "discounted_price",
+      "sku",
+      "status",
+      "impressions",
+      "sold_units",
+      "created_at",
+      "updated_at",
     ],
-    include: includeArray,
-    where: { id: productId }
+    // include: includeArray,
+    where: { id: productId },
   });
 
   // Handle product not found
   if (!product) {
-    return next(new AppError('Product not found', 404));
+    return next(new AppError("Product not found", 404));
   }
 
   // Calculate availability status based on product status and stock
-  let availabilityStatus = 'unavailable';
-  if (product.status === 'active') {
+  let availabilityStatus = "unavailable";
+  if (product.status === "active") {
     if (product.Inventory && product.Inventory.stock > 0) {
-      availabilityStatus = product.Inventory.stock > 10 ? 'available' : 'low_stock';
+      availabilityStatus =
+        product.Inventory.stock > 10 ? "available" : "low_stock";
     } else {
-      availabilityStatus = 'out_of_stock';
+      availabilityStatus = "out_of_stock";
     }
-  }
-
-  // Calculate review statistics if reviews are included
-  let reviewStats = null;
-  if (includeReviews && product.Reviews && product.Reviews.length > 0) {
-    const totalRating = product.Reviews.reduce((sum, review) => sum + review.rating, 0);
-    const averageRating = totalRating / product.Reviews.length;
-
-    reviewStats = {
-      average_rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
-      total_reviews: product.Reviews.length
-    };
   }
 
   // Format response data
@@ -1716,44 +1862,40 @@ const getProductOverview = catchAsync(async (req, res, next) => {
     slug: product.slug,
     description: product.description,
     price: parseFloat(product.price),
-    discounted_price: product.discounted_price ? parseFloat(product.discounted_price) : null,
+    discounted_price: product.discounted_price
+      ? parseFloat(product.discounted_price)
+      : null,
     sku: product.sku,
     thumbnail: product.thumbnail,
-    category: product.Category ? {
-      id: product.Category.id,
-      name: product.Category.name,
-      slug: product.Category.slug
-    } : null,
+    category: product.Category
+      ? {
+          id: product.Category.id,
+          name: product.Category.name,
+          slug: product.Category.slug,
+        }
+      : null,
     images: product.images || [],
     stock_status: product.Inventory ? product.Inventory.stock : 0,
     availability_status: availabilityStatus,
     views: product.impressions || 0,
     items_sold: product.sold_units || 0,
-    vendor: product.vendor ? {
-      id: product.vendor.id,
-      name: product.vendor.User ?
-        `${product.vendor.User.first_name || ''} ${product.vendor.User.last_name || ''}`.trim() || 'Unknown Vendor' :
-        'Unknown Vendor'
-    } : null,
-    reviews: includeReviews ? (product.Reviews || []).map(review => ({
-      id: review.id,
-      rating: review.rating,
-      comment: review.comment,
-      created_at: review.created_at,
-      user: review.User ? {
-        first_name: review.User.first_name,
-        last_name: review.User.last_name
-      } : null
-    })) : [],
-    ...reviewStats
+    vendor: product.vendor
+      ? {
+          id: product.vendor.id,
+          name: product.vendor.User
+            ? `${product.vendor.User.first_name || ""} ${
+                product.vendor.User.last_name || ""
+              }`.trim() || "Unknown Vendor"
+            : "Unknown Vendor",
+        }
+      : null,
   };
 
   res.status(200).json({
-    status: 'success',
-    data: productOverview
+    status: "success",
+    data: productOverview,
   });
 });
-
 
 module.exports = {
   getNewArrivals,
@@ -1769,5 +1911,5 @@ module.exports = {
   getAdminTopCategories,
   getRecentOrders,
   getTopSellingItems,
-  getProductOverview
+  getProductOverview,
 };

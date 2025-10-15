@@ -800,7 +800,7 @@
             ]
         },
         {
-            "name": "Role Management",
+            "name": "Role Management (Admin)",
             "description": "Role management endpoints (Admin only)",
             "item": [
                 {
@@ -1513,109 +1513,117 @@
                     }
                 },
                 {
-                    "name": "Create Category (Admin)",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"New Category\",\n    \"description\": \"Category description\",\n    \"parent_id\": null,\n    \"image\": \"https://example.com/category.jpg\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/categories",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "categories"
-                            ]
-                        },
-                        "description": "Create a new category (Admin only)"
-                    }
-                },
-                {
-                    "name": "Update Category (Admin)",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Updated Category Name\",\n    \"description\": \"Updated description\",\n    \"parent_id\": null,\n    \"image\": \"https://example.com/updated-category.jpg\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
+                    "name": "Admin Routes",
+                    "item": [
+                        {
+                            "name": "Create Category (Admin)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"New Category\",\n    \"description\": \"Category description\",\n    \"parent_id\": null,\n    \"image\": \"https://example.com/category.jpg\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/categories",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "categories"
+                                    ]
+                                },
+                                "description": "Create a new category (Admin only)"
                             }
                         },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/categories/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "categories",
-                                "1"
-                            ]
-                        },
-                        "description": "Update an existing category (Admin only)"
-                    }
-                },
-                {
-                    "name": "Delete Category (Admin)",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
+                        {
+                            "name": "Update Category (Admin)",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Updated Category Name\",\n    \"description\": \"Updated description\",\n    \"parent_id\": null,\n    \"image\": \"https://example.com/updated-category.jpg\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/categories/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "categories",
+                                        "1"
+                                    ]
+                                },
+                                "description": "Update an existing category (Admin only)"
                             }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/categories/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "categories",
-                                "1"
-                            ]
                         },
-                        "description": "Delete a category (Admin only)"
-                    }
+                        {
+                            "name": "Delete Category (Admin)",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/categories/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "categories",
+                                        "1"
+                                    ]
+                                },
+                                "description": "Delete a category (Admin only)"
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -1678,93 +1686,10 @@
                     }
                 },
                 {
-                    "name": "Create Collection",
+                    "name": "Get Collection Products",
                     "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "name": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Summer Collection\",\n    \"description\": \"Best summer outfits 2023\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/collections",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "collections"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Update Collection",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Updated Summer Collection\",\n    \"description\": \"Updated description\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/collections/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "collections",
-                                "1"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Add Products to Collection",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"product_ids\": [1, 2, 3]\n}"
-                        },
+                        "method": "GET",
+                        "header": [],
                         "url": {
                             "raw": "{{base_url}}/api/v1/collections/1/products",
                             "host": [
@@ -1781,76 +1706,172 @@
                     }
                 },
                 {
-                    "name": "Remove Products from Collection",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
+                    "name": "Admin Routes",
+                    "item": [
+                        {
+                            "name": "Create Collection",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "name": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Summer Collection\",\n    \"description\": \"Best summer outfits 2023\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/collections",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "collections"
+                                    ]
+                                }
                             }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"product_ids\": [1, 2]\n}"
                         },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/collections/1/products",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "collections",
-                                "1",
-                                "products"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Delete Collection",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}",
-                                "type": "text"
+                        {
+                            "name": "Update Collection",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Updated Summer Collection\",\n    \"description\": \"Updated description\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/collections/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "collections",
+                                        "1"
+                                    ]
+                                }
                             }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/collections/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "collections",
-                                "1"
-                            ]
+                        },
+                        {
+                            "name": "Add Products to Collection",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"product_ids\": [1, 2, 3]\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/collections/1/products",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "collections",
+                                        "1",
+                                        "products"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Remove Products from Collection",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"product_ids\": [1, 2]\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/collections/1/products",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "collections",
+                                        "1",
+                                        "products"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Delete Collection",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/collections/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "collections",
+                                        "1"
+                                    ]
+                                }
+                            }
                         }
-                    }
-                }
-            ],
-            "variable": [
-                {
-                    "key": "base_url",
-                    "value": "http://localhost:3000",
-                    "type": "string"
-                },
-                {
-                    "key": "admin_token",
-                    "value": "YOUR_ADMIN_JWT_TOKEN",
-                    "type": "string"
+                    ]
                 }
             ]
         },
@@ -3024,91 +3045,99 @@
                     }
                 },
                 {
-                    "name": "Create Journal (Admin)",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}"
+                    "name": "Admin Routes",
+                    "item": [
+                        {
+                            "name": "Create Journal (Admin)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"title\": \"The Art of Craftsmanship\",\n  \"content\": \"Discover the intricate process behind our handcrafted products...\",\n  \"product_id\": 1\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/journals",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "journals"
+                                    ]
+                                }
                             }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"title\": \"The Art of Craftsmanship\",\n  \"content\": \"Discover the intricate process behind our handcrafted products...\",\n  \"product_id\": 1\n}"
                         },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/journals",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "journals"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Update Journal (Admin)",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}"
+                        {
+                            "name": "Update Journal (Admin)",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"title\": \"Updated: The Art of Craftsmanship\",\n  \"content\": \"Updated content about our craftsmanship process...\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/journals/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "journals",
+                                        "1"
+                                    ]
+                                }
                             }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"title\": \"Updated: The Art of Craftsmanship\",\n  \"content\": \"Updated content about our craftsmanship process...\"\n}"
                         },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/journals/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "journals",
-                                "1"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Delete Journal (Admin)",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{admin_token}}"
+                        {
+                            "name": "Delete Journal (Admin)",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/journals/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "journals",
+                                        "1"
+                                    ]
+                                }
                             }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/journals/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "journals",
-                                "1"
-                            ]
                         }
-                    }
+                    ]
                 }
             ]
         },
@@ -4069,13 +4098,14 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/orders?status=all&page=1&limit=10",
+                                    "raw": "{{base_url}}/api/v1/admin/orders?status=all&page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
+                                        "admin",
                                         "orders"
                                     ],
                                     "query": [
@@ -4114,13 +4144,14 @@
                                     "raw": "{\n    \"status\": \"completed\",\n    \"notes\": \"Order marked as completed by admin\"\n}"
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/orders/1/status",
+                                    "raw": "{{base_url}}/api/v1/admin/orders/1/status",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
+                                        "admin",
                                         "orders",
                                         "1",
                                         "status"
@@ -4152,7 +4183,7 @@
                                     "path": [
                                         "api",
                                         "v1",
-                                        "orders",
+                                            "orders",
                                         "verify-payment",
                                         "ref_123456789"
                                     ]
@@ -4839,7 +4870,7 @@
     "variable": [
         {
             "key": "base_url",
-            "value": "https://merry-jennet-lenient.ngrok-free.app",
+            "value": "https://stylay-api.localtunnel.me",
             "type": "string",
             "description": "Base URL for the API"
         },

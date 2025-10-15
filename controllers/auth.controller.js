@@ -608,8 +608,8 @@ exports.resendVerificationCode = async (req, res, next) => {
     // Check rate limiting
     const now = new Date();
     if (user.email_verification_token_expires) {
-      const timeSinceLastSent = now - user.email_verification_token_expires.getTime() + (10 * 60 * 1000);
-      const timeRemaining = Math.ceil((VERIFICATION_RESEND_DELAY - timeSinceLastSent) / 1000);
+      const timeSinceLastSent = now - user.email_verification_token_expires.getTime() + (10 * 60 * 1000); // 10 minutes
+      const timeRemaining = Math.ceil((VERIFICATION_RESEND_DELAY - timeSinceLastSent) / 1000); 
       
       if (timeSinceLastSent < VERIFICATION_RESEND_DELAY) {
         return next(new AppError(
@@ -633,7 +633,7 @@ exports.resendVerificationCode = async (req, res, next) => {
       });
 
       // Calculate minutes until expiration
-      const minutesUntilExpiry = Math.ceil((tokenExpires - now) / (1000 * 60));
+      const minutesUntilExpiry = Math.ceil((tokenExpires - now) / (1000 * 60)); // 10 minutes
       
       // Send welcome email with new verification code
       try {

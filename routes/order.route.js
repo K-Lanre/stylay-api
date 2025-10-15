@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const orderController = require("../controllers/order.controller");
-const { protect, isVendor, isAdmin } = require("../middlewares/auth");
+const { protect, isVendor } = require("../middlewares/auth");
 
 // Apply authentication middleware to all routes except webhook
 router.use((req, res, next) => {
@@ -35,9 +35,5 @@ router.patch(
   isVendor,
   orderController.updateOrderItemStatus
 );
-
-// Admin routes
-router.get("/", isAdmin, orderController.getAllOrders);
-router.patch("/:id/status", isAdmin, orderController.updateOrderStatus);
 
 module.exports = router;

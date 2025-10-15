@@ -5,6 +5,7 @@ const {
   Vendor,
   Category,
   Store,
+  Review,
   sequelize,
 } = require("../models");
 const AppError = require("../utils/appError");
@@ -762,7 +763,7 @@ const deleteProduct = async (req, res, next) => {
  *       "name": "Wireless Headphones",
  *       "slug": "wireless-headphones",
  *       "description": "High-quality wireless headphones",
- *       "price": 99.99,
+ *       "price": 99.99,*
  *       "Category": {"id": 1, "name": "Electronics"},
  *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
  *     }
@@ -804,6 +805,7 @@ const getProductsByVendor = async (req, res, next) => {
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
         { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
+        {model: Review, as: "reviews"},
       ],
       order: [["created_at", "DESC"]],
     });
@@ -918,8 +920,15 @@ const getAllProducts = async (req, res, next) => {
         { model: Category, attributes: ["id", "name", "slug"] },
         {
           model: Vendor,
-          attributes: ["id", "business_name", "status"],
+          attributes: ["id" ],
           as: "vendor",
+          include: [
+            {
+              model: Store,
+              attributes: ["id", "business_name", "status"],
+              as: "store",
+            },
+          ],
         },
         { model: ProductImage, limit: 1, as: "images" },
         { model: ProductVariant, as: "variants" },

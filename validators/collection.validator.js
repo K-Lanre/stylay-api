@@ -90,9 +90,33 @@ const deleteCollectionValidation = [
     .withMessage('Invalid collection ID')
 ];
 
+// Validation rules for collection product management
+/**
+ * Validation rules for collection product management.
+ * Validates the collection ID parameter and product IDs for adding or removing products.
+ * @type {Array<ValidationChain>} Array of express-validator validation chains
+ * @property {ValidationChain} id - Required collection ID parameter, integer >= 1
+ * @property {ValidationChain} product_ids - Required array of product IDs, integer >= 1
+ * @returns {Array} Express validator middleware array for collection product management
+ * @example
+ * // Use in route:
+ * router.post('/collections/:id/products', collectionProductValidation, addProductsToCollection);
+ * router.delete('/collections/:id/products', collectionProductValidation, removeProductsFromCollection);
+ */
+const collectionProductValidation = [
+  check('id')
+    .isInt({ min: 1 })
+    .withMessage('Invalid collection ID'),
+    
+  check('product_ids')
+    .isArray({ min: 1 })
+    .withMessage('At least one product ID is required')
+];
+
 module.exports = {
   createCollectionValidation,
   updateCollectionValidation,
   getCollectionValidation,
-  deleteCollectionValidation
+  deleteCollectionValidation,
+  collectionProductValidation
 };

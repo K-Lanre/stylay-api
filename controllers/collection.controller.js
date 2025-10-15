@@ -154,6 +154,33 @@ const getCollectionById = async (req, res, next) => {
   }
 };
 
+
+const getCollectionProducts = async (req, res, next) => {
+  try {
+    const collection = await Collection.findByPk(req.params.id, {
+      include: [
+        {
+          model: Product,
+          as: 'products',
+          through: { attributes: [] },
+          attributes: ['id', 'name', 'slug', 'price', 'thumbnail',  'description', 'created_at', 'updated_at']
+        }
+      ]
+    });
+
+    if (!collection) {
+      return next(new AppError('No collection found with that ID', 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      data: collection
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Update collection information
  * Supports partial updates and validates name uniqueness when changed.
@@ -401,6 +428,7 @@ module.exports = {
   createCollection,
   getCollections,
   getCollectionById,
+  getCollectionProducts,
   updateCollection,
   deleteCollection,
   addProductsToCollection,
