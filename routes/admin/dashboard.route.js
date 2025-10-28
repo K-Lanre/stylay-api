@@ -6,6 +6,8 @@ const {
   getAdminTopCategories,
   getRecentOrders,
   getTopSellingItems,
+  getVendorOnboardingStats,
+  getVendorOverview,
 } = require('../../controllers/dashboard.controller');
 
 const auth = require('../../middlewares/auth');
@@ -20,5 +22,7 @@ router.get('/top-selling-vendors', auth.protect, auth.restrictTo('admin'), getTo
 router.get('/top-selling-items', auth.protect, auth.restrictTo('admin'), getTopSellingItems);
 router.get('/sales-stats', auth.protect, auth.restrictTo('admin'), getAdminSalesStats);
 router.get('/top-categories', auth.protect, auth.restrictTo('admin'), getAdminTopCategories);
+router.get('/vendor-onboarding-stats', auth.protect, auth.restrictTo('admin'), getVendorOnboardingStats);
+router.get('/vendor-overview/:vendorId', auth.protect, auth.restrictTo('admin'), getVendorOverview);
 
 module.exports = router;

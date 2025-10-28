@@ -64,26 +64,10 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // In development, serve uploaded files from the Upload directory
   app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
-  app.use('/logo', express.static(path.join(__dirname, 'public', 'logo.png')));
-}
-
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  // Serve API docs if they exist
-  app.use(express.static(path.join(__dirname, 'public')));
-} else {
-  // In development, serve uploaded files from the Upload directory
-  app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
-  app.use('/logo', express.static(path.join(__dirname, 'public','logo.png')));
-}
-
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  // Serve API docs if they exist
-  app.use(express.static(path.join(__dirname, 'public')));
-} else {
-  // In development, serve uploaded files from the Upload directory
-  app.use('/uploads', express.static(path.join(__dirname, 'public', 'Upload')));
+  // Serve logo file directly at /logo route
+  app.get('/logo', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'logo.png'));
+  });
 }
 
 // File upload middleware
@@ -147,15 +131,17 @@ const corsOptions = {
       'http://127.0.0.1:4173'
     ];
 
-    // Allow ngrok URLs (both ngrok.io and ngrok-free.app)
+    // Allow ngrok URLs (both ngrok.io and ngrok.app)
     const ngrokPatterns = [
       /https?:\/\/.*\.ngrok\.io$/,
+      /https?:\/\/.*\.ngrok\.app$/,
       /https?:\/\/.*\.ngrok-free\.app$/
     ];
 
-    // Allow localtunnel URLs
+    // Allow localtunnel URLs (keeping for backward compatibility)
     const localtunnelPatterns = [
-      /https?:\/\/.*\.localtunnel\.me$/
+      /https?:\/\/.*\.localtunnel\.me$/,
+      /https?:\/\/.*\.loca\.lt$/
     ];
 
     const isOriginAllowed = allowedOrigins.includes(origin) ||
@@ -217,7 +203,7 @@ app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/reviews', reviewRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Serve static files in production
 

@@ -171,12 +171,12 @@ module.exports = (sequelize, DataTypes) => {
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.NOW
+      defaultValue: DataTypes.NOW
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.NOW
+      defaultValue: DataTypes.NOW
     }
   }, {
     sequelize,
@@ -303,6 +303,50 @@ module.exports = (sequelize, DataTypes) => {
     const timeSinceRequest = now - this.phone_change_requested_at;
 
     return timeSinceRequest > verificationPeriod;
+  };
+
+  /**
+   * Get all permissions for this user through their roles
+   * @returns {Array} Array of permission objects
+   */
+  User.prototype.getPermissions = async function() {
+    if (!this.roles || this.roles.length === 0) {
+      return [];
+    }
+
+    const permissions = [];
+    for (const role of this.roles) {
+      if (role.permissions) {
+        permissions.push(...role.permissions);
+      }
+    }
+
+    // Remove duplicates based on permission id
+    const uniquePermissions = permissions.filter((permission, index, self) =>
+      index === self.findIndex(p => p.id === permission.id)
+    );
+
+    return uniquePermissions;
+  };
+
+  /**
+   * Check if user has a specific permission
+   * @param {string} permissionName - The name of the permission to check
+   * @returns {boolean} True if user has the permission
+   */
+  User.prototype.hasPermission = async function(permissionName) {
+    const permissions = await this.getPermissions();
+    return permissions.some(permission => permission.name === permissionName);
+  };
+
+  /**
+   * Check if user has any of the specified permissions
+   * @param {Array<string>} permissionNames - Array of permission names to check
+   * @returns {boolean} True if user has at least one of the permissions
+   */
+  User.prototype.hasAnyPermission = async function(permissionNames) {
+    const permissions = await this.getPermissions();
+    return permissions.some(permission => permissionNames.includes(permission.name));
   };
 
   return User;

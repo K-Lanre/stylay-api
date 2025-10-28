@@ -20,7 +20,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="<%= process.env.LOGO_URL %>" alt="Stylay" class="logo">
+      <img src="<%= logoBase64 %>" alt="Stylay" class="logo">
       <h1>Order Confirmation</h1>
       <p>Thank you for your order!</p>
     </div>
@@ -45,11 +45,14 @@
       <% if (Array.isArray(order.items) && order.items.length > 0) { %>
         <% order.items.forEach(item => { %>
           <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
-            <div class="item-image">
-              <% if (item.product && item.product.images && item.product.images.length > 0) { %>
-                <img src="<%= item.product.images[0] %>" alt="<%= item.product.name || 'Product' %>" style="max-width: 100px; height: auto;">
-              <% } %>
-            </div>
+            <div style="display: flex; align-items: center;">
+              <div style="margin-right: 15px;">
+                <% if (item.product && item.product.thumbnail) { %>
+                  <img src="<%= item.product.thumbnail %>" alt="<%= item.product.name || 'Product' %>" style="max-width: 80px; height: 80px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px;">
+                <% } else { %>
+                  <div style="width: 80px; height: 80px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">No Image</div>
+                <% } %>
+              </div>
             <div class="item-details">
               <p><strong><%= item.product ? item.product.name : 'Unknown Product' %></strong> x <%= item.quantity || 1 %></p>
               <p>Price: $<%= (item.price || 0).toFixed(2) %> each</p>

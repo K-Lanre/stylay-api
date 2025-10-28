@@ -466,19 +466,16 @@ async function createOrder(req, res) {
 
     // Create notification (outside transaction)
     try {
-      const now = new Date();
       await Notification.create({
         user_id: userId,
         type: "order_created",
-        title: `Order #${order.id} Received`,
         message: `Your order #${order.id} has been received and is being processed`,
         is_read: false,
         metadata: {
           orderId: order.id,
           status: "pending",
         },
-        created_at: now,
-        updated_at: now,
+        created_at: new Date(),
       });
     } catch (notificationError) {
       logger.error("Error creating notification:", notificationError);
@@ -783,7 +780,7 @@ async function updateOrderStatus(req, res) {
     switch (status) {
       case "shipped":
         // Send shipping confirmation email
-        await emailService.sendOrderShipped(order.id, order.user_id, {
+        await emailService.sendOrderShipped(order, order.user_id, {
           trackingNumber: req.body.trackingNumber,
           carrier: req.body.carrier,
           estimatedDelivery: req.body.estimatedDelivery,
@@ -822,7 +819,7 @@ async function updateOrderStatus(req, res) {
         }
 
         // Send delivery confirmation
-        await emailService.sendOrderDelivered(order.id, order.user_id);
+        await emailService.sendOrderDelivered(order, order.user_id);
         break;
 
       case "cancelled":
@@ -847,19 +844,40 @@ async function updateOrderStatus(req, res) {
     }
 
     // Create notification
-    await Notification.create(
+    const notification = await Notification.create(
       {
         user_id: order.user_id,
         type: `order_${status}`,
         message: `Order #${order.id} status updated to ${status}`,
+        is_read: false,
         metadata: {
           orderId: order.id,
           status,
           updatedBy: userId,
         },
+        created_at: new Date(),
       },
       { transaction }
     );
+
+    // Create notification items for each order item
+    if (order.items && order.items.length > 0) {
+      await Promise.all(
+        order.items.map(async (item) => {
+          return NotificationItem.create({
+            notification_id: notification.id,
+            item_details: JSON.stringify({
+              product_id: item.product_id,
+              product_name: item.product?.name || 'Unknown Product',
+              quantity: item.quantity,
+              price: item.price,
+              sub_total: item.sub_total,
+            }),
+            created_at: new Date(),
+          }, { transaction });
+        })
+      );
+    }
 
     // For vendors, update only their items
     if (isVendor) {
@@ -1019,7 +1037,7 @@ async function getUserOrders(req, res) {
               model: Address,
               attributes: [
                 "id",
-                "address_line1",
+                "address_line",
                 "city",
                 "state",
                 "country",
@@ -1256,7 +1274,6 @@ async function verifyPayment(req, res) {
       await Notification.create({
         user_id: order.user_id,
         type: "order_received",
-        title: `Payment Received for Order #${order.id}`,
         message: `Payment of ₦${order.total_amount.toLocaleString()} for order #${
           order.id
         } was successful`,
@@ -1267,7 +1284,6 @@ async function verifyPayment(req, res) {
           paymentMethod: order.payment_method,
         },
         created_at: now,
-        updated_at: now,
       });
     } catch (emailError) {
       logger.error("Error sending notifications:", emailError);
@@ -1560,11 +1576,13 @@ async function cancelOrder(req, res) {
         user_id: userId,
         type: "order_cancelled",
         message: `Order #${order.id} has been cancelled`,
+        is_read: false,
         metadata: {
           orderId: order.id,
           status: "cancelled",
           reason: reason || "No reason provided",
         },
+        created_at: new Date(),
       },
       { transaction }
     );

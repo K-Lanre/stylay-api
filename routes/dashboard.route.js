@@ -13,7 +13,9 @@ const {
   getAdminTopCategories,
   getRecentOrders,
   getTopSellingItems,
-  getProductOverview
+  getProductOverview,
+  getVendorOnboardingStats,
+  getVendorOverview
 } = require('../controllers/dashboard.controller');
 
 const auth = require('../middlewares/auth');
@@ -32,12 +34,6 @@ router.get('/vendor/products', auth.protect, auth.restrictTo('vendor'), getVendo
 router.get('/vendor/earnings', auth.protect, auth.restrictTo('vendor'), getVendorEarnings);
 router.get('/vendor/earnings-breakdown', auth.protect, auth.restrictTo('vendor'), getVendorEarningsBreakdown);
 
-// Admin routes (admin authentication required)
-router.get('/admin/metrics', auth.protect, auth.restrictTo('admin'), getAdminDashboard);
-router.get('/admin/recent-orders', auth.protect, auth.restrictTo('admin'), getRecentOrders);
-router.get('/admin/top-selling-vendors', auth.protect, auth.restrictTo('admin'), getTopSellingVendors);
-router.get('/admin/top-selling-items', auth.protect, auth.restrictTo('admin'), getTopSellingItems);
-router.get('/admin/sales-stats', auth.protect, auth.restrictTo('admin'), getAdminSalesStats);
-router.get('/admin/top-categories', auth.protect, auth.restrictTo('admin'), getAdminTopCategories);
+// Admin routes have been moved to /api/admin/dashboard
 
 module.exports = router;

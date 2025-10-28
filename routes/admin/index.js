@@ -10,6 +10,9 @@ const inventoryRoutes = require('./inventory.route');
 const journalRoutes = require('./journal.route');
 const roleRoutes = require('./role.route');
 const orderRoutes = require('./order.route');
+const supplyRoutes = require('./supply.route');
+const webhookRoutes = require('./webhook.route');
+const subadminRoutes = require('./subadmin.route');
 
 // Mount sub-routes
 router.use('/categories', categoryRoutes);
@@ -20,5 +23,8 @@ router.use('/inventory', inventoryRoutes);
 router.use('/journal', journalRoutes);
 router.use('/roles', roleRoutes);
 router.use('/orders', orderRoutes);
+router.use('/supplies', supplyRoutes);
+router.use('/webhooks', webhookRoutes);
+router.use('/subadmins', subadminRoutes);
 
 module.exports = router;

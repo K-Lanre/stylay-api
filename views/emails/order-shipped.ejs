@@ -45,7 +45,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="<%= process.env.LOGO_URL %>" alt="Stylay" class="logo">
+      <img src="<%= logoBase64 %>" alt="Stylay" class="logo">
       <h1>Your Order is on the Way!</h1>
       <p>Order #<%= order.id %> has been shipped</p>
     </div>
@@ -69,22 +69,26 @@
 
     <div>
       <h3>What's in your package?</h3>
-      <% order.items.forEach(item => { %>
-        <div style="margin: 10px 0; padding: 10px; border-bottom: 1px solid #eee; display: flex;">
-          <div style="width: 80px; height: 80px; background: #f5f5f5; margin-right: 15px; display: flex; align-items: center; justify-content: center;">
-            <% if (item.product.image) { %>
-              <img src="<%= item.product.image %>" alt="<%= item.product.name %>" style="max-width: 100%; max-height: 100%;">
-            <% } else { %>
-              <span>No Image</span>
-            <% } %>
+      <% if (order.items && order.items.length > 0) { %>
+        <% order.items.forEach(item => { %>
+          <div style="margin: 10px 0; padding: 10px; border-bottom: 1px solid #eee; display: flex;">
+            <div style="width: 80px; height: 80px; background: #f5f5f5; margin-right: 15px; display: flex; align-items: center; justify-content: center;">
+              <% if (item.product && item.product.image) { %>
+                <img src="<%= item.product.image %>" alt="<%= item.product.name %>" style="max-width: 100%; max-height: 100%;">
+              <% } else { %>
+                <span>No Image</span>
+              <% } %>
+            </div>
+            <div>
+              <p style="margin: 0 0 5px 0; font-weight: bold;"><%= item.product ? item.product.name : 'Unknown Product' %></p>
+              <p style="margin: 0; color: #666;">Quantity: <%= item.quantity %></p>
+              <p style="margin: 5px 0 0 0;">$<%= (item.price * item.quantity).toFixed(2) %></p>
+            </div>
           </div>
-          <div>
-            <p style="margin: 0 0 5px 0; font-weight: bold;"><%= item.product.name %></p>
-            <p style="margin: 0; color: #666;">Quantity: <%= item.quantity %></p>
-            <p style="margin: 5px 0 0 0;">$<%= (item.price * item.quantity).toFixed(2) %></p>
-          </div>
-        </div>
-      <% }); %>
+        <% }); %>
+      <% } else { %>
+        <p>No items found in this order.</p>
+      <% } %>
     </div>
 
     <div style="text-align: center; margin: 30px 0;">

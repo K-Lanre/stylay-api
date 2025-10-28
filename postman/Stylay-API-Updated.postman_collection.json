@@ -40,19 +40,19 @@
                                 "register"
                             ]
                         },
-                        "description": "Register a new user account"
+                        "description": "Register a new user"
                     }
                 },
                 {
                     "name": "Login",
                     "request": {
-                        "method": "POST",
                         "header": [
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
                         ],
+                        "method": "POST",
                         "body": {
                             "mode": "raw",
                             "raw": "{\n    \"email\": \"admin@stylay.com\",\n    \"password\": \"Admin@123\"\n}",
@@ -416,10 +416,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "auth",
-                                "verify-phone-change",
-                                ":token"
+                                "admin",
+                                "dashboard",
+                                "sales-stats"
                             ],
                             "variable": [
                                 {
@@ -480,10 +479,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "auth",
-                                "approve-phone-change",
-                                ":userId"
+                                "admin",
+                                "dashboard",
+                                "top-categories"
                             ],
                             "variable": [
                                 {
@@ -511,10 +509,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "auth",
-                                "reject-phone-change",
-                                ":userId"
+                                "admin",
+                                "dashboard",
+                                "top-selling-items"
                             ],
                             "variable": [
                                 {
@@ -1094,10 +1091,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "vendors",
-                                ":vendor_id",
-                                "products"
+                                "admin",
+                                "dashboard",
+                                "sales-stats"
                             ],
                             "query": [
                                 {
@@ -1318,10 +1314,9 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "vendors",
-                                        "user",
-                                        "following"
+                                        "admin",
+                                        "dashboard",
+                                        "top-categories"
                                     ],
                                     "query": [
                                         {
@@ -1354,11 +1349,9 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "vendors",
-                                        "user",
-                                        "1",
-                                        "following"
+                                        "admin",
+                                        "dashboard",
+                                        "metrics"
                                     ],
                                     "query": [
                                         {
@@ -1391,10 +1384,9 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "vendors",
-                                        "1",
-                                        "followers"
+                                        "admin",
+                                        "dashboard",
+                                        "top-selling-items"
                                     ],
                                     "query": [
                                         {
@@ -1496,10 +1488,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "categories",
-                                ":id",
-                                "products"
+                                "admin",
+                                "dashboard",
+                                "vendor-onboarding-stats"
                             ],
                             "variable": [
                                 {
@@ -1945,10 +1936,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "products",
-                                "vendor",
-                                ":id"
+                                "admin",
+                                "dashboard",
+                                "sales-stats"
                             ],
                             "query": [
                                 {
@@ -1983,10 +1973,9 @@
                             ],
                             "path": [
                                 "api",
-                                "v1",
-                                "products",
-                                "1",
-                                "reviews"
+                                "admin",
+                                "dashboard",
+                                "top-categories"
                             ],
                             "query": [
                                 {
@@ -2205,10 +2194,9 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "products",
-                                        "all",
-                                        "admin"
+                                        "admin",
+                                        "dashboard",
+                                        "top-selling-items"
                                     ],
                                     "query": [
                                         {
@@ -2249,10 +2237,9 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "products",
-                                        ":id",
-                                        "admin"
+                                        "admin",
+                                        "dashboard",
+                                        "sales-stats"
                                     ],
                                     "variable": [
                                         {
@@ -2282,10 +2269,9 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "products",
-                                        ":id",
-                                        "admin"
+                                        "admin",
+                                        "dashboard",
+                                        "top-categories"
                                     ],
                                     "variable": [
                                         {
@@ -2820,15 +2806,14 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/supplies/admin/all?page=1&limit=20",
+                                    "raw": "{{base_url}}/api/admin/supplies/all?page=1&limit=20",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
-                                        "v1",
-                                        "supplies",
                                         "admin",
+                                        "supplies",
                                         "all"
                                     ],
                                     "query": [
@@ -4176,16 +4161,22 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/orders/verify-payment/ref_123456789",
+                                    "raw": "{{base_url}}/api/v1/orders/verify-payment/:ref_number",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                            "orders",
+                                        "orders",
                                         "verify-payment",
-                                        "ref_123456789"
+                                        "ref_number"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "ref_number",
+                                            "value": "ref_123456789"
+                                        }
                                     ]
                                 }
                             }
@@ -4521,15 +4512,15 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/metrics",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/metrics",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "dashboard",
                                         "admin",
+                                        "dashboard",
                                         "metrics"
                                     ]
                                 },
@@ -4548,15 +4539,15 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/sales-stats",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/sales-stats",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "dashboard",
                                         "admin",
+                                        "dashboard",
                                         "sales-stats"
                                     ]
                                 },
@@ -4575,15 +4566,15 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/top-categories",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/top-categories",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "dashboard",
                                         "admin",
+                                        "dashboard",
                                         "top-categories"
                                     ]
                                 },
@@ -4602,15 +4593,15 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/recent-orders?page=1&limit=10",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/recent-orders?page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "dashboard",
                                         "admin",
+                                        "dashboard",
                                         "recent-orders"
                                     ],
                                     "query": [
@@ -4641,15 +4632,15 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/top-selling-vendors?limit=10",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/top-selling-vendors?limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "dashboard",
                                         "admin",
+                                        "dashboard",
                                         "top-selling-vendors"
                                     ],
                                     "query": [
@@ -4675,22 +4666,411 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/dashboard/admin/top-selling-items",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/top-selling-items",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "dashboard",
                                         "admin",
+                                        "dashboard",
                                         "top-selling-items"
                                     ]
                                 },
                                 "description": "Get top selling items for admin dashboard"
                             }
+                        },
+                        {
+                            "name": "Get Vendor Onboarding Stats",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/vendor-onboarding-stats?page=1&limit=20",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "dashboard",
+                                        "vendor-onboarding-stats"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "20",
+                                            "description": "Number of vendors per page (max 100)"
+                                        }
+                                    ]
+                                },
+                                "description": "Get comprehensive vendor onboarding statistics including vendor details, business info, product tags count, earnings, and approval dates. Returns paginated results for all approved vendors."
+                            }
+                        },
+                        {
+                            "name": "Get Vendor Overview",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/vendor-overview/:vendorId",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "dashboard",
+                                        "vendor-overview",
+                                        ":vendorId"
+                                    ]
+                                },
+                                "description": "Get vendor overview including business info, product tags count, earnings, and approval dates.",
+                                "query": [
+                                    {
+                                        "key": "vendorId",
+                                        "value": "{{vendorId}}",
+                                        "description": "Vendor ID"
+                                    }
+                                ]
+                            }
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "name": "Sub-Admin Management",
+            "description": "Sub-admin user management with granular permissions",
+            "item": [
+                {
+                    "name": "Get All Sub-Admins",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins?page=1&limit=10&search=john",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "description": "Page number for pagination"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10",
+                                    "description": "Number of sub-admins per page"
+                                },
+                                {
+                                    "key": "search",
+                                    "value": "john",
+                                    "description": "Search by first name, last name, or email",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "Get all sub-admins with pagination and search (Admin only)"
+                    }
+                },
+                {
+                    "name": "Create Sub-Admin",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Manager\",\n    \"email\": \"john.manager@stylay.com\",\n    \"phone\": \"+2348012345678\",\n    \"password\": \"SecurePass123!\",\n    \"role_id\": 2,\n    \"permission_groups\": [\"vendor_management\", \"products_management\"]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins"
+                            ]
+                        },
+                        "description": "Create a new sub-admin user with specific role and permissions (Admin only)"
+                    }
+                },
+                {
+                    "name": "Get Sub-Admin by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "1"
+                            ]
+                        },
+                        "description": "Get a specific sub-admin by ID (Admin only)"
+                    }
+                },
+                {
+                    "name": "Update Sub-Admin Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"John Updated\",\n    \"last_name\": \"Manager\",\n    \"phone\": \"+2348012345679\",\n    \"is_active\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "1"
+                            ]
+                        },
+                        "description": "Update sub-admin profile information (Admin only)"
+                    }
+                },
+                {
+                    "name": "Update Sub-Admin Permissions",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"role_id\": 3,\n    \"permission_groups\": [\"earnings_payment\", \"feedbacks_support\", \"notification_panel\"]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/1/permissions",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "1",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Update sub-admin role and permissions (Admin only)"
+                    }
+                },
+                {
+                    "name": "Delete Sub-Admin",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "1"
+                            ]
+                        },
+                        "description": "Deactivate a sub-admin user (Admin only)"
+                    }
+                },
+                {
+                    "name": "Get All Permissions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/permissions/all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "permissions",
+                                "all"
+                            ]
+                        },
+                        "description": "Get all available permissions (Admin only)"
+                    }
+                },
+                {
+                    "name": "Get All Roles",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/roles/all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "roles",
+                                "all"
+                            ]
+                        },
+                        "description": "Get all available roles (excluding admin role) (Admin only)"
+                    }
+                },
+                {
+                    "name": "Get All Permission Groups",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/admin/subadmins/permission-groups/all?includeIds=true",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "admin",
+                                "subadmins",
+                                "permission-groups",
+                                "all"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeIds",
+                                    "value": "true",
+                                    "description": "Include actual permission IDs from database (optional)"
+                                }
+                            ]
+                        },
+                        "description": "Get all available permission groups organized by category. Use includeIds=true to get database permission IDs for easier frontend integration."
+                    }
                 }
             ]
         },
@@ -4870,7 +5250,7 @@
     "variable": [
         {
             "key": "base_url",
-            "value": "https://stylay-api.localtunnel.me",
+            "value": "https://merry-jennet-lenient.ngrok-free.app",
             "type": "string",
             "description": "Base URL for the API"
         },

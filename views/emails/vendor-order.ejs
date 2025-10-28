@@ -132,7 +132,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="<%= process.env.LOGO_URL %>" alt="Stylay" class="logo">
+      <img src="<%= logoBase64 %>" alt="Stylay" class="logo">
       <h1>New Order Received</h1>
       <p>Order #<%= order.id %> requires your attention</p>
     </div>
@@ -192,23 +192,25 @@
       </div>
     </div>
 
+    <% if (order.shipping_address) { %>
     <div class="shipping-address">
       <h3>Shipping Address</h3>
       <p>
-        <%= order.shipping_address?.name || '' %><br>
-        <%= order.shipping_address?.line1 || '' %><br>
-        <% if (order.shipping_address?.line2) { %>
+        <%= order.shipping_address.name || '' %><br>
+        <%= order.shipping_address.line1 || '' %><br>
+        <% if (order.shipping_address.line2) { %>
           <%= order.shipping_address.line2 %><br>
         <% } %>
-        <%= order.shipping_address?.city %>, 
-        <%= order.shipping_address?.state %> 
-        <%= order.shipping_address?.postal_code %><br>
-        <%= order.shipping_address?.country %><br>
-        <% if (order.shipping_address?.phone) { %>
+        <%= order.shipping_address.city %>,
+        <%= order.shipping_address.state %>
+        <%= order.shipping_address.postal_code %><br>
+        <%= order.shipping_address.country %><br>
+        <% if (order.shipping_address.phone) { %>
           <br>Phone: <%= order.shipping_address.phone %>
         <% } %>
       </p>
     </div>
+    <% } %>
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="<%= vendorDashboardUrl || '#' %>" class="btn">View Order in Dashboard</a>

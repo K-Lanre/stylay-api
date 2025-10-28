@@ -14,10 +14,23 @@ module.exports = (sequelize, DataTypes) => {
         otherKey: 'user_id',
         as: 'users'
       });
-      
+
       Role.hasMany(models.UserRole, {
         foreignKey: 'role_id',
         as: 'userRoles'
+      });
+
+      // Add permissions association
+      Role.belongsToMany(models.Permission, {
+        through: models.RolePermission,
+        foreignKey: 'role_id',
+        otherKey: 'permission_id',
+        as: 'permissions'
+      });
+
+      Role.hasMany(models.RolePermission, {
+        foreignKey: 'role_id',
+        as: 'rolePermissions'
       });
     }
   }

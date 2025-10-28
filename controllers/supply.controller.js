@@ -255,6 +255,7 @@ const getAllSupplies = async (req, res, next) => {
           attributes: ['id'],
           include: [{
             model: Store,
+            as: 'store',
             attributes: ['id', 'business_name']
           }]
         },
@@ -417,7 +418,7 @@ const updateInventory = async (productId, quantity, transaction, supplyId = null
 
 /**
  * @desc    Get supplies by vendor ID (Admin only)
- * @route   GET /api/v1/supplies/admin/vendor/:vendorId
+ * @route   GET /api/admin/supplies/vendor/:vendorId
  * @access  Private/Admin
  */
 const getSuppliesByVendor = async (req, res, next) => {
@@ -446,6 +447,7 @@ const getSuppliesByVendor = async (req, res, next) => {
           attributes: ['id'],
           include: [{
             model: Store,
+            as: 'store',
             attributes: ['id', 'business_name']
           }]
         },
@@ -472,7 +474,7 @@ const getSuppliesByVendor = async (req, res, next) => {
 
 /**
  * @desc    Get supply history for a product (Admin only)
- * @route   GET /api/v1/supplies/admin/product/:productId
+ * @route   GET /api/admin/supplies/product/:productId
  * @access  Private/Admin
  */
 const getProductSupplyHistory = async (req, res, next) => {
@@ -547,7 +549,7 @@ const getProductSupplyHistory = async (req, res, next) => {
 
 /**
  * @desc    Get supply summary (Admin only)
- * @route   GET /api/v1/supplies/admin/summary
+ * @route   GET /api/admin/supplies/summary
  * @access  Private/Admin
  */
 const getSupplySummary = async (req, res, next) => {

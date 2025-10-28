@@ -19,6 +19,25 @@ const {
 // Promisify fs.readFile
 const readFile = promisify(fs.readFile);
 
+// Cache for logo base64
+let logoBase64Cache = null;
+
+// Function to get logo as base64
+const getLogoBase64 = async () => {
+  if (logoBase64Cache) {
+    return logoBase64Cache;
+  }
+  try {
+    const logoPath = path.join(__dirname, "../public/logo.png");
+    const logoBuffer = await readFile(logoPath);
+    logoBase64Cache = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    return logoBase64Cache;
+  } catch (error) {
+    logger.error("Error reading logo file:", error);
+    return process.env.LOGO_URL; // Fallback to URL if file read fails
+  }
+};
+
 // Create a transporter object using the default SMTP transport
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || "smtp.ethereal.email",
@@ -86,6 +105,10 @@ const emailTemplates = {
     template: "admin-phone-change-request.ejs",
     subject: "New Phone Number Change Request - Action Required",
   },
+  SUBADMIN_CREATED: {
+    template: "subadmin-created.ejs",
+    subject: "Sub-Admin Account Created - Welcome to Stylay",
+  },
 };
 
 /**
@@ -112,11 +135,15 @@ const renderTemplate = async (templateName, data = {}) => {
       );
     }
 
+    // Get logo as base64
+    const logoBase64 = await getLogoBase64();
+
     return ejs.render(template, {
       ...data,
       appName: "Stylay",
       year: new Date().getFullYear(),
       frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
+      logoBase64,
     });
   } catch (error) {
     logger.error("Error rendering email template:", error);
@@ -169,20 +196,7 @@ const sendEmail = async (to, templateType, context = {}) => {
   }
 };
 
-/**
- * Send a welcome email to new users
- * @param {string} to - Recipient email address
- * @param {string} name - User's name
- * @param {string} token - Email verification token
- * @returns {Promise} - Promise that resolves when email is sent
- */
-/**
- * Send welcome email with verification code
- * @param {string} to - Recipient email address
- * @param {string} name - User's name
- * @param {string} code - 6-digit verification code
- * @returns {Promise} - Promise that resolves when email is sent
- */
+
 /**
  * Send welcome email with verification code
  * @param {string} to - Recipient email address
@@ -444,24 +458,55 @@ const sendPaymentFailed = async (order, userId, paymentDetails = {}) => {
 
 /**
  * Send order shipped notification email
- * @param {string} orderId - Order ID
+ * @param {Object} order - Order object with items and details
  * @param {string} userId - User ID for the order
  * @param {Object} trackingInfo - Tracking information
  * @returns {Promise} - Promise that resolves when email is sent
  */
-const sendOrderShipped = async (orderId, userId, trackingInfo) => {
+const sendOrderShipped = async (order, userId, trackingInfo) => {
   try {
     const userEmail = await getUserEmail(userId);
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
 
+    // Ensure order.items is always an array
+    const orderData = order.get ? order.get({ plain: true }) : order;
+    const items = Array.isArray(orderData.items) ? orderData.items : [];
+
+    // Format the order data for the template
+    const formattedOrder = {
+      ...orderData,
+      ...trackingInfo,
+      items: items.map((item) => ({
+        ...item,
+        product: item.product || { name: "Unknown Product" },
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+      })),
+      subtotal: parseFloat(orderData.subtotal) || 0,
+      shipping_cost: orderData.details?.shipping_cost
+        ? parseFloat(orderData.details.shipping_cost)
+        : 0,
+      tax_amount: orderData.details?.tax_amount
+        ? parseFloat(orderData.details.tax_amount)
+        : 0,
+      total_amount: parseFloat(orderData.total_amount) || 0,
+      shipping_address: orderData.details?.address || {},
+      details: orderData.details
+        ? {
+            ...orderData.details,
+            address: orderData.details.address || {},
+          }
+        : { address: {} },
+    };
+
     return await sendEmail(userEmail, "ORDER_SHIPPED", {
-      order: { id: orderId, ...trackingInfo },
+      order: formattedOrder,
       user: { id: userId },
       trackingUrl:
         trackingInfo?.trackingUrl ||
-        `${process.env.FRONTEND_URL}/orders/${orderId}/track`,
+        `${process.env.FRONTEND_URL}/orders/${order.id}/track`,
     });
   } catch (error) {
     logger.error("Error sending order shipped email:", error);
@@ -471,21 +516,50 @@ const sendOrderShipped = async (orderId, userId, trackingInfo) => {
 
 /**
  * Send order delivered notification email
- * @param {string} orderId - Order ID
+ * @param {Object} order - Order object with items and details
  * @param {string} userId - User ID for the order
  * @returns {Promise} - Promise that resolves when email is sent
  */
-const sendOrderDelivered = async (orderId, userId) => {
+const sendOrderDelivered = async (order, userId) => {
   try {
     const userEmail = await getUserEmail(userId);
     if (!userEmail) {
       throw new Error(`User with ID ${userId} not found`);
     }
 
+    // Ensure order.items is always an array
+    const orderData = order.get ? order.get({ plain: true }) : order;
+    const items = Array.isArray(orderData.items) ? orderData.items : [];
+
+    // Format the order data for the template
+    const formattedOrder = {
+      ...orderData,
+      items: items.map((item) => ({
+        ...item,
+        product: item.product || { name: "Unknown Product" },
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+      })),
+      subtotal: parseFloat(orderData.subtotal) || 0,
+      shipping_cost: orderData.details?.shipping_cost
+        ? parseFloat(orderData.details.shipping_cost)
+        : 0,
+      tax_amount: orderData.details?.tax_amount
+        ? parseFloat(orderData.details.tax_amount)
+        : 0,
+      total_amount: parseFloat(orderData.total_amount) || 0,
+      details: orderData.details
+        ? {
+            ...orderData.details,
+            address: orderData.details.address || {},
+          }
+        : { address: {} },
+    };
+
     return await sendEmail(userEmail, "ORDER_DELIVERED", {
-      order: { id: orderId },
+      order: formattedOrder,
       user: { id: userId },
-      reviewUrl: `${process.env.FRONTEND_URL}/orders/${orderId}/review`,
+      reviewUrl: `${process.env.FRONTEND_URL}/orders/${order.id}/review`,
       supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
     });
   } catch (error) {
@@ -608,7 +682,7 @@ const notifyVendors = async (orderId) => {
     }
 
     // Send notifications to all vendors
-    const sendPromises = vendors.map((vendor) => {
+    const sendPromises = await Promise.all(vendors.map(async (vendor) => {
       if (!vendor.email) {
         logger.warn(`Vendor ${vendor.id} has no email address`);
         return Promise.resolve();
@@ -617,15 +691,30 @@ const notifyVendors = async (orderId) => {
       // Get items for this vendor
       const vendorItems = order.items
         .filter((item) => item.product?.vendor?.id === vendor.id)
-        .map((item) => item.product.toJSON());
+        .map((item) => ({
+          id: item.product.id,
+          name: item.product.name,
+          price: item.product.price,
+          quantity: item.quantity,
+          thumbnail: item.product.thumbnail,
+          variant: item.variant || null,
+        }));
 
-      console.log("order details", order.details.toJSON());
       // Get shipping address from order details
-      const addressId = order.details.toJSON().get("address_id");
-      console.log('addressId', addressId);
-      // const shippingAddress = Address.findByPk()
+      let shippingAddress = null;
+      if (order.details?.address_id) {
+        try {
+          shippingAddress = await Address.findByPk(order.details.address_id, {
+            attributes: [
+              'id', 'address_line', 'city',
+              'state', 'country', 'postal_code', 'phone'
+            ]
+          });
+        } catch (addressError) {
+          logger.warn(`Could not fetch shipping address for order ${orderId}:`, addressError);
+        }
+      }
 
-      return;
       // Prepare order data for the template
       const orderData = {
         id: order.id,
@@ -633,7 +722,16 @@ const notifyVendors = async (orderId) => {
         total_amount: Number(order.total_amount).toFixed(2),
         payment_status: order.payment_status,
         order_status: order.order_status,
-        // Include any other order fields needed in the template
+        shipping_address: shippingAddress ? {
+          name: shippingAddress.label || '',
+          line1: shippingAddress.address_line,
+          line2: '',
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          postal_code: shippingAddress.postal_code,
+          country: shippingAddress.country,
+          phone: shippingAddress.phone || '',
+        } : null,
       };
 
       return sendEmail(vendor.email, "VENDOR_ORDER", {
@@ -652,7 +750,7 @@ const notifyVendors = async (orderId) => {
         vendorDashboardUrl:
           process.env.VENDOR_PORTAL_URL || "https://vendor.stylay.com",
       });
-    });
+    }));
 
     return Promise.all(sendPromises);
   } catch (error) {
@@ -706,12 +804,46 @@ const sendAdminPhoneChangeNotification = async (to, userData) => {
   });
 };
 
+/**
+ * Send sub-admin account creation notification email
+ * @param {Object} subAdminData - Sub-admin account details
+ * @param {string} subAdminData.firstName - Sub-admin's first name
+ * @param {string} subAdminData.lastName - Sub-admin's last name
+ * @param {string} subAdminData.email - Sub-admin's email address
+ * @param {string} subAdminData.roleName - Assigned role name
+ * @param {Array} subAdminData.permissions - Array of permission objects
+ * @param {Date} subAdminData.createdAt - Account creation timestamp
+ * @returns {Promise} - Promise that resolves when email is sent
+ */
+const sendSubAdminCreatedNotification = async (subAdminData) => {
+  const loginUrl = `${process.env.FRONTEND_URL || "https://stylay.com"}/admin/login`;
+
+  return sendEmail(subAdminData.email, "SUBADMIN_CREATED", {
+    firstName: subAdminData.firstName,
+    lastName: subAdminData.lastName,
+    email: subAdminData.email,
+    roleName: subAdminData.roleName,
+    permissions: subAdminData.permissions,
+    createdAt: new Date(subAdminData.createdAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    loginUrl,
+    appName: process.env.APP_NAME || "Stylay",
+    year: new Date().getFullYear(),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
   sendPhoneChangeNotificationEmail,
   sendAdminPhoneChangeNotification, // Export the new function
+  sendSubAdminCreatedNotification, // Export the sub-admin notification function
   sendOrderConfirmation,
   sendPaymentReceived,
   sendPaymentFailed,

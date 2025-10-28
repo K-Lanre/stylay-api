@@ -1654,12 +1654,495 @@ const getTopSellingItems = catchAsync(async (req, res, next) => {
     })
     .filter((item) => item.product !== null); // Remove products that weren't found
 
-  const response = createPaginationResponse(
-    topSellingItems,
-    page,
-    limit,
-    topSellingProducts.length
+  // Return simplified response without pagination since this is top N items
+  res.status(200).json({
+    status: "success",
+    data: topSellingItems,
+    metadata: {
+      totalItems: topSellingItems.length,
+      requestedLimit: limitNum,
+      actualCount: topSellingItems.length,
+    },
+  });
+});
+
+/**
+ * Retrieves comprehensive vendor overview with detailed metrics and analytics.
+ * Provides complete vendor performance data including sales, earnings, ratings, and product-level insights.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {number} req.params.vendorId - Vendor ID to get overview for
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with comprehensive vendor overview
+ * @returns {boolean} status - Success status
+ * @returns {Object} data - Vendor overview data
+ * @returns {Object} data.vendor_info - Basic vendor information
+ * @returns {number} data.vendor_info.id - Vendor ID
+ * @returns {string} data.vendor_info.name - Vendor full name
+ * @returns {string} data.vendor_info.business_name - Business/store name
+ * @returns {string} data.vendor_info.email - Vendor email
+ * @returns {string} data.vendor_info.status - Vendor status
+ * @returns {string} data.vendor_info.date_joined - Date vendor was approved
+ * @returns {Object} data.overall_metrics - Overall vendor performance metrics
+ * @returns {string} data.overall_metrics.total_sales - Total sales amount
+ * @returns {string} data.overall_metrics.total_earnings - Total earnings from completed sales
+ * @returns {number} data.overall_metrics.total_payouts - Number of completed payouts
+ * @returns {number} data.overall_metrics.product_tags_count - Number of product tags
+ * @returns {number} data.overall_metrics.total_products - Total number of products
+ * @returns {number} data.overall_metrics.total_views - Total product views across all products
+ * @returns {string} data.overall_metrics.earnings_conversion - Earnings per view ratio
+ * @returns {string} data.overall_metrics.sales_conversion - Sales per view ratio
+ * @returns {Array} data.monthly_ratings - Average product ratings by month
+ * @returns {string} data.monthly_ratings[].month - Month in YYYY-MM format
+ * @returns {number} data.monthly_ratings[].average_rating - Average rating for the month
+ * @returns {number} data.monthly_ratings[].total_reviews - Number of reviews for the month
+ * @returns {Array} data.products_breakdown - Per-product performance metrics
+ * @returns {number} data.products_breakdown[].product_id - Product ID
+ * @returns {string} data.products_breakdown[].product_name - Product name
+ * @returns {number} data.products_breakdown[].units_sold - Total units sold
+ * @returns {number} data.products_breakdown[].supplied_count - Number of supply records
+ * @returns {number} data.products_breakdown[].stock_status - Current stock level
+ * @returns {string} data.products_breakdown[].total_sales - Total sales for this product
+ * @returns {number} data.products_breakdown[].views - Product view count
+ * @returns {number} data.products_breakdown[].average_rating - Product average rating
+ * @throws {AppError} 404 - When vendor not found
+ * @api {get} /api/dashboard/admin/vendor-overview/:vendorId Get Vendor Overview
+ * @private admin
+ * @example
+ * // Request
+ * GET /api/dashboard/admin/vendor-overview/1
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "vendor_info": {
+ *       "id": 1,
+ *       "name": "John Doe",
+ *       "business_name": "TechHub Electronics",
+ *       "email": "john.doe@example.com",
+ *       "status": "approved",
+ *       "date_joined": "2024-09-15T10:30:00.000Z"
+ *     },
+ *     "overall_metrics": {
+ *       "total_sales": "15450.75",
+ *       "total_earnings": "15450.75",
+ *       "total_payouts": 3,
+ *       "product_tags_count": 15,
+ *       "total_products": 8,
+ *       "total_views": 1250,
+ *       "earnings_conversion": "12.36",
+ *       "sales_conversion": "12.36"
+ *     },
+ *     "monthly_ratings": [
+ *       {
+ *         "month": "2024-09",
+ *         "average_rating": 4.7,
+ *         "total_reviews": 25
+ *       },
+ *       {
+ *         "month": "2024-10",
+ *         "average_rating": 4.5,
+ *         "total_reviews": 18
+ *       }
+ *     ],
+ *     "products_breakdown": [
+ *       {
+ *         "product_id": 123,
+ *         "product_name": "Wireless Headphones",
+ *         "units_sold": 45,
+ *         "supplied_count": 3,
+ *         "stock_status": 25,
+ *         "total_sales": "8999.99",
+ *         "views": 150,
+ *         "average_rating": 4.8
+ *       }
+ *     ]
+ *   }
+ * }
+ */
+const getVendorOverview = catchAsync(async (req, res, next) => {
+  const { vendorId } = req.params;
+
+  // Validate vendor ID
+  const vendorID = parseInt(vendorId);
+  if (isNaN(vendorID) || vendorID <= 0) {
+    return next(new AppError("Invalid vendor ID", 400));
+  }
+
+  // Get vendor basic information
+  const vendor = await db.Vendor.findOne({
+    where: { id: vendorID },
+    include: [
+      {
+        model: db.User,
+        attributes: ["id", "first_name", "last_name", "email"],
+      },
+      {
+        model: db.Store,
+        as: "store",
+        attributes: ["id", "business_name"],
+      },
+    ],
+  });
+
+  if (!vendor) {
+    return next(new AppError("Vendor not found", 404));
+  }
+
+  // Calculate overall metrics
+  const [totalSales, totalPayouts, productTagsCount, totalProducts, totalViews] = await Promise.all([
+    // Total sales from completed orders
+    db.OrderItem.sum("sub_total", {
+      where: { vendor_id: vendorID },
+      include: [
+        {
+          model: db.Order,
+          as: "order",
+          where: { payment_status: "paid" },
+        },
+      ],
+    }) || 0,
+
+    // Total completed payouts
+    db.Payout.count({
+      where: {
+        vendor_id: vendorID,
+        status: "paid"
+      },
+    }),
+
+    // Product tags count
+    db.VendorProductTag.count({
+      where: { vendor_id: vendorID },
+    }),
+
+    // Total products count
+    db.Product.count({
+      where: { vendor_id: vendorID },
+    }),
+
+    // Total product views
+    db.Product.sum("impressions", {
+      where: { vendor_id: vendorID },
+    }) || 0,
+  ]);
+
+  // Calculate conversion rates
+  const earningsConversion = totalViews > 0 ? (totalSales / totalViews).toFixed(2) : "0.00";
+  const salesConversion = earningsConversion; // Same as earnings for this context
+
+  // Get monthly ratings for vendor's products
+  const monthlyRatings = await db.Review.findAll({
+    attributes: [
+      [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "month"],
+      [fn("AVG", col("rating")), "average_rating"],
+      [fn("COUNT", col("id")), "total_reviews"],
+    ],
+    include: [
+      {
+        model: db.Product,
+        as: "Product",
+        where: { vendor_id: vendorID },
+        attributes: [],
+      },
+    ],
+    where: {
+      '$Product.vendor_id$': vendorID,
+    },
+    group: [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')")],
+    order: [[literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "ASC"]],
+    raw: true,
+  });
+
+  // Format monthly ratings
+  const formattedMonthlyRatings = monthlyRatings.map(rating => ({
+    month: rating.month,
+    average_rating: parseFloat(rating.average_rating).toFixed(1),
+    total_reviews: parseInt(rating.total_reviews),
+  }));
+
+  // Get products breakdown
+  const vendorProducts = await db.Product.findAll({
+    where: { vendor_id: vendorID },
+    attributes: [
+      "id", "name", "sold_units", "impressions",
+      [fn("AVG", col("reviews.rating")), "average_rating"],
+    ],
+    include: [
+      {
+        model: db.Review,
+        as: "reviews",
+        attributes: [],
+      },
+      {
+        model: db.Inventory,
+        attributes: ["stock"],
+      },
+      {
+        model: db.Supply,
+        attributes: ["id"],
+      },
+    ],
+    group: ["Product.id", "Inventory.id"],
+    raw: true,
+  });
+
+  // Get sales data for each product
+  const productIds = vendorProducts.map(p => p.id);
+  const productSales = await Promise.all(
+    productIds.map(async (productId) => {
+      const sales = await db.OrderItem.sum("sub_total", {
+        where: { product_id: productId },
+        include: [
+          {
+            model: db.Order,
+            as: "order",
+            where: { payment_status: "paid" },
+          },
+        ],
+      }) || 0;
+
+      const supplyCount = await db.Supply.count({
+        where: { product_id: productId },
+      });
+
+      return {
+        product_id: productId,
+        total_sales: parseFloat(sales).toFixed(2),
+        supplied_count: supplyCount,
+      };
+    })
   );
+
+  // Create sales and supply maps
+  const salesMap = new Map();
+  const supplyMap = new Map();
+  productSales.forEach(item => {
+    salesMap.set(item.product_id, item.total_sales);
+    supplyMap.set(item.product_id, item.supplied_count);
+  });
+
+  // Format products breakdown
+  const productsBreakdown = vendorProducts.map(product => ({
+    product_id: product.id,
+    product_name: product.name,
+    units_sold: product.sold_units || 0,
+    supplied_count: supplyMap.get(product.id) || 0,
+    stock_status: product["Inventory.stock"] || 0,
+    total_sales: salesMap.get(product.id) || "0.00",
+    views: product.impressions || 0,
+    average_rating: product.average_rating ? parseFloat(product.average_rating).toFixed(1) : 0,
+  }));
+
+  // Prepare response
+  const response = {
+    vendor_info: {
+      id: vendor.id,
+      name: vendor.User
+        ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() || "Unknown Vendor"
+        : "Unknown Vendor",
+      business_name: vendor.store?.business_name || "Unknown Business",
+      email: vendor.User?.email || "No Email",
+      status: vendor.status,
+      date_joined: vendor.approved_at,
+    },
+    overall_metrics: {
+      total_sales: parseFloat(totalSales).toFixed(2),
+      total_earnings: parseFloat(totalSales).toFixed(2), // Same as total sales for completed orders
+      total_payouts: totalPayouts,
+      product_tags_count: productTagsCount,
+      total_products: totalProducts,
+      total_views: totalViews,
+      earnings_conversion: earningsConversion,
+      sales_conversion: salesConversion,
+    },
+    monthly_ratings: formattedMonthlyRatings,
+    products_breakdown: productsBreakdown,
+  };
+
+  res.status(200).json({
+    status: "success",
+    data: response,
+  });
+});
+
+/**
+ * Retrieves comprehensive vendor onboarding statistics for all approved vendors.
+ * Provides key metrics for vendor performance and onboarding success tracking.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=20] - Number of vendors per page
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor onboarding stats
+ * @returns {boolean} status - Success status
+ * @returns {Array} data - Array of vendor onboarding statistics
+ * @returns {number} data[].vendor_id - Vendor ID
+ * @returns {string} data[].vendor_name - Vendor's full name (first + last)
+ * @returns {string} data[].business_name - Business/store name
+ * @returns {string} data[].email - Vendor's email address
+ * @returns {number} data[].product_tags_count - Number of product tags associated with vendor
+ * @returns {string|null} data[].join_reason - Reason for joining the platform
+ * @returns {string} data[].total_earnings - Total earnings from completed sales (formatted to 2 decimal places)
+ * @returns {string} data[].status - Vendor approval status
+ * @returns {string} data[].date_joined - Date when vendor was approved
+ * @returns {Object} pagination - Pagination metadata
+ * @returns {number} pagination.currentPage - Current page number
+ * @returns {number} pagination.totalPages - Total number of pages
+ * @returns {number} pagination.totalItems - Total number of vendors
+ * @returns {number} pagination.itemsPerPage - Items per page
+ * @returns {boolean} pagination.hasNextPage - Whether next page exists
+ * @returns {boolean} pagination.hasPrevPage - Whether previous page exists
+ * @api {get} /api/dashboard/vendor-onboarding-stats Get Vendor Onboarding Stats
+ * @private admin
+ * @example
+ * // Request
+ * GET /api/dashboard/vendor-onboarding-stats?page=1&limit=20
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": [
+ *     {
+ *       "vendor_id": 1,
+ *       "vendor_name": "John Doe",
+ *       "business_name": "TechHub Electronics",
+ *       "email": "john.doe@example.com",
+ *       "product_tags_count": 15,
+ *       "join_reason": "Passionate about electronics and want to reach more customers",
+ *       "total_earnings": "15450.75",
+ *       "status": "approved",
+ *       "date_joined": "2024-09-15T10:30:00.000Z"
+ *     },
+ *     {
+ *       "vendor_id": 2,
+ *       "vendor_name": "Jane Smith",
+ *       "business_name": "Fashion Forward",
+ *       "email": "jane.smith@example.com",
+ *       "product_tags_count": 8,
+ *       "join_reason": "Building a sustainable fashion brand",
+ *       "total_earnings": "8750.50",
+ *       "status": "approved",
+ *       "date_joined": "2024-09-20T14:15:00.000Z"
+ *     }
+ *   ],
+ *   "pagination": {
+ *     "currentPage": 1,
+ *     "totalPages": 3,
+ *     "totalItems": 45,
+ *     "itemsPerPage": 20,
+ *     "hasNextPage": true,
+ *     "hasPrevPage": false
+ *   }
+ * }
+ */
+const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
+  const { page = 1, limit = 20 } = req.query;
+  const { limit: limitNum, offset } = paginate(page, limit);
+
+  // First, get vendors with their basic info and related User/Store data
+  const { count, rows: vendors } = await db.Vendor.findAndCountAll({
+    attributes: [
+      "id",
+      "user_id",
+      "store_id",
+      "join_reason",
+      "status",
+      "approved_at",
+    ],
+    include: [
+      {
+        model: db.User,
+        attributes: ["id", "first_name", "last_name", "email"],
+      },
+      {
+        model: db.Store,
+        as: "store",
+        attributes: ["id", "business_name"],
+      },
+    ],
+    where: { status: "approved" }, // Only approved vendors
+    order: [["approved_at", "DESC"]], // Most recently approved first
+    limit: limitNum,
+    offset,
+  });
+
+  if (vendors.length === 0) {
+    const response = createPaginationResponse([], page, limit, 0);
+    return res.status(200).json({
+      status: "success",
+      ...response,
+    });
+  }
+
+  // Get vendor IDs for batch queries
+  const vendorIds = vendors.map((vendor) => vendor.id);
+
+  // Calculate product tags count for each vendor
+  const productTagsCounts = await Promise.all(
+    vendorIds.map(async (vendorId) => {
+      const count = await db.VendorProductTag.count({
+        where: { vendor_id: vendorId },
+      });
+      return { vendor_id: vendorId, product_tags_count: count };
+    })
+  );
+
+  // Calculate total earnings for each vendor from completed sales
+  const earningsData = await Promise.all(
+    vendorIds.map(async (vendorId) => {
+      const totalEarnings =
+        (await db.OrderItem.sum("sub_total", {
+          where: { vendor_id: vendorId },
+          include: [
+            {
+              model: db.Order,
+              as: "order",
+              where: { payment_status: "paid" },
+            },
+          ],
+        })) || 0;
+
+      return {
+        vendor_id: vendorId,
+        total_earnings: parseFloat(totalEarnings).toFixed(2),
+      };
+    })
+  );
+
+  // Create maps for efficient lookups
+  const productTagsMap = new Map();
+  productTagsCounts.forEach((item) => {
+    productTagsMap.set(item.vendor_id, item.product_tags_count);
+  });
+
+  const earningsMap = new Map();
+  earningsData.forEach((item) => {
+    earningsMap.set(item.vendor_id, item.total_earnings);
+  });
+
+  // Combine all data
+  const vendorStats = vendors.map((vendor) => ({
+    vendor_id: vendor.id,
+    vendor_name: vendor.User
+      ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() ||
+        "Unknown Vendor"
+      : "Unknown Vendor",
+    business_name: vendor.store?.business_name || "Unknown Business",
+    email: vendor.User?.email || "No Email",
+    product_tags_count: productTagsMap.get(vendor.id) || 0,
+    join_reason: vendor.join_reason || null,
+    total_earnings: earningsMap.get(vendor.id) || "0.00",
+    status: vendor.status,
+    date_joined: vendor.approved_at,
+  }));
+
+  const response = createPaginationResponse(vendorStats, page, limit, count);
   res.status(200).json({
     status: "success",
     ...response,
@@ -1766,55 +2249,55 @@ const getProductOverview = catchAsync(async (req, res, next) => {
   }
 
   // Build include array based on query parameters
-  // const includeArray = [
-  //   {
-  //     model: db.Category,
-  //     attributes: ["id", "name", "slug"],
-  //   },
-  //   {
-  //     model: db.ProductImage,
-  //     as: "images",
-  //     attributes: ["id", "image_url", "is_featured"],
-  //     order: [
-  //       ["is_featured", "DESC"], // Featured images first
-  //       ["id", "ASC"],
-  //     ],
-  //   },
-  //   {
-  //     model: db.Inventory,
-  //     attributes: ["id", "stock"],
-  //     required: false, // Left join to handle products without inventory
-  //   },
-  //   {
-  //     model: db.Vendor,
-  //     as: "vendor",
-  //     attributes: ["id"],
-  //     include: [
-  //       {
-  //         model: db.User,
-  //         attributes: ["id", "first_name", "last_name"],
-  //       },
-  //     ],
-  //     required: false,
-  //   },
-  // ];
+  const includeArray = [
+    {
+      model: db.Category,
+      attributes: ["id", "name", "slug"],
+    },
+    {
+      model: db.ProductImage,
+      as: "images",
+      attributes: ["id", "image_url", "is_featured"],
+      order: [
+        ["is_featured", "DESC"], // Featured images first
+        ["id", "ASC"],
+      ],
+    },
+    {
+      model: db.Inventory,
+      attributes: ["id", "stock"],
+      required: false, // Left join to handle products without inventory
+    },
+    {
+      model: db.Vendor,
+      as: "vendor",
+      attributes: ["id"],
+      include: [
+        {
+          model: db.User,
+          attributes: ["id", "first_name", "last_name"],
+        },
+      ],
+      required: false,
+    },
+  ];
 
   // Include reviews if requested
-  // if (includeReviews === "true" || includeReviews === true) {
-  //   includeArray.push({
-  //     model: db.Review,
-  //     as: "reviews",
-  //     attributes: ["id", "rating", "comment", "created_at"],
-  //     include: [
-  //       {
-  //         model: db.User,
-  //         attributes: ["id", "first_name", "last_name"],
-  //       },
-  //     ],
-  //     order: [["created_at", "DESC"]],
-  //     required: false,
-  //   });
-  // }
+  if (includeReviews === "true" || includeReviews === true) {
+    includeArray.push({
+      model: db.Review,
+      as: "reviews",
+      attributes: ["id", "rating", "comment", "created_at"],
+      include: [
+        {
+          model: db.User,
+          attributes: ["id", "first_name", "last_name"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+      required: false,
+    });
+  }
 
   // Fetch product with all associations
   const product = await db.Product.findOne({
@@ -1835,7 +2318,7 @@ const getProductOverview = catchAsync(async (req, res, next) => {
       "created_at",
       "updated_at",
     ],
-    // include: includeArray,
+    include: includeArray,
     where: { id: productId },
   });
 
@@ -1889,6 +2372,9 @@ const getProductOverview = catchAsync(async (req, res, next) => {
             : "Unknown Vendor",
         }
       : null,
+    reviews: product.reviews || [],
+    average_rating: product.average_rating || 0,
+    total_reviews: product.total_reviews || 0,
   };
 
   res.status(200).json({
@@ -1912,4 +2398,6 @@ module.exports = {
   getRecentOrders,
   getTopSellingItems,
   getProductOverview,
+  getVendorOnboardingStats,
+  getVendorOverview,
 };

@@ -5,7 +5,7 @@ const {
   createSupplyValidation, 
   createBulkSupplyValidation 
 } = require('../validators/supply.validator');
-const { protect, isVendor, isAdmin } = require('../middlewares/auth');
+const { protect, isVendor } = require('../middlewares/auth');
 const validate = require('../middlewares/validation');
 
 // Protected routes (require authentication)
@@ -34,29 +34,6 @@ router.get(
   supplyController.getVendorSupplies
 );
 
-// Admin routes
-router.get(
-  '/admin/all',
-  isAdmin,
-  supplyController.getAllSupplies
-);
 
-router.get(
-  '/admin/vendor/:vendorId',
-  isAdmin,
-  supplyController.getSuppliesByVendor
-);
-
-router.get(
-  '/admin/product/:productId',
-  isAdmin,
-  supplyController.getProductSupplyHistory
-);
-
-router.get(
-  '/admin/summary',
-  isAdmin,
-  supplyController.getSupplySummary
-);
 
 module.exports = router;

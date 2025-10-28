@@ -307,9 +307,11 @@ const getAllInventory = async (req, res, next) => {
           attributes: ['id', 'name', 'sku'],
           include: [{
             model: Vendor,
+            as: 'vendor',
             attributes: ['id'],
             include: [{
               model: Store,
+              as: 'store',
               attributes: ['id', 'business_name']
             }]
           }]
@@ -396,9 +398,11 @@ const getGlobalLowStockItems = async (req, res, next) => {
           attributes: ['id', 'name', 'sku', 'price'],
           include: [{
             model: Vendor,
+            as: 'vendor',
             attributes: ['id'],
             include: [{
               model: Store,
+              as: 'store',
               attributes: ['business_name']
             }]
           }]
@@ -454,9 +458,11 @@ const getInventoryHistoryAdmin = async (req, res, next) => {
               attributes: ['id', 'name', 'sku'],
               include: [{
                 model: Vendor,
+                as: 'vendor',
                 attributes: ['id'],
                 include: [{
                   model: Store,
+                  as: 'store',
                   attributes: ['business_name']
                 }]
               }]

@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     type: {
-      type: DataTypes.ENUM('welcome', 'order_process', 'maintenance', 'policy_update', 'delay_apology', 'success', 'apology'),
+      type: DataTypes.ENUM('welcome', 'order_process', 'maintenance', 'policy_update', 'delay_apology', 'success', 'apology', 'order_created', 'order_received', 'order_cancelled', 'order_shipped', 'order_delivered'),
       allowNull: false
     },
     message: {
