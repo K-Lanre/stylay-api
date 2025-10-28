@@ -8,6 +8,20 @@ module.exports = (sequelize, DataTypes) => {
       ProductVariant.belongsTo(models.Product, {
         foreignKey: 'product_id'
       });
+
+      // ProductVariant belongs to VariantType
+      ProductVariant.belongsTo(models.VariantType, {
+        foreignKey: 'variant_type_id',
+        as: 'variantType'
+      });
+
+      // ProductVariant has many-to-many relationship with VariantCombination
+      ProductVariant.belongsToMany(models.VariantCombination, {
+        through: models.VariantCombinationVariant,
+        foreignKey: 'variant_id',
+        otherKey: 'combination_id',
+        as: 'combinations'
+      });
     }
   }
 
@@ -21,6 +35,11 @@ module.exports = (sequelize, DataTypes) => {
     product_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
       allowNull: false
+    },
+    variant_type_id: {
+      type: DataTypes.BIGINT({ unsigned: true }),
+      allowNull: true, // Allow null for backward compatibility
+      comment: 'Reference to variant type (Color, Size, etc.)'
     },
     name: {
       type: DataTypes.STRING(100),

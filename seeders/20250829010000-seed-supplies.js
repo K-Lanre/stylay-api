@@ -1,6 +1,6 @@
 'use strict';
 
-const { Product, Vendor, Inventory, InventoryHistory, VendorProductTag, sequelize, Sequelize } = require('../models');
+const { Product, Vendor, Inventory, InventoryHistory, VendorProductTag, VariantCombination, sequelize, Sequelize } = require('../models');
 const { faker } = require('@faker-js/faker');
 
 // Configuration
@@ -109,11 +109,23 @@ module.exports = {
         vendorProductMap.get(product.vendor_id).push(product);
       });
 
-      // Generate supplies for each vendor's products
+      // Generate supplies for each vendor's product combinations
       for (const [vendorId, vendorProducts] of vendorProductMap.entries()) {
         const productsToUse = vendorProducts.slice(0, CONFIG.SUPPLIES_PER_VENDOR);
-        
+
         for (const product of productsToUse) {
+          // Get combinations for this product
+          const combinations = await VariantCombination.findAll({
+            where: { product_id: product.id },
+            attributes: ['id', 'product_id', 'combination_name'],
+            transaction
+          });
+
+          if (combinations.length === 0) {
+            console.log(`No combinations found for product ${product.id}, skipping supply`);
+            continue;
+          }
+
           // Ensure a VendorProductTag exists for this vendor-product pair
           let vendorProductTag = await VendorProductTag.findOne({
             where: {
@@ -132,23 +144,27 @@ module.exports = {
             }, { transaction });
           }
 
-          const quantity = faker.number.int({
-            min: CONFIG.MIN_QUANTITY,
-            max: CONFIG.MAX_QUANTITY
-          });
-          
-          supplies.push({
-            vendor_id: vendorId,
-            product_id: product.id,
-            vendor_product_tag_id: vendorProductTag.id,
-            quantity_supplied: quantity,
-            supply_date: faker.date.between({
-              from: new Date(currentDate.getFullYear(), 0, 1),
-              to: currentDate
-            }),
-            created_at: new Date()
-            // updated_at is handled by the model's timestamps
-          });
+          // Generate supplies for each combination
+          for (const combination of combinations) {
+            const quantity = faker.number.int({
+              min: CONFIG.MIN_QUANTITY,
+              max: CONFIG.MAX_QUANTITY
+            });
+
+            supplies.push({
+              vendor_id: vendorId,
+              product_id: product.id,
+              vendor_product_tag_id: vendorProductTag.id,
+              combination_id: combination.id, // Add combination reference
+              quantity_supplied: quantity,
+              supply_date: faker.date.between({
+                from: new Date(currentDate.getFullYear(), 0, 1),
+                to: currentDate
+              }),
+              created_at: new Date()
+              // updated_at is handled by the model's timestamps
+            });
+          }
         }
       }
       
@@ -169,68 +185,23 @@ module.exports = {
             transaction
           });
 
-          // For MySQL, we need to get the inserted IDs differently
-          // Since bulkInsert doesn't return IDs in MySQL, we'll process inventory without supply_id for now and update later
-          const insertedSupplies = await queryInterface.sequelize.query(
-            `SELECT id, product_id FROM supply WHERE product_id IN (${batch.map(s => s.product_id).join(',')})`,
-            { transaction, type: Sequelize.QueryTypes.SELECT }
-          );
-
-          const supplyMap = new Map(insertedSupplies.map(supply => [supply.product_id, supply.id]));
-
+          // Update combination stock directly (new system)
           await Promise.all(batch.map(async (supply) => {
-            const productId = supply.product_id;
+            const combinationId = supply.combination_id;
             const quantity = supply.quantity_supplied;
-            const [inventory, created] = await Inventory.findOrCreate({
-              where: { product_id: productId },
-              defaults: {
-                product_id: productId,
-                supply_id: supplyMap.get(productId) || null, // Update supply_id here
-                stock: quantity, // Set initial stock to the supplied quantity
-                restocked_at: new Date(),
-                created_at: new Date(),
-                updated_at: new Date()
-              },
-              transaction
-            });
-            
-            // Prepare inventory history record
-            const historyData = {
-              inventory_id: inventory.id,
-              adjustment: quantity,
-              note: 'Stock from supply',
-              adjusted_by: 1, // Admin user ID
-              created_at: new Date(),
-              updated_at: new Date()
-            };
-            
-            if (!created) {
-              // Update existing inventory
-              const previousStock = inventory.stock;
-              const newStock = previousStock + quantity;
-              
-              await Inventory.update(
-                {
-                  stock: newStock,
-                  restocked_at: new Date(),
-                  updated_at: new Date()
-                },
-                {
-                  where: { id: inventory.id },
-                  transaction
-                }
+
+            // Update the combination stock
+            const combination = await VariantCombination.findByPk(combinationId, { transaction });
+            if (combination) {
+              const newStock = (combination.stock || 0) + quantity;
+
+              await VariantCombination.update(
+                { stock: newStock },
+                { where: { id: combinationId }, transaction }
               );
-              
-              // Set history data for existing inventory
-              historyData.previous_stock = previousStock;
-              historyData.new_stock = newStock;
-            } else {
-              // Set history data for new inventory
-              historyData.previous_stock = 0;
-              historyData.new_stock = quantity;
+
+              console.log(`Updated combination ${combinationId} stock to ${newStock}`);
             }
-            
-            return historyData;
           }));
           
           progress.update(batch.length);

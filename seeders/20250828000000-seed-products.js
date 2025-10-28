@@ -2,9 +2,11 @@
 const { default: axios } = require('axios');
 const { faker } = require('@faker-js/faker/locale/en_US');
 const slugify = require('slugify');
+const VariantService = require('../services/variant.service');
+const { VariantType, VariantCombination } = require('../models');
 
 // Base URL for product images
-const BASE_IMAGE_URL = 'https://picsum.photos/800/1000?random=';
+const BASE_IMAGE_URL = 'https://picsum.photos/300/300?random=';
 
 // Configure faker
 const {
@@ -99,94 +101,79 @@ const PRODUCT_DESCRIPTIONS = {
   ]
 };
 
-// Generate realistic product variants based on category
-const generateVariants = (productId, category) => {
+// Generate realistic product variants based on category (new system)
+const generateVariants = async (productId, category) => {
   const variants = [];
-  
+
   // Define variant types based on category
   const variantTypes = {
     't-shirts': {
-      'Size': ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-      'Color': ['Black', 'White', 'Navy', 'Gray', 'Red', 'Royal Blue', 'Forest Green', 'Mustard'],
-      'Fit': ['Slim', 'Regular', 'Oversized', 'Relaxed']
+      'size': ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+      'color': ['Black', 'White', 'Navy', 'Gray', 'Red', 'Royal Blue', 'Forest Green', 'Mustard'],
+      'fit': ['Slim', 'Regular', 'Oversized', 'Relaxed']
     },
     'shorts': {
-      'Size': ['28', '30', '32', '34', '36', '38'],
-      'Color': ['Black', 'Navy', 'Khaki', 'Olive', 'Charcoal', 'Light Blue'],
-      'Length': ['5\" Inseam', '7\" Inseam', '9\" Inseam', '11\" Inseam']
+      'size': ['28', '30', '32', '34', '36', '38'],
+      'color': ['Black', 'Navy', 'Khaki', 'Olive', 'Charcoal', 'Light Blue'],
+      'length': ['5" Inseam', '7" Inseam', '9" Inseam', '11" Inseam']
     },
     'skirts': {
-      'Size': ['XS', 'S', 'M', 'L', 'XL'],
-      'Color': ['Black', 'Navy', 'Beige', 'Pink', 'Red', 'Floral Print', 'Striped'],
-      'Pattern': ['Solid', 'Striped', 'Floral', 'Plaid', 'Polka Dot']
+      'size': ['XS', 'S', 'M', 'L', 'XL'],
+      'color': ['Black', 'Navy', 'Beige', 'Pink', 'Red', 'Floral Print', 'Striped'],
+      'pattern': ['Solid', 'Striped', 'Floral', 'Plaid', 'Polka Dot']
     },
     'hoodies': {
-      'Size': ['S', 'M', 'L', 'XL', 'XXL'],
-      'Color': ['Black', 'Charcoal', 'Navy', 'Burgundy', 'Olive', 'Heather Gray'],
-      'Style': ['Pullover', 'Zip-Up']
+      'size': ['S', 'M', 'L', 'XL', 'XXL'],
+      'color': ['Black', 'Charcoal', 'Navy', 'Burgundy', 'Olive', 'Heather Gray'],
+      'style': ['Pullover', 'Zip-Up']
     },
     'jeans': {
-      'Waist': ['28', '30', '32', '34', '36', '38'],
-      'Length': ['30"', '32"', '34"', '36"'],
-      'Wash': ['Light Wash', 'Medium Wash', 'Dark Wash', 'Black', 'White']
+      'waist': ['28', '30', '32', '34', '36', '38'],
+      'length': ['30"', '32"', '34"', '36"'],
+      'wash': ['Light Wash', 'Medium Wash', 'Dark Wash', 'Black', 'White']
     }
   };
 
   // Get the appropriate variant types for this category
   const categoryVariants = variantTypes[category] || variantTypes['t-shirts'];
-  
+
   // Only generate variants for valid product IDs (positive numbers)
   if (productId <= 0) {
     return variants;
   }
 
-  // Generate size variants (always included)
-  const sizes = categoryVariants['Size'] || categoryVariants['Waist'] || ['One Size'];
-  for (const size of sizes) {
-    variants.push({
-      product_id: productId,
-      name: 'Size',
-      value: size,
-      additional_price: 0,
-      stock: randomNumber({ min: 5, max: 100 }),
-      created_at: new Date()
-    });
-  }
+  // Get variant type IDs from database
+  const variantTypeMap = {};
+  const variantTypesFromDB = await VariantType.findAll({
+    attributes: ['id', 'name']
+  });
 
-  // Generate color variants (if applicable)
-  if (categoryVariants['Color']) {
-    const colors = categoryVariants['Color'];
-    for (const color of colors) {
+  variantTypesFromDB.forEach(vt => {
+    variantTypeMap[vt.name] = vt.id;
+  });
+
+  // Generate variants for each type
+  for (const [typeName, values] of Object.entries(categoryVariants)) {
+    const variantTypeId = variantTypeMap[typeName];
+    if (!variantTypeId) continue; // Skip if variant type doesn't exist
+
+    // Randomly select 3-6 values for this type to keep combinations manageable
+    const selectedValues = values
+      .sort(() => 0.5 - Math.random())
+      .slice(0, randomNumber({ min: 3, max: 6 }));
+
+    for (const value of selectedValues) {
       variants.push({
         product_id: productId,
-        name: 'Color',
-        value: color,
-        additional_price: randomNumber({ min: 0, max: 20, precision: 0.01 }),
-        stock: randomNumber({ min: 0, max: 50 }),
-        created_at: new Date()
-      });
-    }
-  }
-
-  // Add one more variant type if available
-  const additionalVariant = Object.keys(categoryVariants).find(
-    key => !['Size', 'Color', 'Waist', 'Length'].includes(key)
-  );
-  
-  if (additionalVariant) {
-    const values = categoryVariants[additionalVariant];
-    for (const value of values) {
-      variants.push({
-        product_id: productId,
-        name: additionalVariant,
+        variant_type_id: variantTypeId,
+        name: typeName,
         value: value,
-        additional_price: randomNumber({ min: 0, max: 30, precision: 0.01 }),
-        stock: randomNumber({ min: 0, max: 30 }),
+        // No stock or pricing on individual variants in new system
         created_at: new Date()
       });
     }
   }
-  
+
   return variants;
 };
 
@@ -401,7 +388,7 @@ module.exports = {
 
         // Generate product data
         let product = generateProduct(vendorIds, randomCategory, totalProducts + 1);
-        let productVariants = generateVariants(999999, simpleSubCategorySlug); // Temporary ID
+        let productVariants = await generateVariants(999999, simpleSubCategorySlug); // Temporary ID
         let productImages = generateImages(999999, product.name, simpleSubCategorySlug, i === 0);
 
         // Ensure slug uniqueness
@@ -444,6 +431,21 @@ module.exports = {
         if (updatedVariants.length > 0) {
           await queryInterface.bulkInsert('product_variants', updatedVariants);
           totalVariants += updatedVariants.length;
+
+          // Create combinations from the variants using VariantService
+          try {
+            const createdVariants = await queryInterface.sequelize.query(
+              `SELECT id, product_id, variant_type_id, name, value FROM product_variants WHERE product_id = ${actualProductId}`,
+              { type: queryInterface.sequelize.QueryTypes.SELECT }
+            );
+
+            if (createdVariants.length > 0) {
+              const combinations = await VariantService.createCombinationsForProduct(actualProductId, createdVariants);
+              console.log(`Created ${combinations.length} combinations for product ${actualProductId}`);
+            }
+          } catch (error) {
+            console.error(`Error creating combinations for product ${actualProductId}:`, error.message);
+          }
         }
 
         if (updatedImages.length > 0) {

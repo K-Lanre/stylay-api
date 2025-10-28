@@ -5075,6 +5075,395 @@
             ]
         },
         {
+            "name": "Variant Management",
+            "description": "Variant system management endpoints for products",
+            "item": [
+                {
+                    "name": "Get All Variant Types",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/types",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "types"
+                            ]
+                        },
+                        "description": "Get all variant types (Size, Color, Material, etc.)"
+                    }
+                },
+                {
+                    "name": "Create Variant Type",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Size\",\n    \"values\": [\"Small\", \"Medium\", \"Large\", \"XL\"]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/types",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "types"
+                            ]
+                        },
+                        "description": "Create a new variant type with possible values"
+                    }
+                },
+                {
+                    "name": "Get Variant Combinations by Product",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/combinations/:productId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "combinations",
+                                ":productId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "productId",
+                                    "value": "1",
+                                    "description": "Product ID"
+                                }
+                            ]
+                        },
+                        "description": "Get all variant combinations for a specific product"
+                    }
+                },
+                {
+                    "name": "Create Variant Combination",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"productId\": 1,\n    \"variants\": {\n        \"Size\": \"Medium\",\n        \"Color\": \"Blue\"\n    },\n    \"sku\": \"TSHIRT-MED-BLU\",\n    \"price\": 29.99,\n    \"stock\": 50\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/combinations",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "combinations"
+                            ]
+                        },
+                        "description": "Create a new variant combination for a product"
+                    }
+                },
+                {
+                    "name": "Update Variant Type",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"display_name\": \"Size Options\",\n    \"sort_order\": 1\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/types/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "types",
+                                "1"
+                            ]
+                        },
+                        "description": "Update a variant type (Admin only)"
+                    }
+                },
+                {
+                    "name": "Delete Variant Type",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/types/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "types",
+                                "1"
+                            ]
+                        },
+                        "description": "Delete a variant type (Admin only)"
+                    }
+                },
+                {
+                    "name": "Get Product Combinations",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/products/1/combinations",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "products",
+                                "1",
+                                "combinations"
+                            ]
+                        },
+                        "description": "Get all combinations for a specific product"
+                    }
+                },
+                {
+                    "name": "Get Combination by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/combinations/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "combinations",
+                                "1"
+                            ]
+                        },
+                        "description": "Get a specific combination by ID"
+                    }
+                },
+                {
+                    "name": "Update Combination Stock",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"stock\": 75\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/combinations/1/stock",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "combinations",
+                                "1",
+                                "stock"
+                            ]
+                        },
+                        "description": "Update stock level for a variant combination"
+                    }
+                },
+                {
+                    "name": "Update Combination Price",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"price_modifier\": 5.00\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/combinations/1/price",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "combinations",
+                                "1",
+                                "price"
+                            ]
+                        },
+                        "description": "Update price modifier for a variant combination"
+                    }
+                },
+                {
+                    "name": "Toggle Combination Status",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"is_active\": false\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/variants/combinations/1/status",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "variants",
+                                "combinations",
+                                "1",
+                                "status"
+                            ]
+                        },
+                        "description": "Toggle active status for a variant combination"
+                    }
+                }
+            ]
+        },
+        {
             "name": "Review Management",
             "description": "Review management endpoints for products",
             "item": [

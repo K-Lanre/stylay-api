@@ -6,11 +6,13 @@ const {
   Category,
   Store,
   Review,
+  VariantType,
   sequelize,
 } = require("../models");
 const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
 const slugify = require("slugify");
+const VariantService = require("../services/variant.service");
 
 /**
  * Creates a new product for an approved vendor, with support for variants and images.
@@ -22,7 +24,7 @@ const slugify = require("slugify");
  * @param {number} req.body.price - Product price (required)
  * @param {number} req.body.category_id - Category ID (required)
  * @param {string} req.body.sku - Product SKU (required)
- * @param {Array<Object>} [req.body.variants] - Product variants array
+ * @param {Array<Object>} [req.body.variants] - Product variants array with type categorization
  * @param {Array<Object>} [req.body.images] - Product images array
  * @param {number} [req.body.vendor_id] - Vendor ID (admin only)
  * @param {import('express').Response} res - Express response object
@@ -41,11 +43,12 @@ const slugify = require("slugify");
  * @returns {number} data.data.sold_units - Units sold (0)
  * @returns {Object} data.data.category - Product category
  * @returns {Object} data.data.vendor - Product vendor
- * @returns {Array} data.data.ProductVariants - Product variants
+ * @returns {Array} data.data.ProductVariants - Product variants with type associations
+ * @returns {Array} data.data.combinations - Generated variant combinations
  * @returns {Array} data.data.images - Product images
  * @throws {AppError} 403 - When vendor is not approved or admin tries to create for unapproved vendor
  * @throws {AppError} 404 - When category not found
- * @throws {AppError} 400 - When required fields are missing
+ * @throws {AppError} 400 - When required fields are missing or invalid variant data
  * @api {post} /api/v1/products Create Product
  * @private vendor, admin
  * @example
@@ -53,16 +56,20 @@ const slugify = require("slugify");
  * POST /api/v1/products
  * Authorization: Bearer <token>
  * {
- *   "name": "Wireless Headphones",
- *   "description": "High-quality wireless headphones",
- *   "price": 99.99,
+ *   "name": "Tommy Hilfiger T-Shirt",
+ *   "description": "Classic cotton t-shirt",
+ *   "price": 29.99,
  *   "category_id": 1,
- *   "sku": "WH-001",
+ *   "sku": "TH-TS-001",
  *   "variants": [
- *     {"name": "Color", "value": "Black", "price_modifier": 0}
+ *     {"type": "Color", "value": "Black", "additional_price": 0, "stock": 50},
+ *     {"type": "Color", "value": "White", "additional_price": 0, "stock": 45},
+ *     {"type": "Size", "value": "Small", "additional_price": 0, "stock": 20},
+ *     {"type": "Size", "value": "Medium", "additional_price": 0, "stock": 35},
+ *     {"type": "Size", "value": "Large", "additional_price": 2, "stock": 40}
  *   ],
  *   "images": [
- *     {"url": "https://example.com/image1.jpg"}
+ *     {"url": "https://example.com/tshirt1.jpg"}
  *   ]
  * }
  *
@@ -157,14 +164,56 @@ const createProduct = async (req, res, next) => {
       sold_units: 0,
     });
 
-    // Add variants if any
+    // Add variants and generate combinations if any
     if (variants && variants.length > 0) {
-      await ProductVariant.bulkCreate(
-        variants.map((variant) => ({
-          ...variant,
+      // Validate variant data
+      const validation = VariantService.validateVariantData(variants);
+      if (!validation.isValid) {
+        return next(new AppError(`Invalid variant data: ${validation.errors.join(', ')}`, 400));
+      }
+
+      // Create variants with type associations
+      const createdVariants = [];
+      for (const variantData of variants) {
+        // Find or create variant type
+        let variantType = await VariantType.findOne({
+          where: { name: variantData.type.toLowerCase() }
+        });
+
+        if (!variantType) {
+          variantType = await VariantType.create({
+            name: variantData.type.toLowerCase(),
+            display_name: variantData.type,
+            sort_order: 0
+          });
+        }
+
+        // Create the variant
+        const variant = await ProductVariant.create({
           product_id: product.id,
-        }))
-      );
+          variant_type_id: variantType.id,
+          name: variantData.type,
+          value: variantData.value,
+          additional_price: variantData.additional_price || 0,
+          stock: variantData.stock || 0
+        });
+
+        createdVariants.push({
+          id: variant.id,
+          type: variantData.type,
+          value: variantData.value,
+          additional_price: variantData.additional_price || 0,
+          stock: variantData.stock || 0
+        });
+      }
+
+      // Generate and create combinations
+      try {
+        await VariantService.createCombinationsForProduct(product.id, createdVariants);
+      } catch (error) {
+        console.error('Error creating combinations:', error);
+        // Continue without combinations for now - they can be generated later
+      }
     }
 
     // Add images if any
@@ -443,6 +492,18 @@ const getProductByIdentifier = async (req, res, next) => {
         },
         { model: ProductVariant, as: "variants" },
         { model: ProductImage, as: "images" },
+        {
+          model: VariantCombination,
+          as: "combinations",
+          where: { is_active: true },
+          required: false,
+          include: [{
+            model: ProductVariant,
+            as: 'variants',
+            attributes: ['id', 'name', 'value', 'additional_price'],
+            through: { attributes: [] }
+          }]
+        },
       ],
     });
 
