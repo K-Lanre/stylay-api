@@ -17,7 +17,8 @@ const {
 } = require("../validators/auth.validator");
 
 // Public routes
-router.post("/register", registerValidation, validate, authController.register);
+router.post("/register", registerValidation, validate,  authController.register);
+router.post("/register-admin", registerValidation, validate, authController.registerAdmin);
 
 // Login with Passport local strategy
 router.post(

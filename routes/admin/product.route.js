@@ -8,7 +8,8 @@ const validate = require('../../middlewares/validation');
 const {
   updateProductValidation,
   deleteProductValidation,
-  getProductsValidation
+  getProductsValidation,
+  createProductValidation
 } = require('../../validators/product.validator');
 
 // Apply authentication and permission loading to all routes
@@ -21,6 +22,13 @@ router.use(loadPermissions);
  * @access  Private/Admin
  */
 router.get('/all', requirePermission('products_read'), getProductsValidation, validate, productController.getAllProducts);
+
+/**
+ * @desc    Create new product (Admin)
+ * @route   POST /api/admin/products
+ * @access  Private/Admin
+ */
+router.post('/', requirePermission('products_create'), createProductValidation, validate, productController.createProduct);
 
 /**
  * @desc    Update any product (Admin)
@@ -72,6 +80,23 @@ router.get(
     validate,
   ],
   productController.getProductsByStatus
+);
+
+/**
+ * @desc    Get product analytics (Admin)
+ * @route   GET /api/v1/admin/products/:id/analytics
+ * @access  Private/Admin
+ */
+router.get(
+  '/:id/analytics',
+  requirePermission('products_read'),
+  [
+    param('id').isInt({ min: 1 }).withMessage('Invalid product ID'),
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    validate,
+  ],
+  productController.getProductAnalytics
 );
 
 module.exports = router;

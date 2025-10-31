@@ -10,10 +10,24 @@ const { Op, literal } = require("sequelize");
 const PermissionService = require("../services/permission.service");
 const {
   sendSubAdminCreatedNotification,
+  sendWelcomeEmail,
 } = require("../services/email.service");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 const bcrypt = require("bcryptjs");
+
+// Generate a random 6-digit code and expiration time (10 minutes from now)
+const generateVerificationCode = () => {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expires = new Date();
+  expires.setMinutes(expires.getMinutes() + 10); // Token expires in 10 min
+  return { code, expires };
+};
+
+// Hash the verification code
+const hashVerificationCode = (code) => {
+  return bcrypt.hashSync(code, 10);
+};
 
 /**
  * Create a new sub-admin user
@@ -28,11 +42,10 @@ const createSubAdmin = catchAsync(async (req, res, next) => {
     email,
     phone,
     password,
-    role_id,
     permission_ids,
     permission_groups,
   } = req.body;
-
+  const role_id = 4;
   // Start database transaction
   const transaction = await sequelize.transaction();
 
@@ -60,29 +73,50 @@ const createSubAdmin = catchAsync(async (req, res, next) => {
         return next(new AppError("Role not found", 404));
       }
       if (role.name === "admin") {
-        return next(new AppError("Cannot create sub-admin with admin role", 400));
+        return next(
+          new AppError("Cannot create sub-admin with admin role", 400)
+        );
       }
     }
 
     // Hash password (outside transaction for security)
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Generate and store verification code with expiration
+    const { code: verificationCode, expires: tokenExpires } =
+      generateVerificationCode();
+    const hashedCode = hashVerificationCode(verificationCode);
+
+    // Calculate minutes until expiration
+    const minutesUntilExpiry = Math.ceil(
+      (tokenExpires - new Date()) / (1000 * 60)
+    );
+
     // Create user within transaction
-    const user = await User.create({
-      first_name,
-      last_name,
-      email,
-      phone,
-      password: hashedPassword,
-      is_active: true,
-    }, { transaction });
+    const user = await User.create(
+      {
+        first_name,
+        last_name,
+        email,
+        phone,
+        password: hashedPassword,
+        email_verified_at: null, // Implement email verification
+        email_verification_token: hashedCode,
+        email_verification_token_expires: tokenExpires,
+        is_active: true,
+      },
+      { transaction }
+    );
 
     // Assign role if provided within transaction
     if (role_id) {
-      await UserRole.create({
-        user_id: user.id,
-        role_id: role_id,
-      }, { transaction });
+      await UserRole.create(
+        {
+          user_id: user.id,
+          role_id: role_id,
+        },
+        { transaction }
+      );
 
       // Assign permissions to role if provided within transaction
       if (permission_groups && permission_groups.length > 0) {
@@ -127,16 +161,20 @@ const createSubAdmin = catchAsync(async (req, res, next) => {
     const userResponse = { ...userWithDetails.toJSON() };
     delete userResponse.password;
 
-    // Send response first
-    res.status(201).json({
-      status: "success",
-      message: "Sub-admin created successfully",
-      data: {
-        user: userResponse,
-      },
-    });
+    // Send welcome email with verification code
+    try {
+      await sendWelcomeEmail(
+        email,
+        `${first_name} ${last_name}`,
+        verificationCode,
+        minutesUntilExpiry
+      );
+    } catch (err) {
+      console.error("Error sending welcome email:", err);
+      // Don't fail the registration if email sending fails
+    }
 
-    // Send email notification asynchronously (don't block response)
+    // Send sub-admin creation notification
     try {
       const roleName = userWithDetails.roles?.[0]?.name || "Sub-Admin";
       const permissions = userWithDetails.roles?.[0]?.permissions || [];
@@ -157,6 +195,15 @@ const createSubAdmin = catchAsync(async (req, res, next) => {
       // Log email error but don't fail the request
       console.error("Failed to send sub-admin creation email:", emailError);
     }
+
+    // Send response first
+    res.status(201).json({
+      status: "success",
+      message: "Sub-admin created successfully. Please check your email for verification code.",
+      data: {
+        user: userResponse,
+      },
+    });
   } catch (error) {
     // Rollback transaction on any error
     try {
@@ -194,11 +241,12 @@ const getSubAdmins = catchAsync(async (req, res, next) => {
           WHERE r.name = 'admin'
         )
       `),
-      // Include only users with roles that have permissions
+      // Include users with any non-admin roles (permissions optional)
       literal(`
         User.id IN (
           SELECT DISTINCT ur.user_id FROM user_roles ur
-          INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
+          INNER JOIN roles r ON ur.role_id = r.id
+          WHERE r.name != 'admin'
         )
       `),
     ],
@@ -312,7 +360,7 @@ const getSubAdmin = catchAsync(async (req, res, next) => {
  */
 const updateSubAdminPermissions = catchAsync(async (req, res, next) => {
   const { id } = req.params;
-  const { role_id, permission_ids, permission_groups } = req.body;
+  const { role_id = 4, permission_ids, permission_groups } = req.body;
 
   // Start database transaction
   const transaction = await sequelize.transaction();
@@ -352,35 +400,59 @@ const updateSubAdminPermissions = catchAsync(async (req, res, next) => {
       await UserRole.destroy({ where: { user_id: id }, transaction });
 
       // Assign new role
-      await UserRole.create({
-        user_id: id,
-        role_id: role_id,
-      }, { transaction });
+      await UserRole.create(
+        {
+          user_id: id,
+          role_id: role_id,
+        },
+        { transaction }
+      );
     }
 
     // Update permissions if provided within transaction
     if (permission_groups !== undefined || permission_ids !== undefined) {
-      // Get user's current role
-      const userRole = await UserRole.findOne({ where: { user_id: id }, transaction });
-      if (userRole) {
-        if (permission_groups && permission_groups.length > 0) {
-          // Assign permissions by groups
-          await PermissionService.assignPermissionsByGroups(
-            userRole.role_id,
-            permission_groups,
-            transaction
-          );
-        } else if (permission_ids && permission_ids.length > 0) {
-          // Assign individual permissions (backward compatibility)
-          await PermissionService.assignPermissionsToRole(
-            userRole.role_id,
-            permission_ids,
-            transaction
-          );
-        } else {
-          // Remove all permissions from role
-          await RolePermission.destroy({ where: { role_id: userRole.role_id }, transaction });
-        }
+      // Get all user roles with role details
+      const userRoles = await UserRole.findAll({
+        where: { user_id: id },
+        include: [{ model: Role, as: "role" }],
+        transaction,
+      });
+
+      // Find the sub-admin role (exclude admin and customer roles)
+      const subAdminRole = userRoles.find(
+        (ur) => ur.role.name !== "admin" && ur.role.name !== "customer"
+      );
+
+      if (!subAdminRole) {
+        return next(
+          new AppError(
+            "User does not have a sub-admin role to update permissions",
+            400
+          )
+        );
+      }
+
+      // Use the sub-admin role for permission assignment
+      if (permission_groups && permission_groups.length > 0) {
+        // Assign permissions by groups
+        await PermissionService.assignPermissionsByGroups(
+          subAdminRole.role_id,
+          permission_groups,
+          transaction
+        );
+      } else if (permission_ids && permission_ids.length > 0) {
+        // Assign individual permissions (backward compatibility)
+        await PermissionService.assignPermissionsToRole(
+          subAdminRole.role_id,
+          permission_ids,
+          transaction
+        );
+      } else {
+        // Remove all permissions from the sub-admin role
+        await RolePermission.destroy({
+          where: { role_id: subAdminRole.role_id },
+          transaction,
+        });
       }
     }
 
@@ -591,7 +663,7 @@ const getPermissionGroups = catchAsync(async (req, res, next) => {
   const { includeIds = false } = req.query;
 
   const groups = await PermissionService.getPermissionGroups({
-    includeIds: includeIds === 'true'
+    includeIds: includeIds === "true",
   });
 
   res.status(200).json({

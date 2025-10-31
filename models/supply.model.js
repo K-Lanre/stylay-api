@@ -15,6 +15,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'vendor_product_tag_id',
         as: 'vendorProductTag'
       });
+      Supply.belongsTo(models.VariantCombination, {
+        foreignKey: 'combination_id',
+        as: 'variantCombination'
+      });
       Supply.hasOne(models.Inventory, {
         foreignKey: 'supply_id'
       });
@@ -41,6 +45,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       references: {
         model: 'vendor_product_tags',
+        key: 'id'
+      }
+    },
+    combination_id: {
+      type: DataTypes.BIGINT({ unsigned: true }),
+      allowNull: false,
+      references: {
+        model: 'variant_combinations',
         key: 'id'
       }
     },

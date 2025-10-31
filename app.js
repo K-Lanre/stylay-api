@@ -19,6 +19,7 @@ const { initializePassport } = require('./config/passport');
 // Import routes
 const authRoutes = require('./routes/auth.route');
 const userRoutes = require('./routes/user.route');
+const roleRoutes = require('./routes/role.route');
 const vendorRoutes = require('./routes/vendor.route');
 const categoryRoutes = require('./routes/category.route');
 const collectionRoutes = require('./routes/collection.route');
@@ -191,6 +192,7 @@ app.use(compression());
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/vendors', vendorRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/collections', collectionRoutes);

@@ -226,6 +226,8 @@ module.exports = {
         last_name: lastName,
         email,
         phone: generateNigerianPhoneNumber(),
+        gender: faker.helpers.arrayElement(['male', 'female', 'other']),
+        profile_image: `https://ui-avatars.com/api/?name=${firstName}+${lastName}&background=random&size=128`,
         password,
         email_verified_at: now,
         is_active: true,

@@ -2,6 +2,7 @@ const { User, Role, UserRole } = require('../models');
 const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 const logger = require('../utils/logger');
+const bcrypt = require('bcryptjs');
 
 /**
  * Get all users with pagination and role information
@@ -46,7 +47,8 @@ const getAllUsers = async (req, res, next) => {
       ],
       limit,
       offset,
-      order: [['created_at', 'DESC']]
+      order: [['created_at', 'DESC']],
+      distinct: true
     });
 
     res.status(200).json({
@@ -112,14 +114,15 @@ const createUser = async (req, res, next) => {
     }
 
     // Create user
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       email,
-      password,
+      password: hashedPassword,
       first_name,
       last_name,
       phone,
       gender,
-      is_email_verified: true // Admin-created users are auto-verified
+      is_active: true // Admin-created users are auto-verified
     });
 
     // Assign roles if provided
@@ -163,7 +166,7 @@ const createUser = async (req, res, next) => {
  */
 const updateUser = async (req, res, next) => {
   try {
-    const { role_ids, ...updateData } = req.body;
+    const { role_ids, ...updateData } = req.body; 
     
     // Don't allow password updates here (use auth/update-password instead)
     if (updateData.password) {

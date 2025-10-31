@@ -44,6 +44,40 @@
                     }
                 },
                 {
+                    "name": "Register Admin",
+                    "request": {
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "method": "POST",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"user@example.com\",\n    \"password\": \"Password123!\",\n    \"phone\": \"+2348012345678\",\n    \"gender\": \"male\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/register-admin",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "register-admin"
+                            ]
+                        },
+                        "description": "Register a new admin"
+                    }
+                },
+                {
                     "name": "Login",
                     "request": {
                         "header": [
@@ -995,7 +1029,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/vendors/profile",
+                            "raw": "{{base_url}}/api/v1/vendors/vendor/profile",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -1003,6 +1037,7 @@
                                 "api",
                                 "v1",
                                 "vendors",
+                                "vendor",
                                 "profile"
                             ]
                         },
@@ -1973,9 +2008,10 @@
                             ],
                             "path": [
                                 "api",
-                                "admin",
-                                "dashboard",
-                                "top-categories"
+                                "v1",
+                                "products",
+                                ":id",
+                                "reviews"
                             ],
                             "query": [
                                 {
@@ -2164,13 +2200,14 @@
                                     "raw": "{\n    \"name\": \"Premium T-Shirt\",\n    \"description\": \"High quality cotton t-shirt\",\n    \"price\": 29.99,\n    \"category_id\": 1,\n    \"sku\": \"TSHIRT-001\",\n    \"stock\": 100,\n    \"vendor_id\": 1,\n    \"variants\": [\n        {\n            \"name\": \"Size\",\n            \"value\": \"M\",\n            \"additional_price\": 0,\n            \"stock\": 50\n        }\n    ],\n    \"images\": [\n        {\n            \"url\": \"https://example.com/tshirt.jpg\",\n            \"is_featured\": true\n        }\n    ]\n}"
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products",
+                                    "raw": "{{base_url}}/api/v1/admin/products",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
+                                        "admin",
                                         "products"
                                     ]
                                 }
@@ -2188,15 +2225,16 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/all/admin?page=1&limit=10",
+                                    "raw": "{{base_url}}/api/v1/admin/products/all?page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
+                                        "v1",
                                         "admin",
-                                        "dashboard",
-                                        "top-selling-items"
+                                        "products",
+                                        "all"
                                     ],
                                     "query": [
                                         {
@@ -2231,15 +2269,16 @@
                                     "raw": "{\n    \"name\": \"Admin Updated Product\",\n    \"status\": \"active\",\n    \"price\": 39.99\n}"
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/:id/admin",
+                                    "raw": "{{base_url}}/api/v1/admin/products/:id",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
+                                        "v1",
                                         "admin",
-                                        "dashboard",
-                                        "sales-stats"
+                                        "products",
+                                        ":id"
                                     ],
                                     "variable": [
                                         {
@@ -2263,15 +2302,16 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/:id/admin",
+                                    "raw": "{{base_url}}/api/v1/admin/products/:id",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
+                                        "v1",
                                         "admin",
-                                        "dashboard",
-                                        "top-categories"
+                                        "products",
+                                        ":id"
                                     ],
                                     "variable": [
                                         {
@@ -2303,16 +2343,16 @@
                                     "raw": "{\n    \"status\": \"banned\"\n}"
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/:id/admin/status",
+                                    "raw": "{{base_url}}/api/v1/admin/products/:id/status",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
+                                        "admin",
                                         "products",
                                         ":id",
-                                        "admin",
                                         "status"
                                     ],
                                     "variable": [
@@ -2337,17 +2377,17 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/admin/status/active?page=1&limit=10",
+                                    "raw": "{{base_url}}/api/v1/admin/products/status/:status?page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "products",
                                         "admin",
+                                        "products",
                                         "status",
-                                        "active"
+                                        ":status"
                                     ],
                                     "query": [
                                         {
@@ -2357,6 +2397,11 @@
                                         {
                                             "key": "limit",
                                             "value": "10"
+                                        }
+                                    ], "variable" : [
+                                        {
+                                            "key": "status",
+                                            "value": "active"
                                         }
                                     ]
                                 }
@@ -2374,13 +2419,14 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/products/:id/analytics",
+                                    "raw": "{{base_url}}/api/v1/admin/products/:id/analytics",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
+                                        "admin",
                                         "products",
                                         ":id",
                                         "analytics"
@@ -4824,7 +4870,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Manager\",\n    \"email\": \"john.manager@stylay.com\",\n    \"phone\": \"+2348012345678\",\n    \"password\": \"SecurePass123!\",\n    \"role_id\": 2,\n    \"permission_groups\": [\"vendor_management\", \"products_management\"]\n}",
+                            "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Manager\",\n    \"email\": \"john.manager@stylay.com\",\n    \"phone\": \"+2348012345678\",\n    \"password\": \"SecurePass123!\",\n    \"permission_groups\": [\"vendor_management\", \"products_management\"]\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -4930,7 +4976,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"role_id\": 3,\n    \"permission_groups\": [\"earnings_payment\", \"feedbacks_support\", \"notification_panel\"]\n}",
+                            "raw": "{\n    \"permission_groups\": [\"earnings_payment\", \"feedbacks_support\", \"notification_panel\"]\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"

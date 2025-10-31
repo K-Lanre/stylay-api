@@ -44,6 +44,7 @@ module.exports = {
           model: 'users',
           key: 'id'
         },
+        comment: "The user who made the adjustment",
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },

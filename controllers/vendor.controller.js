@@ -273,11 +273,11 @@ const registerVendor = async (req, res) => {
  * @returns {string} data.User.email_verified_at - Email verification timestamp
  * @returns {Object} data.store - Store/business information
  * @throws {AppError} 404 - When vendor profile not found
- * @api {get} /api/v1/vendors/profile Get Vendor Profile
+ * @api {get} /api/v1/vendors/vendor/profile Get Vendor Profile
  * @private vendor
  * @example
  * // Request
- * GET /api/v1/vendors/profile
+ * GET /api/v1/vendors/vendor/profile
  * Authorization: Bearer <token>
  *
  * // Success Response (200)
@@ -887,7 +887,7 @@ const approveVendor = async (req, res, next) => {
     );
 
     // Update store verification status
-    await vendor.Store.update(
+    await vendor.store.update(
       {
         is_verified: true,
       },

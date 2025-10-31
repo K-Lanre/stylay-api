@@ -116,6 +116,7 @@ exports.registerValidation = [
     .withMessage('Please select a valid gender')
 ];
 
+
 // Validation rules for login
 /**
  * Validation rules for user login.

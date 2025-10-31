@@ -72,6 +72,7 @@ module.exports = {
         password: passwordHash,
         phone: phone,
         gender: faker.helpers.arrayElement(['male', 'female', 'other']),
+        profile_image: `https://ui-avatars.com/api/?name=${firstName}+${lastName}&background=random&size=128`,
         email_verified_at: now,
         created_at: now,
         updated_at: now

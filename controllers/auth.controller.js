@@ -134,6 +134,7 @@ exports.register = async (req, res, next) => {
       last_name,
       email: email.toLowerCase(),
       password: await bcrypt.hash(password, 12),
+      profile_image: profile_image || `https://ui-avatars.com/api/?name=${first_name}+${last_name}&background=random&size=128`,
       phone,
       gender,
       is_active: false, // User needs to verify email first
@@ -312,7 +313,7 @@ exports.verifyEmail = async (req, res, next) => {
         email: user.email,
         phone: user.phone,
         is_verified: true,
-        role: user.role ? user.role.name : "customer",
+        role: user.roles && user.roles.length > 0 ? user.roles[0].name : "customer",
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -1410,6 +1411,118 @@ exports.getPendingPhoneChanges = async (req, res, next) => {
       next(err);
     } else {
       next(new AppError("An error occurred while retrieving pending phone changes. Please try again.", 500));
+    }
+  }
+};
+
+/**
+ * Registers an admin user
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.first_name - First name of the admin user
+ * @param {string} req.body.last_name - Last name of the admin user
+ * @param {string} req.body.phone - Phone number of the admin user
+ * @param {string} req.body.email - Email of the admin user
+ * @param {string} req.body.password - Password of the admin user
+ * @param {string} req.body.gender - Gender of the admin user
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - User object
+ * @throws {AppError} 400 - Invalid input
+ * @throws {AppError} 500 - Server error
+ * @private admin
+ * @api {post} /api/v1/auth/register-admin Register admin
+ * @example
+ * POST /api/v1/auth/register-admin
+ * Authorization: Bearer <admin_jwt_token>
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "phone": "1234567890",
+ *   "email": "john.doe@example.com",
+ *   "password": "password"
+ *   "gender": "male"
+ * }
+ */
+exports.registerAdmin = async (req, res, next) => {
+  try {
+    const transaction = await User.sequelize.transaction(); // Start transaction
+
+    const { first_name, last_name, phone, email, password, gender } = req.body;
+
+    // Check if user already exists with the same email or phone
+    const existingUser = await User.findOne({
+      where: {
+        [Op.or]: [
+          { email: email.toLowerCase() },
+          { phone: phone }
+        ]
+      },
+      attributes: ['email', 'phone'], // Only fetch necessary fields for the check
+      transaction // Include transaction
+    });
+
+    if (existingUser) {
+      const errorMessage = existingUser.email === email.toLowerCase() ? "Email already registered" : "Phone already in use";
+      throw new AppError(errorMessage, 400);
+    }
+
+    // Validate input
+    if (!first_name || !last_name || !phone || !email || !password) {
+      throw new AppError("Please provide all required fields.", 400);
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user within transaction
+    const user = await User.create({
+      first_name,
+      last_name,
+      phone,
+      email,
+      password: hashedPassword,
+      email_verified_at: new Date(),
+      is_active: true,
+      profile_image: `https://ui-avatars.com/api/?name=${first_name}+${last_name}&background=random&size=128`,
+      gender,
+    }, { transaction });
+
+    // Add admin role to user within transaction
+    const role = await Role.findOne({
+      where: { name: "admin" },
+      transaction // Include transaction
+    });
+    if (!role) {
+      logger.error('Admin role not found in database');
+      const allRoles = await Role.findAll({ attributes: ['id', 'name'] });
+      logger.info(`Existing roles: ${JSON.stringify(allRoles)}`);
+
+      // Check if seeders ran by querying roles table directly
+      const seededRoles = await Role.findAll();
+      logger.info(`Seeded roles check: ${seededRoles.length ? 'Roles exist' : 'No roles found'}`);
+
+      throw new AppError("Admin role configuration missing", 500);
+    }
+    await user.addRole(role, { transaction });
+
+    await transaction.commit(); // Commit transaction
+
+    logger.info(`Admin user ${user.id} created successfully`);
+
+    // Generate token and send response
+    createSendToken(user, 201, res);
+  } catch (error) {
+    if (transaction) {
+      await transaction.rollback(); // Rollback transaction if any error occurs
+    }
+
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      logger.error(`Error registering admin user: ${error.message}`, { error });
+      next(new AppError("An error occurred while registering the admin user. Please try again.", 500));
     }
   }
 };

@@ -17,15 +17,20 @@ module.exports = {
     const hashedPassword = await bcrypt.hash(process.env.DEFAULT_ADMIN_PASSWORD, 12);
     const now = new Date();
 
+    // Define admin user details
+    const first_name = 'Admin';
+    const last_name = 'User';
+
     // Insert admin user with a reliably formatted phone number
     await queryInterface.bulkInsert('users', [
       {
-        first_name: 'Admin',
-        last_name: 'User',
+        first_name: first_name,
+        last_name: last_name,
         email: 'admin@stylay.com',
         password: hashedPassword,
         // Ensure phone number follows +234[70|80|81|90|91]XXXXXXX format
         phone: `+234${faker.helpers.arrayElement(['70', '80', '81', '90', '91'])}${faker.string.numeric(8)}`, // +234 followed by valid prefix and 8 digits
+        profile_image: `https://ui-avatars.com/api/?name=${first_name}+${last_name}&background=random&size=128`,
         gender: 'other',
         is_active: true,
         email_verified_at: now,

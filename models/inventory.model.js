@@ -23,8 +23,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     product_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false,
-      unique: true
+      allowNull: false
     },
     supply_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
@@ -45,7 +44,17 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'Inventory',
     tableName: 'inventory',
     timestamps: true,
-    underscored: true
+    underscored: true,
+    indexes: [
+      {
+        unique: false,
+        fields: ['product_id']
+      },
+      {
+        unique: false,
+        fields: ['supply_id']
+      }
+    ]
   });
 
   return Inventory;

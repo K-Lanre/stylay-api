@@ -26,7 +26,6 @@ router.post(
 );
 
 router.get("/", vendorController.getAllVendors);
-router.get("/:id", vendorController.getVendor);
 // Dynamic parameter routes (must come after specific routes)
 router.get(
   "/:id/products",
@@ -34,19 +33,14 @@ router.get(
   validate,
   vendorController.getVendorProducts
 );
+router.get("/:id", vendorController.getVendor);
 
 // Protected routes (require authentication)
 router.use(protect);
 
 // Vendor profile route (accessible by vendor or admin)
 router.get(
-  "/profile",
-  (req, res, next) => {
-    if (isAdmin) {
-      return next('route'); // Skip to the next route if admin
-    }
-    next();
-  },
+  "/vendor/profile",
   restrictTo('vendor'),
   vendorController.getVendorProfile
 );

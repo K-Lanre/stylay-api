@@ -7,6 +7,7 @@ const {
   Store,
   Review,
   VariantType,
+  VariantCombination,
   sequelize,
 } = require("../models");
 const AppError = require("../utils/appError");
@@ -383,6 +384,11 @@ const getProducts = async (req, res, next) => {
           model: Vendor,
           attributes: ["id"],
           as: "vendor",
+        },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: ["id", "name", "value", "additional_price", "stock"],
         },
         { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
       ],
