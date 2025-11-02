@@ -1,229 +1,18 @@
-const { Permission, Role, RolePermission, User, UserRole } = require('../models');
-const AppError = require('../utils/appError');
+'use strict';
+
+const { Permission, PermissionRole, PermissionUser, Role, User } = require('../models');
+const { Op } = require('sequelize');
+const logger = require('../utils/logger');
 
 class PermissionService {
   /**
-   * Check if a user has a specific permission
-   * @param {Object} user - User instance with roles and permissions loaded
-   * @param {string} permissionName - Name of the permission to check
-   * @returns {boolean} True if user has the permission
-   */
-  static async checkPermission(user, permissionName) {
-    if (!user || !user.roles) {
-      return false;
-    }
-
-    // Check if user has admin role (backward compatibility)
-    const hasAdminRole = user.roles.some(role => role.name === 'admin');
-    if (hasAdminRole) {
-      return true; // Admins have all permissions
-    }
-
-    // Check specific permissions
-    for (const role of user.roles) {
-      if (role.permissions && role.permissions.some(perm => perm.name === permissionName)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Get all permissions for a user
-   * @param {number} userId - User ID
-   * @returns {Array} Array of permission objects
-   */
-  static async getUserPermissions(userId) {
-    try {
-      const user = await User.findByPk(userId, {
-        include: [
-          {
-            model: Role,
-            as: 'roles',
-            include: [
-              {
-                model: Permission,
-                as: 'permissions',
-                through: { attributes: [] } // Exclude junction table attributes
-              }
-            ],
-            through: { attributes: [] } // Exclude junction table attributes
-          }
-        ]
-      });
-
-      if (!user || !user.roles) {
-        return [];
-      }
-
-      const permissions = [];
-      for (const role of user.roles) {
-        if (role.permissions) {
-          permissions.push(...role.permissions);
-        }
-      }
-
-      // Remove duplicates based on permission id
-      const uniquePermissions = permissions.filter((permission, index, self) =>
-        index === self.findIndex(p => p.id === permission.id)
-      );
-
-      return uniquePermissions;
-    } catch (error) {
-      throw new AppError('Failed to get user permissions', 500);
-    }
-  }
-
-  /**
-   * Assign permissions to a role
-   * @param {number} roleId - Role ID
-   * @param {Array<number>} permissionIds - Array of permission IDs
-   * @param {Object} transaction - Database transaction (optional)
-   * @returns {Object} Result object with success status
-   */
-  static async assignPermissionsToRole(roleId, permissionIds, transaction = null) {
-    try {
-      // Verify role exists
-      const role = await Role.findByPk(roleId, transaction ? { transaction } : {});
-      if (!role) {
-        throw new AppError('Role not found', 404);
-      }
-
-      // Verify all permissions exist
-      const permissions = await Permission.findAll({
-        where: { id: permissionIds },
-        ...(transaction && { transaction })
-      });
-
-      if (permissions.length !== permissionIds.length) {
-        throw new AppError('One or more permissions not found', 404);
-      }
-
-      // Remove existing permissions for this role
-      await RolePermission.destroy({
-        where: { role_id: roleId },
-        ...(transaction && { transaction })
-      });
-
-      // Assign new permissions
-      const rolePermissions = permissionIds.map(permissionId => ({
-        role_id: roleId,
-        permission_id: permissionId
-      }));
-
-      await RolePermission.bulkCreate(rolePermissions, {
-        ...(transaction && { transaction })
-      });
-
-      return {
-        success: true,
-        message: `Assigned ${permissionIds.length} permissions to role ${role.name}`,
-        assignedPermissions: permissions.length
-      };
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError('Failed to assign permissions to role', 500);
-    }
-  }
-
-  /**
-   * Remove permissions from a role
-   * @param {number} roleId - Role ID
-   * @param {Array<number>} permissionIds - Array of permission IDs to remove
-   * @returns {Object} Result object with success status
-   */
-  static async removePermissionsFromRole(roleId, permissionIds) {
-    try {
-      const deletedCount = await RolePermission.destroy({
-        where: {
-          role_id: roleId,
-          permission_id: permissionIds
-        }
-      });
-
-      return {
-        success: true,
-        message: `Removed ${deletedCount} permissions from role`,
-        removedPermissions: deletedCount
-      };
-    } catch (error) {
-      throw new AppError('Failed to remove permissions from role', 500);
-    }
-  }
-
-  /**
-   * Get all permissions
-   * @param {Object} options - Query options
-   * @param {string} options.resource - Filter by resource
-   * @param {string} options.action - Filter by action
-   * @returns {Array} Array of permission objects
-   */
-  static async getAllPermissions(options = {}) {
-    try {
-      const whereClause = {};
-      if (options.resource) {
-        whereClause.resource = options.resource;
-      }
-      if (options.action) {
-        whereClause.action = options.action;
-      }
-
-      const permissions = await Permission.findAll({
-        where: whereClause,
-        order: [['resource', 'ASC'], ['action', 'ASC']]
-      });
-
-      return permissions;
-    } catch (error) {
-      throw new AppError('Failed to get permissions', 500);
-    }
-  }
-
-  /**
-   * Get permissions for a specific role
-   * @param {number} roleId - Role ID
-   * @returns {Array} Array of permission objects
-   */
-  static async getRolePermissions(roleId) {
-    try {
-      const role = await Role.findByPk(roleId, {
-        include: [
-          {
-            model: Permission,
-            as: 'permissions',
-            through: { attributes: [] }
-          }
-        ]
-      });
-
-      if (!role) {
-        throw new AppError('Role not found', 404);
-      }
-
-      return role.permissions || [];
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError('Failed to get role permissions', 500);
-    }
-  }
-
-  /**
    * Create a new permission
    * @param {Object} permissionData - Permission data
-   * @param {string} permissionData.name - Permission name
-   * @param {string} permissionData.resource - Resource name
-   * @param {string} permissionData.action - Action name
-   * @param {string} permissionData.description - Permission description
-   * @returns {Object} Created permission object
+   * @returns {Promise<Permission>} Created permission
    */
   static async createPermission(permissionData) {
     try {
-      const { name, resource, action, description } = permissionData;
+      const { name, description, resource, action } = permissionData;
 
       // Check if permission already exists
       const existingPermission = await Permission.findOne({
@@ -231,315 +20,737 @@ class PermissionService {
       });
 
       if (existingPermission) {
-        throw new AppError('Permission with this name already exists', 409);
+        throw new Error(`Permission with name "${name}" already exists`);
+      }
+
+      // Validate resource and action
+      const validResources = [
+        'users', 'roles', 'permissions', 'products', 'categories', 'orders',
+        'inventory', 'reviews', 'vendors', 'addresses', 'payments', 'carts',
+        'collections', 'journals', 'variants', 'supply', 'notifications',
+        'support', 'dashboard', 'reports', 'settings'
+      ];
+
+      const validActions = [
+        'create', 'read', 'update', 'delete', 'manage', 'view', 'list',
+        'export', 'import', 'approve', 'reject', 'activate', 'deactivate',
+        'archive', 'restore'
+      ];
+
+      if (!validResources.includes(resource)) {
+        throw new Error(`Invalid resource: ${resource}`);
+      }
+
+      if (!validActions.includes(action)) {
+        throw new Error(`Invalid action: ${action}`);
       }
 
       const permission = await Permission.create({
         name,
+        description,
+        resource,
+        action
+      });
+
+      logger.info(`Permission created: ${permission.name}`);
+      return permission;
+    } catch (error) {
+      logger.error('Error creating permission:', error);
+      throw new Error(`Failed to create permission: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all permissions with optional filtering and pagination
+   * @param {Object} options - Query options
+   * @returns {Promise<Object>} Paginated permissions
+   */
+  static async getAllPermissions(options = {}) {
+    try {
+      const {
+        page = 1,
+        limit = 20,
         resource,
         action,
-        description
+        search,
+        sortBy = 'name',
+        sortOrder = 'ASC'
+      } = options;
+
+      const offset = (page - 1) * limit;
+      const where = {};
+
+      if (resource) {
+        where.resource = resource;
+      }
+
+      if (action) {
+        where.action = action;
+      }
+
+      if (search) {
+        where[Op.or] = [
+          { name: { [Op.like]: `%${search}%` } },
+          { description: { [Op.like]: `%${search}%` } },
+          { resource: { [Op.like]: `%${search}%` } }
+        ];
+      }
+
+      const { count, rows: permissions } = await Permission.findAndCountAll({
+        where,
+        limit,
+        offset,
+        order: [[sortBy, sortOrder]],
+        include: [
+          {
+            model: Role,
+            as: 'roles',
+            through: { attributes: [] },
+            required: false
+          }
+        ]
       });
+
+      const totalPages = Math.ceil(count / limit);
+
+      return {
+        permissions,
+        pagination: {
+          current_page: parseInt(page),
+          per_page: parseInt(limit),
+          total: count,
+          total_pages: totalPages,
+          has_next_page: page < totalPages,
+          has_previous_page: page > 1
+        }
+      };
+    } catch (error) {
+      logger.error('Error getting permissions:', error);
+      throw new Error(`Failed to get permissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get permission by ID
+   * @param {number} id - Permission ID
+   * @returns {Promise<Permission>} Permission object
+   */
+  static async getPermission(id) {
+    try {
+      const permission = await Permission.findByPk(id, {
+        include: [
+          {
+            model: Role,
+            as: 'roles',
+            through: { attributes: [] },
+            required: false
+          },
+          {
+            model: User,
+            as: 'users',
+            through: { attributes: [] },
+            required: false
+          }
+        ]
+      });
+
+      if (!permission) {
+        throw new Error(`Permission with ID ${id} not found`);
+      }
 
       return permission;
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError('Failed to create permission', 500);
+      logger.error(`Error getting permission ${id}:`, error);
+      throw new Error(`Failed to get permission: ${error.message}`);
     }
   }
 
   /**
-   * Delete a permission
-   * @param {number} permissionId - Permission ID
-   * @returns {Object} Result object with success status
+   * Update permission
+   * @param {number} id - Permission ID
+   * @param {Object} updateData - Data to update
+   * @returns {Promise<Permission>} Updated permission
    */
-  static async deletePermission(permissionId) {
+  static async updatePermission(id, updateData) {
     try {
-      const permission = await Permission.findByPk(permissionId);
+      const permission = await Permission.findByPk(id);
+
       if (!permission) {
-        throw new AppError('Permission not found', 404);
+        throw new Error(`Permission with ID ${id} not found`);
       }
 
-      // Check if permission is assigned to any roles
-      const rolePermissions = await RolePermission.findAll({
-        where: { permission_id: permissionId }
-      });
-
-      if (rolePermissions.length > 0) {
-        throw new AppError('Cannot delete permission that is assigned to roles', 409);
-      }
-
-      await permission.destroy();
-
-      return {
-        success: true,
-        message: 'Permission deleted successfully'
-      };
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError('Failed to delete permission', 500);
-    }
-  }
-
-  /**
-   * Check if user has admin role (backward compatibility)
-   * @param {Object} user - User instance
-   * @returns {boolean} True if user has admin role
-   */
-  static hasAdminRole(user) {
-    if (!user || !user.roles) {
-      return false;
-    }
-    return user.roles.some(role => role.name === 'admin');
-  }
-
-  /**
-   * Get permission groups and their permissions
-   * @param {Object} options - Query options
-   * @param {boolean} options.includeIds - Include actual permission IDs from database
-   * @returns {Object} Object with groups as keys and permission arrays as values
-   */
-  static async getPermissionGroups(options = {}) {
-    const templates = this.getPermissionTemplates();
-    const groups = {};
-
-    templates.forEach(template => {
-      const group = template.group;
-      if (!groups[group]) {
-        groups[group] = [];
-      }
-      groups[group].push({
-        name: `${template.resource}_${template.action}`,
-        resource: template.resource,
-        action: template.action,
-        description: template.description
-      });
-    });
-
-    // If includeIds is true, fetch actual permission IDs from database
-    if (options.includeIds) {
-      try {
-        for (const groupName in groups) {
-          const groupPermissions = groups[groupName];
-
-          for (const permission of groupPermissions) {
-            const dbPermission = await Permission.findOne({
-              where: { name: permission.name }
-            });
-
-            if (dbPermission) {
-              permission.id = dbPermission.id;
-            }
-          }
-        }
-      } catch (error) {
-        // If database query fails, continue without IDs
-        console.warn('Failed to fetch permission IDs:', error.message);
-      }
-    }
-
-    return groups;
-  }
-
-  /**
-   * Get permissions for specific groups
-   * @param {string[]} groupNames - Array of group names
-   * @returns {Array} Array of permission objects for the specified groups
-   */
-  static getPermissionsByGroups(groupNames) {
-    const templates = this.getPermissionTemplates();
-    return templates
-      .filter(template => groupNames.includes(template.group))
-      .map(template => ({
-        name: `${template.resource}_${template.action}`,
-        resource: template.resource,
-        action: template.action,
-        description: template.description,
-        group: template.group
-      }));
-  }
-
-  /**
-   * Assign permissions to a role by groups
-   * @param {number} roleId - Role ID
-   * @param {string[]} groupNames - Array of group names
-   * @param {Object} transaction - Database transaction (optional)
-   * @returns {Object} Result object with success status
-   */
-  static async assignPermissionsByGroups(roleId, groupNames, transaction = null) {
-    try {
-      // Get permissions for the specified groups
-      const groupPermissions = this.getPermissionsByGroups(groupNames);
-
-      // Get or create permissions in database
-      const permissionIds = [];
-      for (const perm of groupPermissions) {
-        let permission = await Permission.findOne({
-          where: { name: perm.name },
-          ...(transaction && { transaction })
+      // If name is being updated, check for uniqueness
+      if (updateData.name && updateData.name !== permission.name) {
+        const existingPermission = await Permission.findOne({
+          where: { name: updateData.name }
         });
 
-        if (!permission) {
-          permission = await Permission.create({
-            name: perm.name,
-            resource: perm.resource,
-            action: perm.action,
-            description: perm.description
-          }, {
-            ...(transaction && { transaction })
-          });
+        if (existingPermission) {
+          throw new Error(`Permission with name "${updateData.name}" already exists`);
         }
-
-        permissionIds.push(permission.id);
       }
 
-      // Assign permissions to role
-      return await this.assignPermissionsToRole(roleId, permissionIds, transaction);
+      await permission.update(updateData);
+
+      logger.info(`Permission updated: ${permission.name}`);
+      return permission;
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError('Failed to assign permissions by groups', 500);
+      logger.error(`Error updating permission ${id}:`, error);
+      throw new Error(`Failed to update permission: ${error.message}`);
     }
   }
 
   /**
-   * Get user's permissions organized by groups
-   * @param {number} userId - User ID
-   * @returns {Object} Object with groups as keys and permission arrays as values
+   * Delete permission
+   * @param {number} id - Permission ID
+   * @returns {Promise<boolean>} Success status
    */
-  static async getUserPermissionsByGroups(userId) {
+  static async deletePermission(id) {
     try {
-      const permissions = await this.getUserPermissions(userId);
-      const groups = {};
+      const permission = await Permission.findByPk(id);
 
-      permissions.forEach(permission => {
-        // Try to determine group from permission templates
-        const templates = this.getPermissionTemplates();
-        const template = templates.find(t => t.resource === permission.resource && t.action === permission.action);
+      if (!permission) {
+        throw new Error(`Permission with ID ${id} not found`);
+      }
 
-        const group = template ? template.group : 'other';
-        if (!groups[group]) {
-          groups[group] = [];
-        }
-        groups[group].push(permission);
+      // Remove all role associations
+      await PermissionRole.destroy({
+        where: { permission_id: id }
       });
 
-      return groups;
+      // Remove all user associations
+      await PermissionUser.destroy({
+        where: { permission_id: id }
+      });
+
+      // Delete the permission
+      await permission.destroy();
+
+      logger.info(`Permission deleted: ${permission.name}`);
+      return true;
     } catch (error) {
-      throw new AppError('Failed to get user permissions by groups', 500);
+      logger.error(`Error deleting permission ${id}:`, error);
+      throw new Error(`Failed to delete permission: ${error.message}`);
     }
   }
 
   /**
-   * Get resource-action combinations for common permissions organized by groups
-   * @returns {Array} Array of permission templates
+   * Assign permission to role
+   * @param {number} permissionId - Permission ID
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Object>} Assignment result
    */
-  static getPermissionTemplates() {
-    return [
-      // Vendor Management Group
-      { resource: 'vendors', action: 'create', description: 'Create new vendors', group: 'vendor_management' },
-      { resource: 'vendors', action: 'read', description: 'View vendor information', group: 'vendor_management' },
-      { resource: 'vendors', action: 'update', description: 'Update vendor information', group: 'vendor_management' },
-      { resource: 'vendors', action: 'delete', description: 'Delete vendors', group: 'vendor_management' },
-      { resource: 'vendors', action: 'approve', description: 'Approve vendor applications', group: 'vendor_management' },
-      { resource: 'vendors', action: 'reject', description: 'Reject vendor applications', group: 'vendor_management' },
-      { resource: 'vendors', action: 'follow', description: 'Manage vendor follow relationships', group: 'vendor_management' },
+  static async assignPermissionToRole(permissionId, roleId) {
+    try {
+      const permission = await Permission.findByPk(permissionId);
+      const role = await Role.findByPk(roleId);
 
-      // Products Management Group
-      { resource: 'products', action: 'create', description: 'Create new products', group: 'products_management' },
-      { resource: 'products', action: 'read', description: 'View product information', group: 'products_management' },
-      { resource: 'products', action: 'update', description: 'Update product information', group: 'products_management' },
-      { resource: 'products', action: 'delete', description: 'Delete products', group: 'products_management' },
-      { resource: 'products', action: 'analytics', description: 'View product analytics', group: 'products_management' },
+      if (!permission) {
+        throw new Error(`Permission with ID ${permissionId} not found`);
+      }
 
-      // Categories Management (part of products)
-      { resource: 'categories', action: 'create', description: 'Create new categories', group: 'products_management' },
-      { resource: 'categories', action: 'read', description: 'View category information', group: 'products_management' },
-      { resource: 'categories', action: 'update', description: 'Update category information', group: 'products_management' },
-      { resource: 'categories', action: 'delete', description: 'Delete categories', group: 'products_management' },
+      if (!role) {
+        throw new Error(`Role with ID ${roleId} not found`);
+      }
 
-      // Collections Management (part of products)
-      { resource: 'collections', action: 'create', description: 'Create new collections', group: 'products_management' },
-      { resource: 'collections', action: 'read', description: 'View collection information', group: 'products_management' },
-      { resource: 'collections', action: 'update', description: 'Update collection information', group: 'products_management' },
-      { resource: 'collections', action: 'delete', description: 'Delete collections', group: 'products_management' },
+      const result = await PermissionRole.assignPermissionToRole(permissionId, roleId);
 
-      // Inventory Management (part of products)
-      { resource: 'inventory', action: 'read', description: 'View inventory information', group: 'products_management' },
-      { resource: 'inventory', action: 'update', description: 'Update inventory levels', group: 'products_management' },
-      { resource: 'inventory', action: 'manage', description: 'Manage inventory operations', group: 'products_management' },
+      if (result.created) {
+        logger.info(`Permission ${permission.name} assigned to role ${role.name}`);
+      }
 
-      // Supply Management (part of products)
-      { resource: 'supply', action: 'create', description: 'Create supply records', group: 'products_management' },
-      { resource: 'supply', action: 'read', description: 'View supply information', group: 'products_management' },
-      { resource: 'supply', action: 'update', description: 'Update supply information', group: 'products_management' },
-      { resource: 'supply', action: 'delete', description: 'Delete supply records', group: 'products_management' },
+      return result;
+    } catch (error) {
+      logger.error('Error assigning permission to role:', error);
+      throw new Error(`Failed to assign permission to role: ${error.message}`);
+    }
+  }
 
-      // Earnings and Payment Group
-      { resource: 'orders', action: 'read', description: 'View order information', group: 'earnings_payment' },
-      { resource: 'orders', action: 'update', description: 'Update order status', group: 'earnings_payment' },
-      { resource: 'orders', action: 'cancel', description: 'Cancel orders', group: 'earnings_payment' },
-      { resource: 'orders', action: 'process', description: 'Process order payments', group: 'earnings_payment' },
+  /**
+   * Remove permission from role
+   * @param {number} permissionId - Permission ID
+   * @param {number} roleId - Role ID
+   * @returns {Promise<boolean>} Success status
+   */
+  static async removePermissionFromRole(permissionId, roleId) {
+    try {
+      const permission = await Permission.findByPk(permissionId);
+      const role = await Role.findByPk(roleId);
 
-      // Payment Transactions
-      { resource: 'payments', action: 'read', description: 'View payment transactions', group: 'earnings_payment' },
-      { resource: 'payments', action: 'process', description: 'Process payments', group: 'earnings_payment' },
-      { resource: 'payments', action: 'refund', description: 'Process refunds', group: 'earnings_payment' },
+      if (!permission) {
+        throw new Error(`Permission with ID ${permissionId} not found`);
+      }
 
-      // Payouts
-      { resource: 'payouts', action: 'create', description: 'Create payout records', group: 'earnings_payment' },
-      { resource: 'payouts', action: 'read', description: 'View payout information', group: 'earnings_payment' },
-      { resource: 'payouts', action: 'update', description: 'Update payout status', group: 'earnings_payment' },
-      { resource: 'payouts', action: 'process', description: 'Process vendor payouts', group: 'earnings_payment' },
+      if (!role) {
+        throw new Error(`Role with ID ${roleId} not found`);
+      }
 
-      // Earnings/Analytics
-      { resource: 'earnings', action: 'read', description: 'View earnings reports', group: 'earnings_payment' },
-      { resource: 'earnings', action: 'export', description: 'Export earnings data', group: 'earnings_payment' },
-      { resource: 'journals', action: 'read', description: 'View journal entries', group: 'earnings_payment' },
+      const success = await PermissionRole.removePermissionFromRole(permissionId, roleId);
 
-      // Feedbacks and Support Group
-      { resource: 'reviews', action: 'read', description: 'View customer reviews', group: 'feedbacks_support' },
-      { resource: 'reviews', action: 'update', description: 'Update review status', group: 'feedbacks_support' },
-      { resource: 'reviews', action: 'delete', description: 'Delete inappropriate reviews', group: 'feedbacks_support' },
-      { resource: 'reviews', action: 'moderate', description: 'Moderate review content', group: 'feedbacks_support' },
+      if (success) {
+        logger.info(`Permission ${permission.name} removed from role ${role.name}`);
+      }
 
-      // Support Feedback
-      { resource: 'support', action: 'create', description: 'Create support tickets', group: 'feedbacks_support' },
-      { resource: 'support', action: 'read', description: 'View support tickets', group: 'feedbacks_support' },
-      { resource: 'support', action: 'update', description: 'Update support ticket status', group: 'feedbacks_support' },
-      { resource: 'support', action: 'resolve', description: 'Resolve support tickets', group: 'feedbacks_support' },
-      { resource: 'support', action: 'escalate', description: 'Escalate support tickets', group: 'feedbacks_support' },
+      return success;
+    } catch (error) {
+      logger.error('Error removing permission from role:', error);
+      throw new Error(`Failed to remove permission from role: ${error.message}`);
+    }
+  }
 
-      // Notification Panel Group
-      { resource: 'notifications', action: 'create', description: 'Create system notifications', group: 'notification_panel' },
-      { resource: 'notifications', action: 'read', description: 'View notification history', group: 'notification_panel' },
-      { resource: 'notifications', action: 'update', description: 'Update notification settings', group: 'notification_panel' },
-      { resource: 'notifications', action: 'delete', description: 'Delete notifications', group: 'notification_panel' },
-      { resource: 'notifications', action: 'send', description: 'Send bulk notifications', group: 'notification_panel' },
+  /**
+   * Assign permission to user directly
+   * @param {number} permissionId - Permission ID
+   * @param {number} userId - User ID
+   * @returns {Promise<Object>} Assignment result
+   */
+  static async assignPermissionToUser(permissionId, userId) {
+    try {
+      const permission = await Permission.findByPk(permissionId);
+      const user = await User.findByPk(userId);
 
-      // User Management (Additional admin functions)
-      { resource: 'users', action: 'create', description: 'Create new users', group: 'user_management' },
-      { resource: 'users', action: 'read', description: 'View user information', group: 'user_management' },
-      { resource: 'users', action: 'update', description: 'Update user information', group: 'user_management' },
-      { resource: 'users', action: 'delete', description: 'Delete users', group: 'user_management' },
-      { resource: 'users', action: 'manage', description: 'Manage user accounts', group: 'user_management' },
+      if (!permission) {
+        throw new Error(`Permission with ID ${permissionId} not found`);
+      }
 
-      // Analytics and Reports (System-wide)
-      { resource: 'analytics', action: 'read', description: 'View analytics and reports', group: 'analytics_reports' },
-      { resource: 'analytics', action: 'export', description: 'Export analytics data', group: 'analytics_reports' },
-      { resource: 'analytics', action: 'dashboard', description: 'Access admin dashboard', group: 'analytics_reports' },
+      if (!user) {
+        throw new Error(`User with ID ${userId} not found`);
+      }
 
-      // System Administration
-      { resource: 'system', action: 'manage', description: 'Manage system settings', group: 'system_admin' },
-      { resource: 'system', action: 'backup', description: 'Create system backups', group: 'system_admin' },
-      { resource: 'system', action: 'logs', description: 'View system logs', group: 'system_admin' },
-      { resource: 'system', action: 'maintenance', description: 'Perform maintenance tasks', group: 'system_admin' }
-    ];
+      const result = await PermissionUser.assignPermissionToUser(permissionId, userId);
+
+      if (result.created) {
+        logger.info(`Permission ${permission.name} assigned to user ${user.email}`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Error assigning permission to user:', error);
+      throw new Error(`Failed to assign permission to user: ${error.message}`);
+    }
+  }
+
+  /**
+   * Remove permission from user
+   * @param {number} permissionId - Permission ID
+   * @param {number} userId - User ID
+   * @returns {Promise<boolean>} Success status
+   */
+  static async removePermissionFromUser(permissionId, userId) {
+    try {
+      const permission = await Permission.findByPk(permissionId);
+      const user = await User.findByPk(userId);
+
+      if (!permission) {
+        throw new Error(`Permission with ID ${permissionId} not found`);
+      }
+
+      if (!user) {
+        throw new Error(`User with ID ${userId} not found`);
+      }
+
+      const success = await PermissionUser.removePermissionFromUser(permissionId, userId);
+
+      if (success) {
+        logger.info(`Permission ${permission.name} removed from user ${user.email}`);
+      }
+
+      return success;
+    } catch (error) {
+      logger.error('Error removing permission from user:', error);
+      throw new Error(`Failed to remove permission from user: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all permissions for a user (role-based + direct)
+   * @param {number} userId - User ID
+   * @returns {Promise<Array>} Array of permissions
+   */
+  static async getUserPermissions(userId) {
+    try {
+      // Get role-based permissions
+      const rolePermissions = await PermissionRole.getPermissionsForRole(
+        // First get user's roles
+        (await User.findByPk(userId, {
+          include: [{
+            model: Role,
+            as: 'roles',
+            through: { attributes: [] }
+          }]
+        })).roles.map(role => role.id)
+      );
+
+      // Get direct user permissions
+      const directPermissions = await PermissionUser.getDirectPermissionsForUser(userId);
+
+      // Combine and deduplicate
+      const allPermissions = [...rolePermissions, ...directPermissions];
+      const uniquePermissions = allPermissions.filter((permission, index, self) =>
+        index === self.findIndex(p => p.id === permission.id)
+      );
+
+      return uniquePermissions;
+    } catch (error) {
+      logger.error(`Error getting user permissions for user ${userId}:`, error);
+      throw new Error(`Failed to get user permissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if user has permission
+   * @param {number} userId - User ID
+   * @param {string} permissionName - Permission name
+   * @returns {Promise<boolean>} Has permission
+   */
+  static async hasPermission(userId, permissionName) {
+    try {
+      const userPermissions = await this.getUserPermissions(userId);
+      return userPermissions.some(permission => permission.name === permissionName);
+    } catch (error) {
+      logger.error(`Error checking user permission for user ${userId}:`, error);
+      throw new Error(`Failed to check user permission: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if user has permission for resource and action
+   * @param {number} userId - User ID
+   * @param {string} resource - Resource name
+   * @param {string} action - Action name
+   * @returns {Promise<boolean>} Has permission
+   */
+  static async hasPermissionTo(userId, resource, action) {
+    try {
+      const userPermissions = await this.getUserPermissions(userId);
+      return userPermissions.some(permission => 
+        permission.resource === resource && permission.action === action
+      );
+    } catch (error) {
+      logger.error(`Error checking user permission for user ${userId}:`, error);
+      throw new Error(`Failed to check user permission: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get role permissions
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Array>} Array of permissions
+   */
+  static async getRolePermissions(roleId) {
+    try {
+      return await PermissionRole.getPermissionsForRole(roleId);
+    } catch (error) {
+      logger.error(`Error getting role permissions for role ${roleId}:`, error);
+      throw new Error(`Failed to get role permissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get user direct permissions
+   * @param {number} userId - User ID
+   * @returns {Promise<Array>} Array of direct permissions
+   */
+  static async getUserDirectPermissions(userId) {
+    try {
+      return await PermissionUser.getDirectPermissionsForUser(userId);
+    } catch (error) {
+      logger.error(`Error getting user direct permissions for user ${userId}:`, error);
+      throw new Error(`Failed to get user direct permissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Assign multiple permissions to role
+   * @param {number} roleId - Role ID
+   * @param {Array} permissionIds - Array of permission IDs
+   * @returns {Promise<Object>} Assignment results
+   */
+  static async assignMultiplePermissionsToRole(roleId, permissionIds) {
+    try {
+      const role = await Role.findByPk(roleId);
+
+      if (!role) {
+        throw new Error(`Role with ID ${roleId} not found`);
+      }
+
+      let assignedCount = 0;
+      let skippedCount = 0;
+      const results = [];
+
+      // Validate all permission IDs exist
+      const validPermissions = await Permission.findAll({
+        where: { id: permissionIds }
+      });
+
+      const validPermissionIds = validPermissions.map(p => p.id);
+      const invalidPermissionIds = permissionIds.filter(id => !validPermissionIds.includes(id));
+
+      if (invalidPermissionIds.length > 0) {
+        throw new Error(`Invalid permission IDs: ${invalidPermissionIds.join(', ')}`);
+      }
+
+      // Process each permission assignment
+      for (const permissionId of permissionIds) {
+        try {
+          const permission = await Permission.findByPk(permissionId);
+          const result = await PermissionRole.assignPermissionToRole(permissionId, roleId);
+
+          if (result.created) {
+            assignedCount++;
+            logger.info(`Permission ${permission.name} assigned to role ${role.name}`);
+          } else {
+            skippedCount++;
+            logger.info(`Permission ${permission.name} already assigned to role ${role.name}`);
+          }
+
+          results.push({
+            permission_id: permissionId,
+            permission_name: permission.name,
+            action: result.created ? 'assigned' : 'skipped'
+          });
+        } catch (error) {
+          logger.error(`Error assigning permission ${permissionId} to role ${roleId}:`, error);
+          results.push({
+            permission_id: permissionId,
+            action: 'error',
+            error: error.message
+          });
+        }
+      }
+
+      return {
+        assignedCount,
+        skippedCount,
+        total: permissionIds.length,
+        results
+      };
+    } catch (error) {
+      logger.error(`Error assigning multiple permissions to role ${roleId}:`, error);
+      throw new Error(`Failed to assign multiple permissions to role: ${error.message}`);
+    }
+  }
+
+  /**
+   * Remove multiple permissions from role
+   * @param {number} roleId - Role ID
+   * @param {Array} permissionIds - Array of permission IDs
+   * @returns {Promise<Object>} Removal results
+   */
+  static async removeMultiplePermissionsFromRole(roleId, permissionIds) {
+    try {
+      const role = await Role.findByPk(roleId);
+
+      if (!role) {
+        throw new Error(`Role with ID ${roleId} not found`);
+      }
+
+      let removedCount = 0;
+      let notFoundCount = 0;
+      const results = [];
+
+      // Validate all permission IDs exist
+      const validPermissions = await Permission.findAll({
+        where: { id: permissionIds }
+      });
+
+      const validPermissionIds = validPermissions.map(p => p.id);
+      const invalidPermissionIds = permissionIds.filter(id => !validPermissionIds.includes(id));
+
+      if (invalidPermissionIds.length > 0) {
+        throw new Error(`Invalid permission IDs: ${invalidPermissionIds.join(', ')}`);
+      }
+
+      // Process each permission removal
+      for (const permissionId of permissionIds) {
+        try {
+          const permission = await Permission.findByPk(permissionId);
+          const success = await PermissionRole.removePermissionFromRole(permissionId, roleId);
+
+          if (success) {
+            removedCount++;
+            logger.info(`Permission ${permission.name} removed from role ${role.name}`);
+          } else {
+            notFoundCount++;
+            logger.info(`Permission ${permission.name} not assigned to role ${role.name}`);
+          }
+
+          results.push({
+            permission_id: permissionId,
+            permission_name: permission.name,
+            action: success ? 'removed' : 'not_found'
+          });
+        } catch (error) {
+          logger.error(`Error removing permission ${permissionId} from role ${roleId}:`, error);
+          results.push({
+            permission_id: permissionId,
+            action: 'error',
+            error: error.message
+          });
+        }
+      }
+
+      return {
+        removedCount,
+        notFoundCount,
+        total: permissionIds.length,
+        results
+      };
+    } catch (error) {
+      logger.error(`Error removing multiple permissions from role ${roleId}:`, error);
+      throw new Error(`Failed to remove multiple permissions from role: ${error.message}`);
+    }
+  }
+
+  /**
+   * Seed default permissions into database
+   * @returns {Promise<Array>} Created permissions
+   */
+  static async seedDefaultPermissions() {
+    try {
+      const defaultPermissions = [
+        // User Management
+        { name: 'create_user', description: 'Create new user accounts', resource: 'users', action: 'create' },
+        { name: 'read_user', description: 'View user information', resource: 'users', action: 'read' },
+        { name: 'update_user', description: 'Update user information', resource: 'users', action: 'update' },
+        { name: 'delete_user', description: 'Delete user accounts', resource: 'users', action: 'delete' },
+        
+        // Role Management
+        { name: 'create_role', description: 'Create new roles', resource: 'roles', action: 'create' },
+        { name: 'read_role', description: 'View role information', resource: 'roles', action: 'read' },
+        { name: 'update_role', description: 'Update role information', resource: 'roles', action: 'update' },
+        { name: 'delete_role', description: 'Delete roles', resource: 'roles', action: 'delete' },
+        
+        // Permission Management
+        { name: 'create_permission', description: 'Create new permissions', resource: 'permissions', action: 'create' },
+        { name: 'read_permission', description: 'View permission information', resource: 'permissions', action: 'read' },
+        { name: 'update_permission', description: 'Update permission information', resource: 'permissions', action: 'update' },
+        { name: 'delete_permission', description: 'Delete permissions', resource: 'permissions', action: 'delete' },
+        
+        // Product Management
+        { name: 'create_product', description: 'Create new products', resource: 'products', action: 'create' },
+        { name: 'read_product', description: 'View product information', resource: 'products', action: 'read' },
+        { name: 'update_product', description: 'Update product information', resource: 'products', action: 'update' },
+        { name: 'delete_product', description: 'Delete products', resource: 'products', action: 'delete' },
+        { name: 'manage_product', description: 'Full product management access', resource: 'products', action: 'manage' },
+        
+        // Order Management
+        { name: 'create_order', description: 'Create new orders', resource: 'orders', action: 'create' },
+        { name: 'read_order', description: 'View order information', resource: 'orders', action: 'read' },
+        { name: 'update_order', description: 'Update order information', resource: 'orders', action: 'update' },
+        { name: 'delete_order', description: 'Delete orders', resource: 'orders', action: 'delete' },
+        { name: 'manage_order', description: 'Full order management access', resource: 'orders', action: 'manage' },
+        
+        // Inventory Management
+        { name: 'read_inventory', description: 'View inventory information', resource: 'inventory', action: 'read' },
+        { name: 'update_inventory', description: 'Update inventory information', resource: 'inventory', action: 'update' },
+        { name: 'manage_inventory', description: 'Full inventory management access', resource: 'inventory', action: 'manage' },
+        
+        // Vendor Management
+        { name: 'create_vendor', description: 'Create new vendors', resource: 'vendors', action: 'create' },
+        { name: 'read_vendor', description: 'View vendor information', resource: 'vendors', action: 'read' },
+        { name: 'update_vendor', description: 'Update vendor information', resource: 'vendors', action: 'update' },
+        { name: 'delete_vendor', description: 'Delete vendors', resource: 'vendors', action: 'delete' },
+        { name: 'manage_vendor', description: 'Full vendor management access', resource: 'vendors', action: 'manage' },
+        
+        // Dashboard & Reports
+        { name: 'view_dashboard', description: 'Access dashboard', resource: 'dashboard', action: 'view' },
+        { name: 'view_reports', description: 'View system reports', resource: 'reports', action: 'view' },
+        { name: 'export_reports', description: 'Export system reports', resource: 'reports', action: 'export' },
+        
+        // System Settings
+        { name: 'manage_settings', description: 'Manage system settings', resource: 'settings', action: 'manage' }
+      ];
+
+      const createdPermissions = [];
+
+      for (const permissionData of defaultPermissions) {
+        try {
+          // Check if permission already exists
+          const existingPermission = await Permission.findOne({
+            where: { name: permissionData.name }
+          });
+
+          if (!existingPermission) {
+            const permission = await this.createPermission(permissionData);
+            createdPermissions.push(permission);
+          } else {
+            logger.info(`Permission ${permissionData.name} already exists, skipping...`);
+          }
+        } catch (error) {
+          logger.error(`Error creating default permission ${permissionData.name}:`, error);
+          // Continue with other permissions even if one fails
+        }
+      }
+
+      logger.info(`Created ${createdPermissions.length} default permissions`);
+      return createdPermissions;
+    } catch (error) {
+      logger.error('Error seeding default permissions:', error);
+      throw new Error(`Failed to seed default permissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Assign default permissions to roles
+   * @returns {Promise<Object>} Assignment results
+   */
+  static async assignDefaultPermissionsToRoles() {
+    try {
+      const results = [];
+
+      // Define default role-permission assignments
+      const defaultAssignments = {
+        admin: ['create_user', 'read_user', 'update_user', 'delete_user',
+               'create_role', 'read_role', 'update_role', 'delete_role',
+               'create_permission', 'read_permission', 'update_permission', 'delete_permission',
+               'create_product', 'read_product', 'update_product', 'delete_product', 'manage_product',
+               'create_order', 'read_order', 'update_order', 'delete_order', 'manage_order',
+               'read_inventory', 'update_inventory', 'manage_inventory',
+               'create_vendor', 'read_vendor', 'update_vendor', 'delete_vendor', 'manage_vendor',
+               'view_dashboard', 'view_reports', 'export_reports', 'manage_settings'],
+        
+        vendor: ['read_product', 'update_product', 'manage_product',
+                'read_order', 'update_order', 'manage_order',
+                'read_inventory', 'update_inventory', 'manage_inventory',
+                'create_vendor', 'read_vendor', 'update_vendor',
+                'view_dashboard'],
+        
+        customer: ['read_product', 'create_order', 'read_order', 'read_vendor']
+      };
+
+      // Get all roles
+      const roles = await Role.findAll();
+
+      for (const role of roles) {
+        const roleName = role.name.toLowerCase();
+        const permissionsForRole = defaultAssignments[roleName];
+
+        if (permissionsForRole) {
+          // Find permissions by name
+          const permissions = await Permission.findAll({
+            where: { name: permissionsForRole }
+          });
+
+          // Assign each permission to the role
+          const permissionIds = permissions.map(p => p.id);
+          if (permissionIds.length > 0) {
+            const bulkResult = await this.assignMultiplePermissionsToRole(role.id, permissionIds);
+            results.push({
+              role_id: role.id,
+              role_name: role.name,
+              ...bulkResult
+            });
+          }
+        }
+      }
+
+      logger.info('Default permissions assigned to roles');
+      return results;
+    } catch (error) {
+      logger.error('Error assigning default permissions to roles:', error);
+      throw new Error(`Failed to assign default permissions to roles: ${error.message}`);
+    }
   }
 }
 

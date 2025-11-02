@@ -46,22 +46,12 @@ module.exports = (sequelize, DataTypes) => {
     image: {
       type: DataTypes.STRING(255),
       allowNull: true
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.NOW
     }
   }, {
     sequelize,
     modelName: 'Category',
     tableName: 'categories',
-    timestamps: false,
+    timestamps: true,
     underscored: true
   });
 

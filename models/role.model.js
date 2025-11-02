@@ -20,18 +20,67 @@ module.exports = (sequelize, DataTypes) => {
         as: 'userRoles'
       });
 
-      // Add permissions association
+      // Permission associations for role-based permissions
       Role.belongsToMany(models.Permission, {
-        through: models.RolePermission,
+        through: {
+          model: models.PermissionRole,
+          as: 'permissionRoles'
+        },
         foreignKey: 'role_id',
         otherKey: 'permission_id',
         as: 'permissions'
       });
 
-      Role.hasMany(models.RolePermission, {
+      Role.hasMany(models.PermissionRole, {
         foreignKey: 'role_id',
-        as: 'rolePermissions'
+        as: 'permissionRoles'
       });
+    }
+
+    // Instance method to check if role has permission
+    async hasPermission(permissionName) {
+      if (!this.permissions) {
+        return false;
+      }
+      return this.permissions.some(permission => permission.name === permissionName);
+    }
+
+    // Instance method to give permission to role
+    async givePermission(permissionName) {
+      const { Permission, PermissionRole } = sequelize.models;
+      const permission = await Permission.findOne({ where: { name: permissionName } });
+      
+      if (!permission) {
+        throw new Error(`Permission "${permissionName}" not found`);
+      }
+
+      await PermissionRole.assignPermissionToRole(permission.id, this.id);
+      
+      // Refresh role with updated permissions
+      return await Role.findByPk(this.id, {
+        include: [{
+          model: Permission,
+          as: 'permissions'
+        }]
+      });
+    }
+
+    // Instance method to revoke permission from role
+    async revokePermission(permissionName) {
+      const { Permission, PermissionRole } = sequelize.models;
+      const permission = await Permission.findOne({ where: { name: permissionName } });
+      
+      if (!permission) {
+        throw new Error(`Permission "${permissionName}" not found`);
+      }
+
+      return await PermissionRole.removePermissionFromRole(permission.id, this.id);
+    }
+
+    // Instance method to get all permissions for role
+    async getPermissions() {
+      const { PermissionRole } = sequelize.models;
+      return await PermissionRole.getPermissionsForRole(this.id);
     }
   }
 

@@ -1523,9 +1523,10 @@
                             ],
                             "path": [
                                 "api",
-                                "admin",
-                                "dashboard",
-                                "vendor-onboarding-stats"
+                                "v1",
+                                "categories",
+                                ":id",
+                                "products"
                             ],
                             "variable": [
                                 {
@@ -1567,14 +1568,13 @@
                                     }
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/admin/categories",
+                                    "raw": "{{base_url}}/api/v1/categories",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "admin",
                                         "categories"
                                     ]
                                 },
@@ -1607,14 +1607,13 @@
                                     }
                                 },
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/admin/categories/1",
+                                    "raw": "{{base_url}}/api/v1/categories/1",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "admin",
                                         "categories",
                                         "1"
                                     ]
@@ -1634,14 +1633,13 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/admin/categories/1",
+                                    "raw": "{{base_url}}/api/v1/categories/1",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "v1",
-                                        "admin",
                                         "categories",
                                         "1"
                                     ]
@@ -2398,7 +2396,8 @@
                                             "key": "limit",
                                             "value": "10"
                                         }
-                                    ], "variable" : [
+                                    ],
+                                    "variable": [
                                         {
                                             "key": "status",
                                             "value": "active"
@@ -5678,6 +5677,462 @@
                         },
                         "description": "Delete a review (Review owner only)"
                     }
+                }
+            ]
+        },
+        {
+            "name": "Permission Management (Admin)",
+            "description": "Permission Management (Admin Only)",
+            "item": [
+                {
+                    "name": "Basic CRUD Operations - Permission",
+                    "description": "Permission CRUD operations",
+                    "item": [
+                        {
+                            "name": "Get All Permissions",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions"
+                                    ]
+                                },
+                                "description": "Get all permissions"
+                            }
+                        },
+                        {
+                            "name": "Get Permission by ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1"
+                                    ]
+                                },
+                                "description": "Get a specific permission by its ID"
+                            }
+                        },
+                        {
+                            "name": "Create Permission",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"manage_products\",\n    \"description\": \"Allow users to manage products\",\n    \"resource\": \"products\",\n    \"action\": \"manage\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions"
+                                    ]
+                                },
+                                "description": "Create a new permission"
+                            }
+                        },
+                        {
+                            "name": "Update Permission",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"description\": \"Updated permission description\",\n    \"action\": \"create\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1"
+                                    ]
+                                },
+                                "description": "Update a permission"
+                            }
+                        },
+                        {
+                            "name": "Delete Permission",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1"
+                                    ]
+                                },
+                                "description": "Delete a permission"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Role-Permission Management",
+                    "description": "Role-permission assignment and management endpoints",
+                    "item": [
+                        {
+                            "name": "Assign Permission to Role",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"role_id\": 2\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1/roles",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1",
+                                        "roles"
+                                    ]
+                                },
+                                "description": "Assign a permission to a role"
+                            }
+                        },
+                        {
+                            "name": "Remove Permission from Role",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1/roles/2",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1",
+                                        "roles",
+                                        "2"
+                                    ]
+                                },
+                                "description": "Remove a permission from a role"
+                            }
+                        },
+                        {
+                            "name": "Get Role Permissions",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/roles/2/permissions",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "roles",
+                                        "2",
+                                        "permissions"
+                                    ]
+                                },
+                                "description": "Get all permissions for a specific role"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "User-Permission Management",
+                    "description": "User-permission assignment and management endpoints",
+                    "item": [
+                        {
+                            "name": "Assign Permission to User",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"user_id\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1/users",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1",
+                                        "users"
+                                    ]
+                                },
+                                "description": "Assign a permission directly to a user"
+                            }
+                        },
+                        {
+                            "name": "Remove Permission from User",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/1/users/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "1",
+                                        "users",
+                                        "1"
+                                    ]
+                                },
+                                "description": "Remove a permission from a user"
+                            }
+                        },
+                        {
+                            "name": "Get User All Permissions",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/users/1/permissions",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "users",
+                                        "1",
+                                        "permissions"
+                                    ]
+                                },
+                                "description": "Get all permissions for a user (role-based + direct)"
+                            }
+                        },
+                        {
+                            "name": "Get User Direct Permissions",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/users/1/direct-permissions",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "users",
+                                        "1",
+                                        "direct-permissions"
+                                    ]
+                                },
+                                "description": "Get only direct permissions for a user"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Admin Utility Endpoints",
+                    "description": "Admin utility endpoints for permission management",
+                    "item": [
+                        {
+                            "name": "Seed Default Permissions",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/seed",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "seed"
+                                    ]
+                                },
+                                "description": "Seed default permissions into the database"
+                            }
+                        },
+                        {
+                            "name": "Assign Default Permissions",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/permissions/assign-defaults",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "permissions",
+                                        "assign-defaults"
+                                    ]
+                                },
+                                "description": "Assign default permissions to existing roles"
+                            }
+                        }
+                    ]
                 }
             ]
         }

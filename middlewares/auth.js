@@ -3,8 +3,7 @@ const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 const { Op } = require('sequelize');
 const AppError = require('../utils/appError');
-const { User, Role, Permission } = require('../models');
-const PermissionService = require('../services/permission.service');
+const { User, Role } = require('../models');
 
 /**
  * Middleware to handle local authentication using Passport
@@ -293,161 +292,35 @@ const hasAllRoles = (user, ...roles) => {
   return roles.every(role => userRoles.includes(role));
 };
 
-/**
- * Load user permissions into request
- * @returns {Function} Express middleware function
- */
-const loadPermissions = async (req, res, next) => {
-  if (req.user && req.user.id) {
-    try {
-      // Load user with roles and permissions
-      const userWithPermissions = await User.findByPk(req.user.id, {
-        include: [
-          {
-            model: Role,
-            as: 'roles',
-            include: [
-              {
-                model: Permission,
-                as: 'permissions',
-                through: { attributes: [] }
-              }
-            ],
-            through: { attributes: [] }
-          }
-        ]
-      });
+  /**
+   * Load user roles into request (replaces loadPermissions for role-based approach)
+   * @returns {Function} Express middleware function
+   */
+  const loadUserRoles = async (req, res, next) => {
+    if (req.user && req.user.id) {
+      try {
+        // Load user with roles
+        const userWithRoles = await User.findByPk(req.user.id, {
+          include: [
+            {
+              model: Role,
+              as: 'roles',
+              through: { attributes: [] }
+            }
+          ]
+        });
 
-      if (userWithPermissions) {
-        req.user = userWithPermissions;
-      }
-    } catch (error) {
-      // If loading permissions fails, continue without them
-      console.warn('Failed to load user permissions:', error.message);
-    }
-  }
-
-  next();
-};
-
-/**
- * Check if user has specific permission (backward compatible with admin role)
- * @param {string} permission - Permission name to check
- * @returns {Function} Express middleware function
- */
-const hasPermission = (permission) => {
-  return async (req, res, next) => {
-    if (!req.user) {
-      return next(new AppError('Authentication required', 401));
-    }
-
-    // Check if user has admin role (backward compatibility)
-    if (PermissionService.hasAdminRole(req.user)) {
-      return next();
-    }
-
-    // Check specific permission
-    const hasPerm = await PermissionService.checkPermission(req.user, permission);
-    if (!hasPerm) {
-      return next(new AppError(`Access denied. Required permission: ${permission}`, 403));
-    }
-
-    next();
-  };
-};
-
-/**
- * Check if user has any of the specified permissions
- * @param {string[]} permissions - Array of permission names
- * @returns {Function} Express middleware function
- */
-const hasAnyPermission = (permissions) => {
-  return async (req, res, next) => {
-    if (!req.user) {
-      return next(new AppError('Authentication required', 401));
-    }
-
-    // Check if user has admin role (backward compatibility)
-    if (PermissionService.hasAdminRole(req.user)) {
-      return next();
-    }
-
-    // Check if user has any of the specified permissions
-    const hasAnyPerm = await req.user.hasAnyPermission(permissions);
-    if (!hasAnyPerm) {
-      return next(new AppError(`Access denied. Required one of: ${permissions.join(', ')}`, 403));
-    }
-
-    next();
-  };
-};
-
-/**
- * Check if user has all of the specified permissions
- * @param {string[]} permissions - Array of permission names
- * @returns {Function} Express middleware function
- */
-const hasAllPermissions = (permissions) => {
-  return async (req, res, next) => {
-    if (!req.user) {
-      return next(new AppError('Authentication required', 401));
-    }
-
-    // Check if user has admin role (backward compatibility)
-    if (PermissionService.hasAdminRole(req.user)) {
-      return next();
-    }
-
-    // Check if user has all specified permissions
-    let hasAllPerms = true;
-    for (const permission of permissions) {
-      if (!(await PermissionService.checkPermission(req.user, permission))) {
-        hasAllPerms = false;
-        break;
+        if (userWithRoles) {
+          req.user = userWithRoles;
+        }
+      } catch (error) {
+        // If loading roles fails, continue without them
+        console.warn('Failed to load user roles:', error.message);
       }
     }
 
-    if (!hasAllPerms) {
-      return next(new AppError(`Access denied. Required all permissions: ${permissions.join(', ')}`, 403));
-    }
-
     next();
   };
-};
-
-/**
- * Restrict to users with specific permissions or admin role
- * @param {string|string[]} permissions - Permission(s) required
- * @returns {Function} Express middleware function
- */
-const restrictToPermission = (permissions) => {
-  return async (req, res, next) => {
-    if (!req.user) {
-      return next(new AppError('Authentication required', 401));
-    }
-
-    // Check if user has admin role (backward compatibility)
-    if (PermissionService.hasAdminRole(req.user)) {
-      return next();
-    }
-
-    const permissionArray = Array.isArray(permissions) ? permissions : [permissions];
-    let hasRequiredPermission = false;
-
-    for (const permission of permissionArray) {
-      if (await PermissionService.checkPermission(req.user, permission)) {
-        hasRequiredPermission = true;
-        break;
-      }
-    }
-
-    if (!hasRequiredPermission) {
-      return next(new AppError(`Access denied. Required permission: ${permissionArray.join(' or ')}`, 403));
-    }
-
-    next();
-  };
-};
 
 module.exports = {
   localAuth,
@@ -462,9 +335,5 @@ module.exports = {
   hasAnyRole,
   hasAllRoles,
   isOwnerOrAdmin,
-  loadPermissions,
-  hasPermission,
-  hasAnyPermission,
-  hasAllPermissions,
-  restrictToPermission
+  loadUserRoles
 };

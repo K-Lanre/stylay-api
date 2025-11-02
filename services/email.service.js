@@ -105,10 +105,7 @@ const emailTemplates = {
     template: "admin-phone-change-request.ejs",
     subject: "New Phone Number Change Request - Action Required",
   },
-  SUBADMIN_CREATED: {
-    template: "subadmin-created.ejs",
-    subject: "Sub-Admin Account Created - Welcome to Stylay",
-  },
+  // SUBADMIN_CREATED template removed as part of sub-admin system removal
 };
 
 /**
@@ -804,38 +801,7 @@ const sendAdminPhoneChangeNotification = async (to, userData) => {
   });
 };
 
-/**
- * Send sub-admin account creation notification email
- * @param {Object} subAdminData - Sub-admin account details
- * @param {string} subAdminData.firstName - Sub-admin's first name
- * @param {string} subAdminData.lastName - Sub-admin's last name
- * @param {string} subAdminData.email - Sub-admin's email address
- * @param {string} subAdminData.roleName - Assigned role name
- * @param {Array} subAdminData.permissions - Array of permission objects
- * @param {Date} subAdminData.createdAt - Account creation timestamp
- * @returns {Promise} - Promise that resolves when email is sent
- */
-const sendSubAdminCreatedNotification = async (subAdminData) => {
-  const loginUrl = `${process.env.FRONTEND_URL || "https://stylay.com"}/admin/login`;
-
-  return sendEmail(subAdminData.email, "SUBADMIN_CREATED", {
-    firstName: subAdminData.firstName,
-    lastName: subAdminData.lastName,
-    email: subAdminData.email,
-    roleName: subAdminData.roleName,
-    permissions: subAdminData.permissions,
-    createdAt: new Date(subAdminData.createdAt).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    loginUrl,
-    appName: process.env.APP_NAME || "Stylay",
-    year: new Date().getFullYear(),
-  });
-};
+  // sendSubAdminCreatedNotification function removed as part of sub-admin system removal
 
 module.exports = {
   sendEmail,
@@ -843,7 +809,7 @@ module.exports = {
   sendPasswordResetEmail,
   sendPhoneChangeNotificationEmail,
   sendAdminPhoneChangeNotification, // Export the new function
-  sendSubAdminCreatedNotification, // Export the sub-admin notification function
+  // sendSubAdminCreatedNotification export removed as part of sub-admin system removal
   sendOrderConfirmation,
   sendPaymentReceived,
   sendPaymentFailed,

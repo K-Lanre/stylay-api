@@ -14,6 +14,7 @@
     "migrate:undo:all": "npx sequelize-cli db:migrate:undo:all",
     "seed": "npx sequelize-cli db:seed:all",
     "seed:file": "npx sequelize-cli db:seed --seed",
+    "seed:undo:file": "npx sequelize-cli db:seed:undo --seed",
     "seed:undo": "npx sequelize-cli db:seed:undo",
     "seed:undo:all": "npx sequelize-cli db:seed:undo:all",
     "setup": "npx sequelize-cli db:create && npx sequelize-cli db:migrate",

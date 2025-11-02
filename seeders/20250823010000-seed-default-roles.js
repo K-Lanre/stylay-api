@@ -20,12 +20,6 @@ module.exports = {
         description: 'Administrator with full system access',
         created_at: new Date(),
         updated_at: new Date()
-      },
-      {
-        name: 'sub-admin',
-        description: 'Sub-administrator with limited administrative access',
-        created_at: new Date(),
-        updated_at: new Date()
       }
     ];
 
@@ -33,6 +27,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.bulkDelete('roles', { name: ['customer', 'vendor', 'admin', 'sub-admin'] }, {});
+    await queryInterface.bulkDelete('roles', { name: ['customer', 'vendor', 'admin'] }, {});
   }
 };

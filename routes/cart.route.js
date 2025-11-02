@@ -13,6 +13,8 @@ const {
   syncCartValidation
 } = require('../validators/cart.validator');
 
+const {can} = require('../middlewares/permission');
+
 // All cart routes require authentication (users must be logged in or provide session ID)
 router.use(protect);
 

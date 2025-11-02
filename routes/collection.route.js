@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const { check } = require("express-validator");
 const {
   getCollections,
   getCollectionById,
@@ -11,14 +10,16 @@ const {
   collectionProductValidation,
 } = require("../validators/collection.validator");
 const validate = require("../middlewares/validation");
+const { hasPermission } = require("../middlewares/permission");
 
 // Public routes
-router.get("/", getCollections);
-router.get("/:id", getCollectionValidation, validate, getCollectionById);
+router.get("/", hasPermission('view_collections'), getCollections);
+router.get("/:id", hasPermission('view_collection_by_id'), getCollectionValidation, validate, getCollectionById);
 
 // Collection Product Management
 router.get(
   "/:id/products",
+  hasPermission('view_collection_products'),
   collectionProductValidation,
   validate,
   getCollectionProducts
