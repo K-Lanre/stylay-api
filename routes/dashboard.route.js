@@ -7,15 +7,7 @@ const {
   getVendorProducts,
   getVendorEarnings,
   getVendorEarningsBreakdown,
-  getAdminDashboard,
-  getTopSellingVendors,
-  getAdminSalesStats,
-  getAdminTopCategories,
-  getRecentOrders,
-  getTopSellingItems,
-  getProductOverview,
-  getVendorOnboardingStats,
-  getVendorOverview
+  getProductOverview
 } = require('../controllers/dashboard.controller');
 
 const auth = require('../middlewares/auth');

@@ -6,7 +6,7 @@ const {
   RolePermission,
   sequelize,
 } = require("../models");
-const { Op, literal } = require("sequelize");
+const { Op } = require("sequelize");
 const PermissionService = require("../services/permission.service");
 const {
   sendSubAdminCreatedNotification,
@@ -230,43 +230,17 @@ const getSubAdmins = catchAsync(async (req, res, next) => {
 
   const offset = (page - 1) * limit;
 
-  // Build where clause
-  const whereClause = {
-    [Op.and]: [
-      // Exclude admin role users
-      literal(`
-        User.id NOT IN (
-          SELECT ur.user_id FROM user_roles ur
-          INNER JOIN roles r ON ur.role_id = r.id
-          WHERE r.name = 'admin'
-        )
-      `),
-      // Include users with any non-admin roles (permissions optional)
-      literal(`
-        User.id IN (
-          SELECT DISTINCT ur.user_id FROM user_roles ur
-          INNER JOIN roles r ON ur.role_id = r.id
-          WHERE r.name != 'admin'
-        )
-      `),
-    ],
-  };
-
-  // Add search functionality
-  if (search) {
-    whereClause[Op.or] = [
-      { first_name: { [Op.like]: `%${search}%` } },
-      { last_name: { [Op.like]: `%${search}%` } },
-      { email: { [Op.like]: `%${search}%` } },
-    ];
-  }
-
+  // Find users who have the "sub-admin" role
+  // This approach properly handles users with multiple roles
   const { count, rows: users } = await User.findAndCountAll({
-    where: whereClause,
     include: [
       {
         model: Role,
         as: "roles",
+        where: {
+          name: "sub-admin", // Only include users with sub-admin role
+        },
+        required: true, // INNER JOIN to ensure only users with sub-admin role
         include: [
           {
             model: Permission,
@@ -277,6 +251,15 @@ const getSubAdmins = catchAsync(async (req, res, next) => {
         through: { attributes: [] },
       },
     ],
+    where: {
+      ...(search && {
+        [Op.or]: [
+          { first_name: { [Op.like]: `%${search}%` } },
+          { last_name: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+        ],
+      }),
+    },
     limit: parseInt(limit),
     offset: parseInt(offset),
     order: [["created_at", "DESC"]],
@@ -313,11 +296,17 @@ const getSubAdmins = catchAsync(async (req, res, next) => {
 const getSubAdmin = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
-  const user = await User.findByPk(id, {
+  // Find user who specifically has the "sub-admin" role
+  const user = await User.findOne({
+    where: { id },
     include: [
       {
         model: Role,
         as: "roles",
+        where: {
+          name: "sub-admin", // Only include users with sub-admin role
+        },
+        required: true, // INNER JOIN to ensure only users with sub-admin role
         include: [
           {
             model: Permission,
@@ -332,12 +321,6 @@ const getSubAdmin = catchAsync(async (req, res, next) => {
 
   if (!user) {
     return next(new AppError("Sub-admin not found", 404));
-  }
-
-  // Check if user is actually a sub-admin (not admin)
-  const hasAdminRole = user.roles?.some((role) => role.name === "admin");
-  if (hasAdminRole) {
-    return next(new AppError("User is an admin, not a sub-admin", 400));
   }
 
   // Remove password from response

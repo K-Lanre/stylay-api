@@ -104,19 +104,19 @@ const createProduct = async (req, res, next) => {
     } = req.body;
 
     let vendor;
-    
+     
     // If vendor_id is provided in request (admin case)
     if (vendorId) {
       // Check if user is admin
       if (req.user.role !== 'admin') {
         return next(new AppError("Only admins can create products for other vendors", 403));
       }
-      
+       
       vendor = await Vendor.findByPk(vendorId);
     } else {
       // Regular vendor creating their own product
       vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-      
+       
       if (!vendor) {
         return next(new AppError("Vendor account not found", 404));
       }
@@ -337,16 +337,18 @@ const getProducts = async (req, res, next) => {
         if (categoryRecord) {
           whereClause.category_id = categoryRecord.id;
         } else {
-          // Instead of throwing error, just log and continue without category filter
-          console.log(`Category "${category}" not found, showing all products`);
-          return next(new AppError("Category not found", 404));
+          // If category not found, continue without applying category filter
         }
       }
     }
 
     // Filter by vendor
     if (vendor) {
-      whereClause.vendor_id = vendor;
+      // Verify vendor exists before filtering
+      const vendorExists = await Vendor.findByPk(vendor);
+      if (vendorExists) {
+        whereClause.vendor_id = vendor;
+      }
     }
 
     // Search by product name or description
@@ -357,7 +359,14 @@ const getProducts = async (req, res, next) => {
       ];
     }
 
-    const { count, rows: products } = await Product.findAndCountAll({
+    // Use separate count query to avoid cartesian product explosion
+    const count = await Product.count({
+      where: whereClause,
+      distinct: true,
+      col: 'Product.id'
+    });
+
+    const { rows: products } = await Product.findAndCountAll({
       attributes: [
         "id",
         "vendor_id",

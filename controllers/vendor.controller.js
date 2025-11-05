@@ -450,7 +450,7 @@ const completeOnboarding = async (req, res, next) => {
         where: {
           id: { [Op.ne]: vendor.Store.id }, // Exclude current store
           cac_number: {
-            [Op.iLike]: cac_number_trimmed,
+            [Op.like]: cac_number_trimmed.toLowerCase(),
           },
         },
         transaction,

@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const session = require('express-session');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -51,6 +52,14 @@ initializePassport(passport);
 // Set security HTTP headers
 app.use(helmet());
 
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false },  // True in prod
+}));
+
 // Development logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev', { stream: { write: message => logger.http(message.trim()) } }));
@@ -58,6 +67,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Initialize Passport and restore authentication state, if any
 app.use(passport.initialize());
+app.use(passport.session())
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

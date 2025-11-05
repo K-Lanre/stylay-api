@@ -2398,7 +2398,8 @@
                                             "key": "limit",
                                             "value": "10"
                                         }
-                                    ], "variable" : [
+                                    ],
+                                    "variable": [
                                         {
                                             "key": "status",
                                             "value": "active"
@@ -4799,6 +4800,63 @@
                                         "description": "Vendor ID"
                                     }
                                 ]
+                            }
+                        },
+                        {
+                            "name": "Get Admin Products",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/products?page=1&limit=20&category=1&vendor=1&status=in_stock",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "dashboard",
+                                        "products"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1",
+                                            "description": "Page number for pagination"
+                                        },
+                                        {
+                                            "key": "limit",
+                                            "value": "20",
+                                            "description": "Number of items per page (max 100)"
+                                        },
+                                        {
+                                            "key": "category",
+                                            "value": "electronics",
+                                            "description": "Filter by category name (string search)",
+                                            "disabled": true
+                                        },
+                                        {
+                                            "key": "vendor",
+                                            "value": "apple",
+                                            "description": "Filter by vendor name/business name (string search)",
+                                            "disabled": true
+                                        },
+                                        {
+                                            "key": "status",
+                                            "value": "in_stock",
+                                            "description": "Filter by supply status (in_stock, low_stock, out_of_stock, discontinued)",
+                                            "disabled": true
+                                        }
+                                    ]
+                                },
+                                "description": "Get comprehensive list of products added by administrators via the admin dashboard. Returns each product's image, name, category, price, current stock quantity, and variants with colors and sizes. Supports filtering by category, vendor, and supply status. Admin authentication required."
                             }
                         }
                     ]

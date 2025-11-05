@@ -100,9 +100,10 @@ const getCategories = async (req, res) => {
     }
     
     if (search) {
+      const searchTerm = search.toLowerCase();
       whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
+        { name: { [Op.like]: `%${searchTerm}%` } },
+        { description: { [Op.like]: `%${searchTerm}%` } }
       ];
     }
     

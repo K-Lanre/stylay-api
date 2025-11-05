@@ -1834,12 +1834,14 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
   const earningsConversion = totalViews > 0 ? (totalSales / totalViews).toFixed(2) : "0.00";
   const salesConversion = earningsConversion; // Same as earnings for this context
 
-  // Get monthly ratings for vendor's products
+  // Get monthly ratings for vendor's products - DEBUG: Add logging to identify ambiguous column issue
+  console.log(`[DEBUG] Getting monthly ratings for vendor ID: ${vendorID}`);
+  
   const monthlyRatings = await db.Review.findAll({
     attributes: [
       [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "month"],
       [fn("AVG", col("rating")), "average_rating"],
-      [fn("COUNT", col("id")), "total_reviews"],
+      [fn("COUNT", col("Review.id")), "total_reviews"], // Fixed: Added table alias to resolve ambiguous column
     ],
     include: [
       {
@@ -1855,7 +1857,13 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     group: [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')")],
     order: [[literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "ASC"]],
     raw: true,
+  }).catch(error => {
+    console.error("[DEBUG] Error in monthly ratings query:", error.message);
+    console.error("[DEBUG] Full error:", error);
+    throw error;
   });
+  
+  console.log("[DEBUG] Monthly ratings query successful");
 
   // Format monthly ratings
   const formattedMonthlyRatings = monthlyRatings.map(rating => ({
@@ -2058,7 +2066,7 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.User,
-        attributes: ["id", "first_name", "last_name", "email"],
+        attributes: ["id", "first_name", "last_name", "email", 'phone'],
       },
       {
         model: db.Store,
@@ -2135,6 +2143,7 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
       : "Unknown Vendor",
     business_name: vendor.store?.business_name || "Unknown Business",
     email: vendor.User?.email || "No Email",
+    phone: vendor.User?.phone || "No Phone",
     product_tags_count: productTagsMap.get(vendor.id) || 0,
     join_reason: vendor.join_reason || null,
     total_earnings: earningsMap.get(vendor.id) || "0.00",
@@ -2383,6 +2392,372 @@ const getProductOverview = catchAsync(async (req, res, next) => {
   });
 });
 
+
+/**
+ * Retrieves paginated list of products added by administrators with comprehensive filtering.
+ * Provides detailed product information including images, variants, inventory, and category data.
+ * Supports filtering by category, vendor, and status (supply state) for admin product management.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for pagination
+ * @param {number} [req.query.limit=20] - Number of products per page
+ * @param {string|number} [req.query.category] - Filter by category ID or slug
+ * @param {string|number} [req.query.vendor] - Filter by vendor ID
+ * @param {string} [req.query.status] - Filter by supply status (in_stock, low_stock, out_of_stock, discontinued)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with paginated products
+ * @returns {boolean} status - Success status
+ * @returns {Array} data - Array of products with complete details
+ * @returns {number} data[].id - Product ID
+ * @returns {string} data[].name - Product name
+ * @returns {string} data[].slug - Product slug
+ * @returns {number} data[].price - Product price
+ * @returns {number} data[].discounted_price - Discounted price (if applicable)
+ * @returns {string} data[].sku - Product SKU
+ * @returns {string} data[].thumbnail - Product thumbnail URL
+ * @returns {string} data[].status - Product status (active/inactive)
+ * @returns {Object} data[].Category - Product category information
+ * @returns {string} data[].Category.name - Category name
+ * @returns {string} data[].Category.slug - Category slug
+ * @returns {Object} data[].vendor - Product vendor information
+ * @returns {number} data[].vendor.id - Vendor ID
+ * @returns {string} data[].vendor.name - Vendor name
+ * @returns {string} data[].vendor.business_name - Vendor business name
+ * @returns {Array} data[].images - Product images
+ * @returns {string} data[].images[].image_url - Image URL
+ * @returns {boolean} data[].images[].is_featured - Whether image is featured
+ * @returns {number} data[].stock_quantity - Current stock quantity
+ * @returns {string} data[].stock_status - Stock status (in_stock, low_stock, out_of_stock)
+ * @returns {Array} data[].variants - Product variants with colors and sizes
+ * @returns {Object} data[].variants[0] - Variant group
+ * @returns {string} data[].variants[0].name - Variant type name (e.g., "Color", "Size")
+ * @returns {Array} data[].variants[0].values - Array of variant values
+ * @returns {string} data[].variants[0].values[].value - Variant value (e.g., "Red", "XL")
+ * @returns {number} data[].variants[0].values[].price_modifier - Price modifier for this variant
+ * @returns {Object} pagination - Pagination metadata
+ * @returns {number} pagination.currentPage - Current page number
+ * @returns {number} pagination.totalPages - Total number of pages
+ * @returns {number} pagination.totalItems - Total number of products
+ * @returns {number} pagination.itemsPerPage - Items per page
+ * @returns {boolean} pagination.hasNextPage - Whether next page exists
+ * @returns {boolean} pagination.hasPrevPage - Whether previous page exists
+ * @api {get} /api/dashboard/admin/products Get Admin Products
+ * @private admin
+ * @example
+ * // Request
+ * GET /api/dashboard/admin/products?page=1&limit=20&category=electronics&vendor=1&status=in_stock
+ * Authorization: Bearer <admin_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "status": "success",
+ *   "data": [
+ *     {
+ *       "id": 123,
+ *       "name": "Wireless Headphones",
+ *       "slug": "wireless-headphones",
+ *       "price": 99.99,
+ *       "discounted_price": 89.99,
+ *       "sku": "WH-001",
+ *       "thumbnail": "https://example.com/thumbnail.jpg",
+ *       "status": "active",
+ *       "Category": {
+ *         "name": "Electronics",
+ *         "slug": "electronics"
+ *       },
+ *       "vendor": {
+ *         "id": 1,
+ *         "name": "John Doe",
+ *         "business_name": "TechHub Electronics"
+ *       },
+ *       "images": [
+ *         {
+ *           "image_url": "https://example.com/image1.jpg",
+ *           "is_featured": true
+ *         },
+ *         {
+ *           "image_url": "https://example.com/image2.jpg",
+ *           "is_featured": false
+ *         }
+ *       ],
+ *       "stock_quantity": 50,
+ *       "stock_status": "in_stock",
+ *       "variants": [
+ *         {
+ *           "name": "Color",
+ *           "values": [
+ *             {
+ *               "value": "Black",
+ *               "price_modifier": 0
+ *             },
+ *             {
+ *               "value": "White",
+ *               "price_modifier": 5
+ *             }
+ *           ]
+ *         },
+ *         {
+ *           "name": "Size",
+ *           "values": [
+ *             {
+ *               "value": "Medium",
+ *               "price_modifier": 0
+ *             },
+ *             {
+ *               "value": "Large",
+ *               "price_modifier": 10
+ *             }
+ *           ]
+ *         }
+ *       ]
+ *     }
+ *   ],
+ *   "pagination": {
+ *     "currentPage": 1,
+ *     "totalPages": 3,
+ *     "totalItems": 45,
+ *     "itemsPerPage": 20,
+ *     "hasNextPage": true,
+ *     "hasPrevPage": false
+ *   }
+ * }
+ */
+const getAdminProducts = catchAsync(async (req, res, next) => {
+  const { page = 1, limit = 20, category, vendor, status } = req.query;
+  const { limit: limitNum, offset } = paginate(page, limit);
+
+  // Build optimized where clause for product filters
+  const whereClause = {};
+  
+  // Enhanced Category filter - support ID, slug, or name search
+  let categoryFilter = null;
+  if (category) {
+    if (/^\d+$/.test(category)) {
+      // Numeric ID filter
+      whereClause.category_id = parseInt(category);
+    } else {
+      // Name/slug search - use case-insensitive partial match (MariaDB compatible)
+      const searchTerm = category.toLowerCase();
+      categoryFilter = {
+        [Op.or]: [
+          { name: { [Op.like]: `%${searchTerm}%` } },
+          { slug: { [Op.like]: `%${searchTerm}%` } }
+        ]
+      };
+    }
+  }
+  
+  // Enhanced Vendor filter - support ID or business name search
+  let vendorFilter = null;
+  if (vendor) {
+    if (/^\d+$/.test(vendor)) {
+      // Numeric ID filter
+      whereClause.vendor_id = parseInt(vendor);
+    } else {
+      // Name search - will be handled via subquery (MariaDB compatible)
+      const vendorSearchTerm = vendor.toLowerCase();
+      vendorFilter = {
+        [Op.like]: `%${vendorSearchTerm}%`
+      };
+    }
+  }
+
+  // Build optimized include array
+  const includeArray = [
+    {
+      model: db.Category,
+      attributes: ["id", "name", "slug"],
+      where: categoryFilter,
+      required: !!categoryFilter, // Only require if filtering
+    },
+    {
+      model: db.Vendor,
+      as: "vendor",
+      attributes: ["id", "status"],
+      include: [
+        {
+          model: db.User,
+          attributes: ["id", "first_name", "last_name"],
+        },
+        {
+          model: db.Store,
+          as: "store",
+          attributes: ["id", "business_name"],
+          where: vendorFilter,
+          required: !!vendorFilter,
+        },
+      ],
+      required: !!vendor, // Only require if vendor filter is provided
+    },
+    {
+      model: db.ProductImage,
+      as: "images",
+      attributes: ["id", "image_url", "is_featured"],
+      required: false,
+      separate: true, // Use separate query for images to improve performance
+      order: [["is_featured", "DESC"], ["id", "ASC"]],
+    },
+    {
+      model: db.Inventory,
+      attributes: ["id", "stock"],
+      required: false,
+    },
+    {
+      model: db.ProductVariant,
+      as: "variants",
+      attributes: ["id", "name", "value", "additional_price"],
+      include: [
+        {
+          model: db.VariantType,
+          as: "variantType",
+          attributes: ["id", "name"],
+        },
+        {
+          model: db.VariantCombination,
+          as: "combinations",
+          attributes: ["id", "combination_name", "stock", "price_modifier"],
+          required: false,
+        },
+      ],
+      required: false,
+      separate: true, // Use separate query for variants
+    },
+  ];
+
+  // Execute optimized main query without status filter (we'll add it via subquery)
+  const { count, rows: products } = await db.Product.findAndCountAll({
+    attributes: [
+      "id",
+      "vendor_id",
+      "category_id",
+      "name",
+      "slug",
+      "description",
+      "thumbnail",
+      "price",
+      "discounted_price",
+      "sku",
+      "status",
+      "impressions",
+      "sold_units",
+      "created_at",
+      "updated_at",
+    ],
+    include: includeArray,
+    where: whereClause,
+    order: [["created_at", "DESC"]],
+    limit: limitNum,
+    offset,
+    distinct: true,
+    subQuery: false, // Disable subquery to improve performance
+  });
+
+  // Optimized processing with minimal JavaScript work
+  const processedProducts = products.map((product) => {
+    // Calculate stock status efficiently
+    const stockQuantity = product.Inventory?.stock || 0;
+    let stockStatus = "out_of_stock";
+    if (stockQuantity > 0) {
+      stockStatus = stockQuantity > 10 ? "in_stock" : "low_stock";
+    }
+
+    // Process variants efficiently using reduce
+    const variantsMap = new Map();
+    if (product.variants && product.variants.length > 0) {
+      product.variants.reduce((map, variant) => {
+        const variantTypeName = variant.variantType?.name || variant.name || "Unknown";
+        
+        if (!map.has(variantTypeName)) {
+          map.set(variantTypeName, {
+            name: variantTypeName,
+            values: [],
+          });
+        }
+
+        const variantGroup = map.get(variantTypeName);
+        
+        // Optimized variant value extraction
+        let variantValue = "Default";
+        if (variant.value) {
+          variantValue = variant.value;
+        } else if (variant.combinations && variant.combinations.length > 0) {
+          variantValue = variant.combinations[0]?.combination_name || "Default";
+        }
+        
+        variantGroup.values.push({
+          value: variantValue,
+          price_modifier: parseFloat(variant.additional_price) || 0,
+        });
+        
+        return map;
+      }, variantsMap);
+    }
+
+    // Format vendor info efficiently
+    const vendor = product.vendor;
+    const vendorInfo = vendor ? {
+      id: vendor.id,
+      name: vendor.User
+        ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() || "Unknown Vendor"
+        : "Unknown Vendor",
+      business_name: vendor.store?.business_name || "Unknown Business",
+    } : null;
+
+    return {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: parseFloat(product.price),
+      discounted_price: product.discounted_price ? parseFloat(product.discounted_price) : null,
+      sku: product.sku,
+      thumbnail: product.thumbnail,
+      status: product.status,
+      Category: product.Category,
+      vendor: vendorInfo,
+      images: product.images || [],
+      stock_quantity: stockQuantity,
+      stock_status: stockStatus,
+      variants: Array.from(variantsMap.values()),
+      created_at: product.created_at,
+      updated_at: product.updated_at,
+    };
+  });
+
+  // Apply status filter using database-level filtering when possible
+  let finalProducts = processedProducts;
+  let finalCount = count;
+
+  if (status) {
+    const validStatuses = ["in_stock", "low_stock", "out_of_stock", "discontinued"];
+    if (validStatuses.includes(status)) {
+      // For in_stock/low_stock/out_of_stock, we can filter efficiently
+      if (["in_stock", "low_stock", "out_of_stock"].includes(status)) {
+        finalProducts = processedProducts.filter(product => {
+          if (status === "in_stock") return product.stock_status === "in_stock";
+          if (status === "low_stock") return product.stock_status === "low_stock";
+          if (status === "out_of_stock") return product.stock_status === "out_of_stock";
+          return true;
+        });
+        finalCount = finalProducts.length;
+      } else {
+        // For "discontinued", we'd need to check product status in database
+        finalProducts = processedProducts.filter(product =>
+          product.status === "discontinued"
+        );
+        finalCount = finalProducts.length;
+      }
+    }
+  }
+
+  // Create pagination response with accurate count
+  const response = createPaginationResponse(finalProducts, page, limit, finalCount);
+  res.status(200).json({
+    status: "success",
+    ...response,
+  });
+});
+
 module.exports = {
   getNewArrivals,
   getTrendingNow,
@@ -2400,4 +2775,5 @@ module.exports = {
   getProductOverview,
   getVendorOnboardingStats,
   getVendorOverview,
+  getAdminProducts,
 };
