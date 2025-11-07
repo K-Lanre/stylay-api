@@ -69,8 +69,8 @@ router.patch(
 // Follower routes (authenticated users)
 router.post("/:vendorId/follow", vendorController.followVendor);
 router.delete("/:vendorId/follow", vendorController.unfollowVendor);
-router.get("/:vendorId/followers", vendorController.getVendorFollowers);
-router.get("/:vendorId/follow-status", vendorController.checkFollowStatus);
+router.get("/vendor/:vendorId/followers", vendorController.getVendorFollowers);
+router.get("/vendor/:vendorId/follow-status", vendorController.checkFollowStatus);
 
 // User following routes
 router.get("/user/:userId/following", vendorController.getUserFollowing);

@@ -213,6 +213,7 @@ const getCombinationById = async (req, res, next) => {
       include: [
         {
           model: Product,
+          as: 'product',
           attributes: ['id', 'name', 'price', 'sku']
         },
         {
@@ -264,6 +265,7 @@ const updateCombinationStock = async (req, res, next) => {
     const combination = await VariantCombination.findByPk(id, {
       include: [{
         model: Product,
+        as: 'product',
         attributes: ['id', 'vendor_id']
       }]
     });
@@ -320,6 +322,7 @@ const updateCombinationPrice = async (req, res, next) => {
     const combination = await VariantCombination.findByPk(id, {
       include: [{
         model: Product,
+        as: 'product',
         attributes: ['id', 'vendor_id']
       }]
     });

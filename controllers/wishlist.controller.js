@@ -152,7 +152,8 @@ const getWishlist = async (req, res, next) => {
  */
 const createWishlist = async (req, res, next) => {
   const transaction = await Wishlist.sequelize.transaction();
-
+  console.log('User:', req.user.id);
+clg
   try {
     const userId = req.user.id;
     const { name, description, is_public = false, is_default = false } = req.body;

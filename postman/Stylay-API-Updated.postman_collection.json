@@ -1126,9 +1126,10 @@
                             ],
                             "path": [
                                 "api",
-                                "admin",
-                                "dashboard",
-                                "sales-stats"
+                                "v1",
+                                "vendors",
+                                ":vendor_id",
+                                "products"
                             ],
                             "query": [
                                 {
@@ -1251,6 +1252,36 @@
                     }
                 },
                 {
+                    "name": "Vendor Followers Endpoints",
+                    "item": [
+                        {
+                            "name": "My Followers",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{vendor_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/profile/followers",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "profile",
+                                        "followers"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
                     "name": "Customer Follower Endpoints",
                     "description": "Endpoints for customers to manage vendor following",
                     "item": [
@@ -1307,6 +1338,32 @@
                             }
                         },
                         {
+                            "name": "Get Specific Vendor Followers",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/vendors/vendor/{{vendorId}}/followers",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "vendors",
+                                        "vendor",
+                                        "{{vendorId}}",
+                                        "followers"
+                                    ]
+                                }
+                            }
+                        },
+                        {
                             "name": "Check Follow Status",
                             "request": {
                                 "method": "GET",
@@ -1317,7 +1374,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/vendors/1/follow-status",
+                                    "raw": "{{base_url}}/api/v1/vendors/vendor/1/follow-status",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -1325,6 +1382,7 @@
                                         "api",
                                         "v1",
                                         "vendors",
+                                        "vendor",
                                         "1",
                                         "follow-status"
                                     ]
@@ -1349,9 +1407,10 @@
                                     ],
                                     "path": [
                                         "api",
-                                        "admin",
-                                        "dashboard",
-                                        "top-categories"
+                                        "v1",
+                                        "vendors",
+                                        "user",
+                                        "following"
                                     ],
                                     "query": [
                                         {
@@ -1378,15 +1437,17 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/vendors/user/1/following?page=1&limit=10",
+                                    "raw": "{{base_url}}/api/v1/vendors/user/{{user_id}}/following?page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
-                                        "admin",
-                                        "dashboard",
-                                        "metrics"
+                                        "v1",
+                                        "vendors",
+                                        "user",
+                                        "{{user_id}}",
+                                        "following"
                                     ],
                                     "query": [
                                         {
@@ -1401,42 +1462,8 @@
                                 },
                                 "description": "Get list of vendors followed by a specific user (Authenticated users only)"
                             }
-                        },
-                        {
-                            "name": "Get Vendor Followers",
-                            "request": {
-                                "method": "GET",
-                                "header": [
-                                    {
-                                        "key": "Authorization",
-                                        "value": "Bearer {{auth_token}}"
-                                    }
-                                ],
-                                "url": {
-                                    "raw": "{{base_url}}/api/v1/vendors/1/followers?page=1&limit=10",
-                                    "host": [
-                                        "{{base_url}}"
-                                    ],
-                                    "path": [
-                                        "api",
-                                        "admin",
-                                        "dashboard",
-                                        "top-selling-items"
-                                    ],
-                                    "query": [
-                                        {
-                                            "key": "page",
-                                            "value": "1"
-                                        },
-                                        {
-                                            "key": "limit",
-                                            "value": "10"
-                                        }
-                                    ]
-                                },
-                                "description": "Get list of users following a vendor (Any authenticated user)"
-                            }
                         }
+                       
                     ]
                 }
             ]
@@ -1939,7 +1966,7 @@
                         "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/products/:id",
+                            "raw": "{{base_url}}/api/v1/products/:identifier",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -1947,11 +1974,11 @@
                                 "api",
                                 "v1",
                                 "products",
-                                ":id"
+                                ":identifier"
                             ],
                             "variable": [
                                 {
-                                    "key": "id",
+                                    "key": "identifier",
                                     "value": "1",
                                     "description": "Product ID"
                                 }
@@ -2002,7 +2029,7 @@
                         "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/products/1/reviews?page=1&limit=10",
+                            "raw": "{{base_url}}/api/v1/products/:productId/reviews?page=1&limit=10",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -2010,7 +2037,7 @@
                                 "api",
                                 "v1",
                                 "products",
-                                ":id",
+                                ":productId",
                                 "reviews"
                             ],
                             "query": [
@@ -2021,6 +2048,13 @@
                                 {
                                     "key": "limit",
                                     "value": "10"
+                                }
+                            ],
+                            "variable": [
+                                {
+                                    "key": "productId",
+                                    "value": "1",
+                                    "description": "Product ID"
                                 }
                             ]
                         },

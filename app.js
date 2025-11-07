@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const session = require('express-session');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -11,11 +10,15 @@ const path = require('path');
 const morgan = require('morgan');
 const compression = require('compression');
 const passport = require('passport');
-
+const redis = require('redis');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('./utils/logger');
 const { errorHandler } = require('./middlewares/error');
-const { connectDB } = require('./config/database');
+const { sequelize, connectDB } = require('./config/database');
 const { initializePassport } = require('./config/passport');
+const { checkPermission } = require('./middlewares/checkPermission');
+const { protect, setUser } = require('./middlewares/auth');
+const { httpRequestDurationMiddleware, initializePerformanceTracking, metricsRoute } = require('./utils/performance');
 
 // Import routes
 const authRoutes = require('./routes/auth.route');
@@ -43,8 +46,52 @@ const app = express();
 // Trust first proxy (for rate limiting behind load balancer)
 app.set('trust proxy', 1);
 
-// Connect to database
-connectDB();
+// Connect to database and initialize properly
+const initializeApp = async () => {
+  try {
+    await connectDB();
+    logger.info('Database connected successfully');
+  } catch (error) {
+    logger.error('Failed to connect to database:', error);
+    process.exit(1);
+  }
+};
+
+const db = sequelize;
+
+// Initialize Redis client
+let redisClient;
+if (process.env.NODE_ENV === 'production') {
+  // In production, use Redis for caching
+  redisClient = redis.createClient({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD || '',
+  });
+  
+  redisClient.on('error', (err) => {
+    logger.error(`Redis Client Error: ${err}`);
+  });
+  
+  redisClient.on('connect', () => {
+    logger.info('Connected to Redis');
+  });
+  
+  redisClient.connect().catch(console.error);
+} else {
+  // In development, we can use a mock Redis client
+  const mockRedis = {
+    get: async (key) => null,
+    set: async (key, value, mode, duration) => true,
+    setex: async (key, duration, value) => true, // Add setex method
+    del: async (key) => true,
+    quit: async () => true,
+  };
+  redisClient = mockRedis;
+}
+
+// Initialize performance tracking
+initializePerformanceTracking(db);
 
 // Initialize Passport
 initializePassport(passport);
@@ -52,13 +99,15 @@ initializePassport(passport);
 // Set security HTTP headers
 app.use(helmet());
 
-// Session middleware
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false },  // True in prod
-}));
+// Add request ID for tracing
+app.use((req, res, next) => {
+  req.id = uuidv4();
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
+
+// Performance monitoring middleware
+app.use(httpRequestDurationMiddleware);
 
 // Development logging
 if (process.env.NODE_ENV === 'development') {
@@ -67,7 +116,6 @@ if (process.env.NODE_ENV === 'development') {
 
 // Initialize Passport and restore authentication state, if any
 app.use(passport.initialize());
-app.use(passport.session())
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -104,6 +152,49 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again in 15 minutes!'
 });
 app.use('/api', limiter);
+
+// Rate limiting for dashboard endpoints
+const dashboardLimiter = rateLimit({
+  max: 20, // 20 requests per minute
+  windowMs: 60 * 1000, // 1 minute
+  message: 'Too many requests from this IP to dashboard, please try again in 1 minute!',
+  keyGenerator: (req) => {
+    // Use user ID if logged in, otherwise use IP
+    return req.user ? `user:${req.user.id}` : req.ip;
+  }
+});
+app.use('/api/v1/admin/dashboard', dashboardLimiter);
+
+// Cache middleware for dashboard endpoints
+const cache = (duration) => {
+  return async (req, res, next) => {
+    if (req.method !== 'GET') {
+      return next();
+    }
+    
+    const key = `cache:${req.originalUrl}`;
+    
+    try {
+      const cached = await redisClient.get(key);
+      if (cached) {
+        return res.status(200).json(JSON.parse(cached));
+      }
+      
+      // Override res.json to cache the response
+      const originalJson = res.json;
+      res.json = function(obj) {
+        // Cache the response for future requests
+        redisClient.set(key, JSON.stringify(obj), 'EX', duration);
+        return originalJson.call(this, obj);
+      };
+      
+      next();
+    } catch (error) {
+      logger.error(`Cache error: ${error.message}`);
+      next();
+    }
+  };
+};
 
 // Body parser, reading data from body into req.body
 app.use(express.json({ limit: '10kb' }));
@@ -199,7 +290,17 @@ initializePassport(passport);
 // Compress all responses
 app.use(compression());
 
-// Mount routes
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Metrics endpoint for Prometheus
+app.get('/metrics', metricsRoute);
+
+app.use(setUser);
+app.use(checkPermission);
+// Mount routes with caching for dashboard endpoints
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
@@ -214,7 +315,9 @@ app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
+
+// Apply caching to dashboard routes
+app.use('/api/v1/dashboard', cache(300), dashboardRoutes); // 5 minutes cache
 app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/variants', variantRoutes);
 app.use('/api/v1/admin', adminRoutes);
@@ -225,7 +328,7 @@ app.use('/api/v1/admin', adminRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 3001);
 const server = app.listen(PORT, () => {
   logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
@@ -237,4 +340,17 @@ process.on('unhandledRejection', (err) => {
   server.close(() => process.exit(1));
 });
 
-module.exports = app;
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Process terminated');
+    if (redisClient && redisClient.quit) {
+      redisClient.quit();
+    }
+    process.exit(0);
+  });
+});
+
+module.exports = { app, db, redisClient };
+

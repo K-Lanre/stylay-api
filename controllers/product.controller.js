@@ -100,23 +100,25 @@ const createProduct = async (req, res, next) => {
       sku,
       variants = [],
       images = [],
-      vendor_id: vendorId // Optional vendor_id for admin
+      vendor_id: vendorId, // Optional vendor_id for admin
     } = req.body;
 
     let vendor;
-     
+
     // If vendor_id is provided in request (admin case)
     if (vendorId) {
       // Check if user is admin
-      if (req.user.role !== 'admin') {
-        return next(new AppError("Only admins can create products for other vendors", 403));
+      if (req.user.role !== "admin") {
+        return next(
+          new AppError("Only admins can create products for other vendors", 403)
+        );
       }
-       
+
       vendor = await Vendor.findByPk(vendorId);
     } else {
       // Regular vendor creating their own product
       vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-       
+
       if (!vendor) {
         return next(new AppError("Vendor account not found", 404));
       }
@@ -170,7 +172,12 @@ const createProduct = async (req, res, next) => {
       // Validate variant data
       const validation = VariantService.validateVariantData(variants);
       if (!validation.isValid) {
-        return next(new AppError(`Invalid variant data: ${validation.errors.join(', ')}`, 400));
+        return next(
+          new AppError(
+            `Invalid variant data: ${validation.errors.join(", ")}`,
+            400
+          )
+        );
       }
 
       // Create variants with type associations
@@ -178,14 +185,14 @@ const createProduct = async (req, res, next) => {
       for (const variantData of variants) {
         // Find or create variant type
         let variantType = await VariantType.findOne({
-          where: { name: variantData.type.toLowerCase() }
+          where: { name: variantData.type.toLowerCase() },
         });
 
         if (!variantType) {
           variantType = await VariantType.create({
             name: variantData.type.toLowerCase(),
             display_name: variantData.type,
-            sort_order: 0
+            sort_order: 0,
           });
         }
 
@@ -196,7 +203,7 @@ const createProduct = async (req, res, next) => {
           name: variantData.type,
           value: variantData.value,
           additional_price: variantData.additional_price || 0,
-          stock: variantData.stock || 0
+          stock: variantData.stock || 0,
         });
 
         createdVariants.push({
@@ -204,15 +211,18 @@ const createProduct = async (req, res, next) => {
           type: variantData.type,
           value: variantData.value,
           additional_price: variantData.additional_price || 0,
-          stock: variantData.stock || 0
+          stock: variantData.stock || 0,
         });
       }
 
       // Generate and create combinations
       try {
-        await VariantService.createCombinationsForProduct(product.id, createdVariants);
+        await VariantService.createCombinationsForProduct(
+          product.id,
+          createdVariants
+        );
       } catch (error) {
-        console.error('Error creating combinations:', error);
+        console.error("Error creating combinations:", error);
         // Continue without combinations for now - they can be generated later
       }
     }
@@ -363,7 +373,7 @@ const getProducts = async (req, res, next) => {
     const count = await Product.count({
       where: whereClause,
       distinct: true,
-      col: 'Product.id'
+      col: "Product.id",
     });
 
     const { rows: products } = await Product.findAndCountAll({
@@ -382,7 +392,7 @@ const getProducts = async (req, res, next) => {
         "impressions",
         "sold_units",
         "created_at",
-        "updated_at"
+        "updated_at",
       ],
       where: whereClause,
       limit: parseInt(limit),
@@ -512,12 +522,14 @@ const getProductByIdentifier = async (req, res, next) => {
           as: "combinations",
           where: { is_active: true },
           required: false,
-          include: [{
-            model: ProductVariant,
-            as: 'variants',
-            attributes: ['id', 'name', 'value', 'additional_price'],
-            through: { attributes: [] }
-          }]
+          include: [
+            {
+              model: ProductVariant,
+              as: "variants",
+              attributes: ["id", "name", "value", "additional_price"],
+              through: { attributes: [] },
+            },
+          ],
         },
       ],
     });
@@ -873,7 +885,7 @@ const getProductsByVendor = async (req, res, next) => {
         "impressions",
         "sold_units",
         "created_at",
-        "updated_at"
+        "updated_at",
       ],
       where: { vendor_id: req.params.id },
       limit: parseInt(limit),
@@ -881,7 +893,7 @@ const getProductsByVendor = async (req, res, next) => {
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
         { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
-        {model: Review, as: "reviews"},
+        { model: Review, as: "reviews" },
       ],
       order: [["created_at", "DESC"]],
     });
@@ -987,7 +999,7 @@ const getAllProducts = async (req, res, next) => {
         "impressions",
         "sold_units",
         "created_at",
-        "updated_at"
+        "updated_at",
       ],
       where: whereClause,
       limit: parseInt(limit),
@@ -996,7 +1008,7 @@ const getAllProducts = async (req, res, next) => {
         { model: Category, attributes: ["id", "name", "slug"] },
         {
           model: Vendor,
-          attributes: ["id" ],
+          attributes: ["id"],
           as: "vendor",
           include: [
             {
@@ -1007,7 +1019,17 @@ const getAllProducts = async (req, res, next) => {
           ],
         },
         { model: ProductImage, limit: 1, as: "images" },
-        { model: ProductVariant, as: "variants" },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: [
+            "variant_type_id",
+            "name",
+            "value",
+            "additional_price",
+            "stock",
+          ],
+        },
       ],
       order: [["created_at", "DESC"]],
     });
@@ -1373,7 +1395,7 @@ const getProductsByStatus = async (req, res, next) => {
         "impressions",
         "sold_units",
         "created_at",
-        "updated_at"
+        "updated_at",
       ],
       where: whereClause,
       limit: parseInt(limit),
@@ -1466,8 +1488,8 @@ const getProductsByStatus = async (req, res, next) => {
 const getProductAnalytics = async (req, res, next) => {
   try {
     const productId = req.params.id;
-    const isAdmin = req.user.roles.some(role => role.name === 'admin');
-    const isVendor = req.user.roles.some(role => role.name === 'vendor');
+    const isAdmin = req.user.roles.some((role) => role.name === "admin");
+    const isVendor = req.user.roles.some((role) => role.name === "vendor");
 
     // Find the product
     const product = await Product.findByPk(productId, {

@@ -394,6 +394,11 @@ const updateCartItem = async (req, res, next) => {
           as: "cart",
           include: [{ model: User, as: "user" }],
         },
+        {
+          model: Product,
+          as: "product",
+          required: false,
+        }
       ],
       transaction,
     });
@@ -412,6 +417,30 @@ const updateCartItem = async (req, res, next) => {
       const sessionId = req.session?.id || req.headers["x-session-id"];
       if (cartItem.cart.session_id !== sessionId) {
         return next(new AppError("Access denied", 403));
+      }
+    }
+
+    // Check stock availability for the new quantity
+    if (quantity > 0) {
+      // Check stock for variants if they exist
+      if (cartItem.selected_variants && cartItem.selected_variants.length > 0) {
+        const variants = typeof cartItem.selected_variants === 'string'
+          ? JSON.parse(cartItem.selected_variants)
+          : cartItem.selected_variants;
+        
+        for (const variantInfo of variants) {
+          const { ProductVariant } = require('../models');
+          const variant = await ProductVariant.findByPk(variantInfo.id);
+          if (variant && variant.stock !== null && variant.stock < quantity) {
+            return next(new AppError(`Insufficient stock for ${variantInfo.value}. Available: ${variant.stock}`, 400));
+          }
+        }
+      } else if (cartItem.product) {
+        // Check main product stock
+        const inventory = await cartItem.product.getInventory();
+        if (inventory && inventory.stock !== null && inventory.stock < quantity) {
+          return next(new AppError(`Insufficient stock for this product. Available: ${inventory.stock}`, 400));
+        }
       }
     }
 
@@ -1052,4 +1081,3 @@ module.exports = {
   getCartSummary,
   syncCart,
 };
-

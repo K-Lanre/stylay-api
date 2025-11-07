@@ -9,6 +9,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
+    dialectModule: require('mysql2'),
     logging: process.env.NODE_ENV === 'development' ? (msg) => logger.debug(msg) : false,
     define: {
       timestamps: true, // Enable Sequelize's built-in timestamps
@@ -18,8 +19,8 @@ const sequelize = new Sequelize(
       updatedAt: 'updated_at'
     },
     pool: {
-      max: 5,
-      min: 0,
+      max: 20, // Increased from 5 to 20 for better concurrency
+      min: 5, // Increased from 0 to 5 to keep connections warm
       acquire: 30000,
       idle: 10000
     },
@@ -28,7 +29,9 @@ const sequelize = new Sequelize(
       password: process.env.DB_PASSWORD || '',
       // Add support for big numbers
       supportBigNumbers: true,
-      bigNumberStrings: true
+      bigNumberStrings: true,
+      // Enable connection keep-alive
+      connectTimeout: 60000
     }
   }
 );

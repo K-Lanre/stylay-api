@@ -201,24 +201,31 @@ exports.updateCartItemValidation = [
     .isInt({ min: 1 })
     .withMessage('Invalid cart item ID')
     .custom(async (value, { req }) => {
-      const cartItem = await CartItem.findByPk(value);
-      if (!cartItem) {
-        throw new Error('Cart item not found');
+      // Ensure the itemId is a valid number
+      const numericValue = parseInt(value, 10);
+      if (isNaN(numericValue) || numericValue <= 0) {
+        throw new Error('Invalid cart item ID format');
       }
-
+      
+      const cartItem = await CartItem.findByPk(numericValue);
+      if (!cartItem) {
+        throw new Error(`Cart item with ID ${numericValue} does not exist or has been removed`);
+      }
+   
       // Check if user owns this cart item (if authenticated)
       if (req.user) {
         const cart = await Cart.findByPk(cartItem.cart_id);
         if (cart.user_id !== req.user.id) {
           throw new Error('Access denied to this cart item');
         }
-      } else if (req.sessionID) {
+      } else if (req.session?.id || req.headers['x-session-id'] || req.sessionID) {
+        const sessionId = req.session?.id || req.headers['x-session-id'] || req.sessionID;
         const cart = await Cart.findByPk(cartItem.cart_id);
-        if (cart.session_id !== req.sessionID) {
+        if (cart.session_id !== sessionId) {
           throw new Error('Access denied to this cart item');
         }
       }
-
+   
       return true;
     }),
 
@@ -230,24 +237,13 @@ exports.updateCartItemValidation = [
     .custom(async (value, { req }) => {
       if (value === 0) return true; // Allow removing item by setting quantity to 0
 
-      const cartItem = await CartItem.findByPk(req.params.itemId);
-      if (!cartItem) {
-        throw new Error('Cart item not found');
+      // Validate quantity range
+      if (value < 0 || value > 100) {
+        throw new Error('Quantity must be between 0 and 100');
       }
 
-      // Check stock availability
-      if (cartItem.variant_id) {
-        const variant = await ProductVariant.findByPk(cartItem.variant_id);
-        if (variant && variant.stock !== null && variant.stock < value) {
-          throw new Error(`Insufficient stock for this variant. Available: ${variant.stock}`);
-        }
-      } else {
-        const inventory = await cartItem.getProduct().then(product => product.getInventory());
-        if (inventory && inventory.stock < value) {
-          throw new Error(`Insufficient stock for this product. Available: ${inventory.stock}`);
-        }
-      }
-
+      // For stock checking, we don't need to validate here since the param validation
+      // already ensures the cart item exists. Stock checking will be done in the controller.
       return true;
     })
 ];
@@ -270,9 +266,15 @@ exports.removeFromCartValidation = [
     .isInt({ min: 1 })
     .withMessage('Invalid cart item ID')
     .custom(async (value, { req }) => {
-      const cartItem = await CartItem.findByPk(value);
+      // Ensure the itemId is a valid number
+      const numericValue = parseInt(value, 10);
+      if (isNaN(numericValue) || numericValue <= 0) {
+        throw new Error('Invalid cart item ID format');
+      }
+      
+      const cartItem = await CartItem.findByPk(numericValue);
       if (!cartItem) {
-        throw new Error('Cart item not found');
+        throw new Error(`Cart item with ID ${numericValue} does not exist or has been removed`);
       }
 
       // Check if user owns this cart item (if authenticated)
@@ -281,9 +283,10 @@ exports.removeFromCartValidation = [
         if (cart.user_id !== req.user.id) {
           throw new Error('Access denied to this cart item');
         }
-      } else if (req.sessionID) {
+      } else if (req.session?.id || req.headers['x-session-id'] || req.sessionID) {
+        const sessionId = req.session?.id || req.headers['x-session-id'] || req.sessionID;
         const cart = await Cart.findByPk(cartItem.cart_id);
-        if (cart.session_id !== req.sessionID) {
+        if (cart.session_id !== sessionId) {
           throw new Error('Access denied to this cart item');
         }
       }

@@ -1234,7 +1234,6 @@ const getVendorFollowers = async (req, res, next) => {
     const { vendorId } = req.params;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
-
     // Check if vendor exists
     const vendor = await Vendor.findByPk(vendorId);
     if (!vendor) {
@@ -1343,7 +1342,7 @@ const getUserFollowing = async (req, res, next) => {
             {
               model: User,
               as: "User",
-              attributes: ["id", "first_name", "last_name"],
+              attributes: ["id", "first_name", "last_name", "profile_image"],
             },
             {
               model: Store,

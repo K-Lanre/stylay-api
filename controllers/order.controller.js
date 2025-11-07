@@ -157,7 +157,7 @@ async function createOrder(req, res) {
 
       if (item.selected_variants && item.selected_variants.length > 0) {
         // Handle multiple variants
-        const variantIds = item.selected_variants.map(v => v.id);
+        const variantIds = item.selected_variants.map((v) => v.id);
         const variants = await ProductVariant.findAll({
           where: { id: variantIds, product_id: item.productId },
           transaction,
@@ -171,7 +171,8 @@ async function createOrder(req, res) {
 
         // Calculate total additional price from all selected variants
         const totalVariantPrice = item.selected_variants.reduce(
-          (sum, selectedVariant) => sum + (parseFloat(selectedVariant.additional_price) || 0),
+          (sum, selectedVariant) =>
+            sum + (parseFloat(selectedVariant.additional_price) || 0),
           0
         );
         itemPrice += totalVariantPrice;
@@ -201,12 +202,14 @@ async function createOrder(req, res) {
 
         // Use variant price if available, otherwise use product price
         itemPrice = variant.price || itemPrice;
-        selectedVariants = [{
-          id: variant.id,
-          name: variant.name,
-          value: variant.value,
-          additional_price: variant.additional_price || 0
-        }];
+        selectedVariants = [
+          {
+            id: variant.id,
+            name: variant.name,
+            value: variant.value,
+            additional_price: variant.additional_price || 0,
+          },
+        ];
       } else if (
         !product.inventory ||
         product.inventory.stock < item.quantity
@@ -337,7 +340,7 @@ async function createOrder(req, res) {
       }
 
       // Update sold_units for the product
-      await Product.increment('sold_units', {
+      await Product.increment("sold_units", {
         by: item.quantity,
         where: { id: item.productId },
         transaction,
@@ -588,7 +591,7 @@ async function getOrder(req, res) {
       include: [
         {
           model: User,
-          as: 'user',
+          as: "user",
           attributes: ["id", "first_name", "last_name", "email", "phone"],
         },
         {
@@ -741,8 +744,12 @@ async function updateOrderStatus(req, res) {
     const order = await Order.findOne({
       where: { id },
       include: [
-        { model: OrderItem, as: "items", include: [{ model: Product, as: 'product' }] },
-        { model: User, as: 'user', attributes: ["id", "email", "first_name"] },
+        {
+          model: OrderItem,
+          as: "items",
+          include: [{ model: Product, as: "product" }],
+        },
+        { model: User, as: "user", attributes: ["id", "email", "first_name"] },
       ],
       transaction,
     });
@@ -864,17 +871,20 @@ async function updateOrderStatus(req, res) {
     if (order.items && order.items.length > 0) {
       await Promise.all(
         order.items.map(async (item) => {
-          return NotificationItem.create({
-            notification_id: notification.id,
-            item_details: JSON.stringify({
-              product_id: item.product_id,
-              product_name: item.product?.name || 'Unknown Product',
-              quantity: item.quantity,
-              price: item.price,
-              sub_total: item.sub_total,
-            }),
-            created_at: new Date(),
-          }, { transaction });
+          return NotificationItem.create(
+            {
+              notification_id: notification.id,
+              item_details: JSON.stringify({
+                product_id: item.product_id,
+                product_name: item.product?.name || "Unknown Product",
+                quantity: item.quantity,
+                price: item.price,
+                sub_total: item.sub_total,
+              }),
+              created_at: new Date(),
+            },
+            { transaction }
+          );
         })
       );
     }
@@ -1015,15 +1025,32 @@ async function getUserOrders(req, res) {
           model: OrderItem,
           as: "items",
           attributes: ["id", "quantity", "price", "sub_total"],
+          required: false, // Ensure LEFT OUTER JOIN to get orders even without items
           include: [
             {
               model: Product,
-              as: 'product',
-              attributes: ["id", "name", "slug", "images"],
+              as: "product",
+              attributes: ["id", "name", "slug"],
+              required: false,
               include: [
                 {
                   model: Vendor,
-                  attributes: ["id", "business_name"],
+                  as: "vendor",
+                  attributes: ["id"],
+                  required: false,
+                  include: [
+                    {
+                      model: Store,
+                      as: "store",
+                      attributes: ["id", "business_name"],
+                      required: false,
+                    },
+                  ],
+                },
+                {
+                  model: ProductImage,
+                  as: "images",
+                  required: false,
                 },
               ],
             },
@@ -1031,10 +1058,13 @@ async function getUserOrders(req, res) {
         },
         {
           model: OrderDetail,
+          as: "details",
           attributes: ["shipping_cost", "tax_amount"],
+          required: false,
           include: [
             {
               model: Address,
+              as: "address",
               attributes: [
                 "id",
                 "address_line",
@@ -1043,6 +1073,7 @@ async function getUserOrders(req, res) {
                 "country",
                 "postal_code",
               ],
+              required: false,
             },
           ],
         },
@@ -1052,7 +1083,7 @@ async function getUserOrders(req, res) {
       offset: parseInt(offset),
       distinct: true,
     });
-
+    
     // Calculate pagination metadata
     const totalPages = Math.ceil(count / limit);
     const hasNextPage = page < totalPages;
@@ -1062,14 +1093,15 @@ async function getUserOrders(req, res) {
     const formattedOrders = orders.map((order) => {
       const orderData = order.get({ plain: true });
 
-      // Calculate order summary
-      const subtotal = orderData.order_items.reduce(
-        (sum, item) => sum + item.sub_total,
+      // Calculate order summary - ensure items is always an array
+      const orderItems = orderData.items || [];
+      const subtotal = orderItems.reduce(
+        (sum, item) => sum + parseFloat(item.sub_total || 0),
         0
       );
 
-      const shipping = orderData.order_detail?.shipping_cost || 0;
-      const tax = orderData.order_detail?.tax_amount || 0;
+      const shipping = orderData.details?.shipping_cost || 0;
+      const tax = orderData.details?.tax_amount || 0;
 
       return {
         id: orderData.id,
@@ -1077,28 +1109,28 @@ async function getUserOrders(req, res) {
         status: orderData.order_status,
         payment_status: orderData.payment_status,
         order_date: orderData.order_date,
-        total_amount: orderData.total_amount,
-        item_count: orderData.order_items.length,
-        items: orderData.order_items.map((item) => ({
+        total_amount: parseFloat(orderData.total_amount || 0),
+        item_count: orderItems.length,
+        items: orderItems.map((item) => ({
           id: item.id,
           product: {
-            id: item.product.id,
-            name: item.product.name,
-            slug: item.product.slug,
-            image: item.product.images?.[0] || null,
-            vendor: item.product.vendor?.business_name,
+            id: item.product?.id,
+            name: item.product?.name,
+            slug: item.product?.slug,
+            image: item.product?.images?.[0] || null,
+            vendor: item.product?.vendor?.store?.business_name,
           },
           quantity: item.quantity,
-          price: item.price,
-          sub_total: item.sub_total,
+          price: parseFloat(item.price || 0),
+          sub_total: parseFloat(item.sub_total || 0),
         })),
         summary: {
           subtotal,
-          shipping,
-          tax,
-          total: subtotal + shipping + tax,
+          shipping: parseFloat(shipping || 0),
+          tax: parseFloat(tax || 0),
+          total: subtotal + parseFloat(shipping || 0) + parseFloat(tax || 0),
         },
-        shipping_address: orderData.order_detail?.address,
+        shipping_address: orderData.details?.address,
       };
     });
 
@@ -1447,8 +1479,12 @@ async function cancelOrder(req, res) {
         order_status: ["pending", "processing"],
       },
       include: [
-        { model: OrderItem, as: "items", include: [{ model: Product, as: 'product' }] },
-        { model: User, as: 'user', attributes: ["id", "email", "first_name"] },
+        {
+          model: OrderItem,
+          as: "items",
+          include: [{ model: Product, as: "product" }],
+        },
+        { model: User, as: "user", attributes: ["id", "email", "first_name"] },
       ],
       transaction,
     });
@@ -1505,44 +1541,45 @@ async function cancelOrder(req, res) {
         return true;
       })
     );
-      // Restore variant stock for multiple variants or single variant
-      await Promise.all(
-        order.order_items.map(async (item) => {
-          if (item.selected_variants && item.selected_variants.length > 0) {
-            // Handle multiple variants restoration
-            const variants = typeof item.selected_variants === 'string'
+    // Restore variant stock for multiple variants or single variant
+    await Promise.all(
+      order.order_items.map(async (item) => {
+        if (item.selected_variants && item.selected_variants.length > 0) {
+          // Handle multiple variants restoration
+          const variants =
+            typeof item.selected_variants === "string"
               ? JSON.parse(item.selected_variants)
               : item.selected_variants;
-            for (const variant of variants) {
-              await ProductVariant.increment("stock", {
-                by: item.quantity,
-                where: { id: variant.id },
-                transaction,
-              });
-            }
-          } else if (item.variant_id) {
-            // Backward compatibility: single variant restoration
+          for (const variant of variants) {
             await ProductVariant.increment("stock", {
               by: item.quantity,
-              where: { id: item.variant_id },
+              where: { id: variant.id },
               transaction,
             });
           }
-          return true;
-        })
-      );
-
-      // Decrement sold_units for cancelled products since they weren't actually sold
-      await Promise.all(
-        order.order_items.map(async (item) => {
-          await Product.decrement('sold_units', {
+        } else if (item.variant_id) {
+          // Backward compatibility: single variant restoration
+          await ProductVariant.increment("stock", {
             by: item.quantity,
-            where: { id: item.product_id },
+            where: { id: item.variant_id },
             transaction,
           });
-          return true;
-        })
-      );
+        }
+        return true;
+      })
+    );
+
+    // Decrement sold_units for cancelled products since they weren't actually sold
+    await Promise.all(
+      order.order_items.map(async (item) => {
+        await Product.decrement("sold_units", {
+          by: item.quantity,
+          where: { id: item.product_id },
+          transaction,
+        });
+        return true;
+      })
+    );
     // If payment was made, process refund
     if (order.payment_status === "paid") {
       // Create refund transaction
@@ -1697,7 +1734,7 @@ async function getVendorOrders(req, res) {
           include: [
             {
               model: Product,
-              as: 'product',
+              as: "product",
               attributes: ["id", "name", "price"],
               where: { vendor_id: vendorId },
             },
@@ -1798,7 +1835,7 @@ async function updateOrderItemStatus(req, res) {
       include: [
         {
           model: Product,
-          as: 'product',
+          as: "product",
           where: { vendor_id: vendorId },
           attributes: ["id", "vendor_id"],
         },
@@ -1972,7 +2009,7 @@ async function getAllOrders(req, res) {
           include: [
             {
               model: Product,
-              as: 'product',
+              as: "product",
               attributes: ["id", "name", "price"],
               include: [
                 {

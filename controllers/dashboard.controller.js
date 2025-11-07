@@ -1064,7 +1064,7 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
   // Validate limit parameter
   const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 50)); // Between 1-50
 
-  // First, get aggregated sales data by vendor
+  // Optimized query to get all vendor data in a single query
   const vendorSales = await db.OrderItem.findAll({
     attributes: [
       "vendor_id",
@@ -1079,14 +1079,29 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
         where: { payment_status: "paid" },
         attributes: [],
       },
+      {
+        model: db.Vendor,
+        as: "vendor",
+        attributes: ["id"],
+        include: [
+          {
+            model: db.Store,
+            as: "store",
+            attributes: ["business_name"],
+          },
+          {
+            model: db.User,
+            attributes: ["first_name", "last_name"],
+          },
+        ],
+      },
     ],
     where: {
       vendor_id: { [Op.ne]: null },
     },
-    group: ["vendor_id"],
+    group: ["vendor_id", "vendor.id", "store.id", "User.id"],
     order: [[fn("SUM", col("sub_total")), "DESC"]],
     limit: limitNum,
-    raw: true,
   });
 
   if (vendorSales.length === 0) {
@@ -1096,72 +1111,50 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
     });
   }
 
-  // Get vendor details for the top selling vendors
-  const vendorIds = vendorSales.map((item) => item.vendor_id);
-
-  const vendors = await db.Vendor.findAll({
-    attributes: ["id", "status"],
-    include: [
-      {
-        model: db.Store,
-        as: "store",
-        attributes: ["id", "business_name"],
-      },
-      {
-        model: db.User,
-        attributes: ["id", "first_name", "last_name"],
-      },
+  // Get active product counts for each vendor in a single optimized query
+  const vendorIds = vendorSales.map(item => item.vendor_id);
+  const activeProductCounts = await db.Product.findAll({
+    attributes: [
+      "vendor_id",
+      [fn("COUNT", col("id")), "active_products"]
     ],
     where: {
-      id: { [Op.in]: vendorIds },
-      status: "approved",
+      vendor_id: { [Op.in]: vendorIds },
+      status: "active",
     },
+    group: ["vendor_id"],
+    raw: true,
   });
-
-  // Get active product counts for each vendor
-  const activeProductCounts = await Promise.all(
-    vendorIds.map(async (vendorId) => {
-      const count = await db.Product.count({
-        where: {
-          vendor_id: vendorId,
-          status: "active",
-        },
-      });
-      return { vendor_id: vendorId, active_products: count };
-    })
-  );
 
   // Create a map for efficient product count lookup
   const productCountMap = new Map();
   activeProductCounts.forEach((item) => {
-    productCountMap.set(item.vendor_id, item.active_products);
+    productCountMap.set(item.vendor_id, parseInt(item.active_products) || 0);
   });
 
   // Combine all data
-  const topSellingVendors = vendorSales
-    .map((salesItem) => {
-      const vendor = vendors.find((v) => v.id === salesItem.vendor_id);
-      const activeProducts = productCountMap.get(salesItem.vendor_id) || 0;
-      const totalSales = parseFloat(salesItem.total_sales) || 0;
-      const totalOrders = parseInt(salesItem.total_orders) || 0;
-      const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+  const topSellingVendors = vendorSales.map((salesItem) => {
+    const vendor = salesItem.vendor;
+    const activeProducts = productCountMap.get(salesItem.vendor_id) || 0;
+    const totalSales = parseFloat(salesItem.total_sales) || 0;
+    const totalOrders = parseInt(salesItem.total_orders) || 0;
+    const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-      return {
-        vendor_id: salesItem.vendor_id,
-        vendor_name: vendor?.store?.business_name || "Unknown Store",
-        vendor_owner: vendor?.User
-          ? `${vendor.User.first_name || ""} ${
-              vendor.User.last_name || ""
-            }`.trim() || "Unknown Owner"
-          : "Unknown Owner",
-        total_orders: totalOrders,
-        total_sales: totalSales.toFixed(2),
-        total_units_sold: parseInt(salesItem.total_units_sold) || 0,
-        active_products: activeProducts,
-        average_order_value: averageOrderValue.toFixed(2),
-      };
-    })
-    .filter((vendor) => vendor.total_sales > 0); // Only return vendors with actual sales
+    return {
+      vendor_id: salesItem.vendor_id,
+      vendor_name: vendor?.store?.business_name || "Unknown Store",
+      vendor_owner: vendor?.User
+        ? `${vendor.User.first_name || ""} ${
+            vendor.User.last_name || ""
+          }`.trim() || "Unknown Owner"
+        : "Unknown Owner",
+      total_orders: totalOrders,
+      total_sales: totalSales.toFixed(2),
+      total_units_sold: parseInt(salesItem.total_units_sold) || 0,
+      active_products: activeProducts,
+      average_order_value: averageOrderValue.toFixed(2),
+    };
+  }).filter((vendor) => vendor.total_sales > 0); // Only return vendors with actual sales
 
   res.status(200).json({
     status: "success",
@@ -1503,6 +1496,24 @@ const getRecentOrders = catchAsync(async (req, res, next) => {
         as: "user",
         attributes: ["id", "first_name", "last_name", "email"],
       },
+      {
+        model: db.OrderItem,
+        as: "items",
+        attributes: [
+          "id",
+          "product_id",
+          "quantity",
+          "price",
+          "sub_total",
+        ],
+        include: [
+          {
+            model: db.Product,
+            as: "product",
+            attributes: ["id", "name", "slug", "thumbnail", "price"],
+          },
+        ],
+      },
     ],
     where: whereClause,
     order: [["created_at", "DESC"]],
@@ -1511,7 +1522,36 @@ const getRecentOrders = catchAsync(async (req, res, next) => {
     distinct: true,
   });
 
-  const response = createPaginationResponse(orders, page, limit, count);
+  // Format the response to include order items with product names
+  const formattedOrders = orders.map((order) => {
+    // Format order items to include product names
+    const formattedItems = order.items.map((item) => ({
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.product ? item.product.name : "Unknown Product",
+      product_slug: item.product ? item.product.slug : "",
+      product_thumbnail: item.product ? item.product.thumbnail : "",
+      quantity: item.quantity,
+      price: parseFloat(item.price),
+      sub_total: parseFloat(item.sub_total),
+    }));
+
+    return {
+      id: order.id,
+      user_id: order.user_id,
+      order_date: order.order_date,
+      total_amount: parseFloat(order.total_amount),
+      payment_status: order.payment_status,
+      payment_method: order.payment_method,
+      order_status: order.order_status,
+      created_at: order.created_at,
+      updated_at: order.updated_at,
+      user: order.user,
+      items: formattedItems,
+    };
+  });
+
+  const response = createPaginationResponse(formattedOrders, page, limit, count);
   res.status(200).json({
     status: "success",
     ...response,
@@ -1778,12 +1818,12 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.User,
-        attributes: ["id", "first_name", "last_name", "email"],
+        attributes: ["id", "first_name", "last_name", "email", "phone"],
       },
       {
         model: db.Store,
         as: "store",
-        attributes: ["id", "business_name"],
+        attributes: ["id", "business_name", "cac_number"],
       },
     ],
   });
@@ -1954,6 +1994,8 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
         : "Unknown Vendor",
       business_name: vendor.store?.business_name || "Unknown Business",
       email: vendor.User?.email || "No Email",
+      phone: vendor.User?.phone || "No Phone",
+      cac_number: vendor.store?.cac_number || "No CAC Number",
       status: vendor.status,
       date_joined: vendor.approved_at,
     },
@@ -1978,21 +2020,32 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
 });
 
 /**
- * Retrieves comprehensive vendor onboarding statistics for all approved vendors.
- * Provides key metrics for vendor performance and onboarding success tracking.
+ * Retrieves comprehensive vendor onboarding statistics with advanced filtering capabilities.
+ * Provides key metrics for vendor performance and onboarding success tracking with flexible filtering options.
  * @param {import('express').Request} req - Express request object
  * @param {Object} req.query - Query parameters
  * @param {number} [req.query.page=1] - Page number for pagination
- * @param {number} [req.query.limit=20] - Number of vendors per page
+ * @param {number} [req.query.limit=20] - Number of vendors per page (max 100)
+ * @param {string} [req.query.status] - Filter by vendor status (approved, pending, rejected, suspended)
+ * @param {string} [req.query.search] - Search term for vendor name, business name, or email
+ * @param {string} [req.query.dateFrom] - Filter vendors approved after this date (YYYY-MM-DD)
+ * @param {string} [req.query.dateTo] - Filter vendors approved before this date (YYYY-MM-DD)
+ * @param {number} [req.query.minEarnings] - Minimum earnings threshold
+ * @param {number} [req.query.maxEarnings] - Maximum earnings threshold
+ * @param {number} [req.query.minProductTags] - Minimum product tags count
+ * @param {number} [req.query.maxProductTags] - Maximum product tags count
+ * @param {string} [req.query.sortBy] - Sort field (approved_at, vendor_name, business_name, total_earnings, product_tags_count)
+ * @param {string} [req.query.sortOrder] - Sort order (ASC, DESC) - defaults to DESC
  * @param {import('express').Response} res - Express response object
  * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with vendor onboarding stats
+ * @returns {Object} Success response with filtered vendor onboarding stats
  * @returns {boolean} status - Success status
  * @returns {Array} data - Array of vendor onboarding statistics
  * @returns {number} data[].vendor_id - Vendor ID
  * @returns {string} data[].vendor_name - Vendor's full name (first + last)
  * @returns {string} data[].business_name - Business/store name
  * @returns {string} data[].email - Vendor's email address
+ * @returns {string} data[].phone - Vendor's phone number
  * @returns {number} data[].product_tags_count - Number of product tags associated with vendor
  * @returns {string|null} data[].join_reason - Reason for joining the platform
  * @returns {string} data[].total_earnings - Total earnings from completed sales (formatted to 2 decimal places)
@@ -2005,12 +2058,20 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
  * @returns {number} pagination.itemsPerPage - Items per page
  * @returns {boolean} pagination.hasNextPage - Whether next page exists
  * @returns {boolean} pagination.hasPrevPage - Whether previous page exists
+ * @returns {Object} filters - Applied filters metadata
+ * @returns {string} filters.appliedFilters - JSON string of applied filters
+ * @returns {number} filters.totalFiltered - Total count after filtering
  * @api {get} /api/dashboard/vendor-onboarding-stats Get Vendor Onboarding Stats
  * @private admin
  * @example
- * // Request
+ * // Basic request
  * GET /api/dashboard/vendor-onboarding-stats?page=1&limit=20
- * Authorization: Bearer <admin_token>
+ *
+ * // Filtered request
+ * GET /api/dashboard/vendor-onboarding-stats?status=approved&search=tech&minEarnings=1000&sortBy=total_earnings&sortOrder=DESC
+ *
+ * // Date range and advanced filtering
+ * GET /api/dashboard/vendor-onboarding-stats?dateFrom=2024-01-01&dateTo=2024-12-31&minProductTags=5&maxProductTags=50
  *
  * // Success Response (200)
  * {
@@ -2021,22 +2082,12 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
  *       "vendor_name": "John Doe",
  *       "business_name": "TechHub Electronics",
  *       "email": "john.doe@example.com",
+ *       "phone": "+1234567890",
  *       "product_tags_count": 15,
  *       "join_reason": "Passionate about electronics and want to reach more customers",
  *       "total_earnings": "15450.75",
  *       "status": "approved",
  *       "date_joined": "2024-09-15T10:30:00.000Z"
- *     },
- *     {
- *       "vendor_id": 2,
- *       "vendor_name": "Jane Smith",
- *       "business_name": "Fashion Forward",
- *       "email": "jane.smith@example.com",
- *       "product_tags_count": 8,
- *       "join_reason": "Building a sustainable fashion brand",
- *       "total_earnings": "8750.50",
- *       "status": "approved",
- *       "date_joined": "2024-09-20T14:15:00.000Z"
  *     }
  *   ],
  *   "pagination": {
@@ -2046,15 +2097,82 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
  *     "itemsPerPage": 20,
  *     "hasNextPage": true,
  *     "hasPrevPage": false
+ *   },
+ *   "filters": {
+ *     "appliedFilters": "{\"status\":\"approved\",\"search\":\"tech\",\"minEarnings\":1000}",
+ *     "totalFiltered": 45
  *   }
  * }
  */
 const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
-  const { page = 1, limit = 20 } = req.query;
+  const {
+    page = 1,
+    limit = 20,
+    status,
+    search,
+    dateFrom,
+    dateTo,
+    minEarnings,
+    maxEarnings,
+    minProductTags,
+    maxProductTags,
+    sortBy = "approved_at",
+    sortOrder = "DESC"
+  } = req.query;
+
   const { limit: limitNum, offset } = paginate(page, limit);
 
+  // Validate and build filter parameters
+  const validStatuses = ["approved", "pending", "rejected", "suspended"];
+  const validSortFields = ["approved_at", "vendor_name", "business_name", "total_earnings", "product_tags_count", "created_at"];
+  const validSortOrders = ["ASC", "DESC"];
+
+  // Build where clause for vendor filters
+  const vendorWhereClause = {};
+  
+  // Status filter
+  if (status && validStatuses.includes(status)) {
+    vendorWhereClause.status = status;
+  } else if (!status) {
+    // Default to approved if no status specified
+    vendorWhereClause.status = "approved";
+  }
+
+  // Date range filters
+  if (dateFrom) {
+    const fromDate = new Date(dateFrom);
+    if (!isNaN(fromDate.getTime())) {
+      vendorWhereClause.approved_at = { ...vendorWhereClause.approved_at, [Op.gte]: fromDate };
+    }
+  }
+  
+  if (dateTo) {
+    const toDate = new Date(dateTo);
+    if (!isNaN(toDate.getTime())) {
+      vendorWhereClause.approved_at = { ...vendorWhereClause.approved_at, [Op.lt]: toDate };
+    }
+  }
+
+  // Validate sort parameters
+  const finalSortBy = validSortFields.includes(sortBy) ? sortBy : "approved_at";
+  const finalSortOrder = validSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : "DESC";
+
+  // Build search filter for User and Store
+  let searchFilter = null;
+  if (search) {
+    const searchTerm = search.toLowerCase();
+    searchFilter = {
+      [Op.or]: [
+        { "$User.first_name$": { [Op.like]: `%${searchTerm}%` } },
+        { "$User.last_name$": { [Op.like]: `%${searchTerm}%` } },
+        { "$User.email$": { [Op.like]: `%${searchTerm}%` } },
+        { "$store.business_name$": { [Op.like]: `%${searchTerm}%` } }
+      ]
+    };
+  }
+
   // First, get vendors with their basic info and related User/Store data
-  const { count, rows: vendors } = await db.Vendor.findAndCountAll({
+  const { count: totalCount, rows: vendors } = await db.Vendor.findAndCountAll({
     attributes: [
       "id",
       "user_id",
@@ -2066,18 +2184,22 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.User,
-        attributes: ["id", "first_name", "last_name", "email", 'phone'],
+        attributes: ["id", "first_name", "last_name", "email", "phone"],
       },
       {
         model: db.Store,
         as: "store",
-        attributes: ["id", "business_name"],
+        attributes: ["id", "business_name", "cac_number"],
       },
     ],
-    where: { status: "approved" }, // Only approved vendors
-    order: [["approved_at", "DESC"]], // Most recently approved first
+    where: {
+      ...vendorWhereClause,
+      ...searchFilter
+    },
+    order: [[finalSortBy === "vendor_name" ? literal("CONCAT(User.first_name, ' ', User.last_name)") : finalSortBy, finalSortOrder]],
     limit: limitNum,
     offset,
+    subQuery: false, // Disable subquery for better performance with joins
   });
 
   if (vendors.length === 0) {
@@ -2085,6 +2207,21 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     return res.status(200).json({
       status: "success",
       ...response,
+      filters: {
+        appliedFilters: JSON.stringify({
+          status: vendorWhereClause.status,
+          search,
+          dateFrom,
+          dateTo,
+          minEarnings,
+          maxEarnings,
+          minProductTags,
+          maxProductTags,
+          sortBy: finalSortBy,
+          sortOrder: finalSortOrder
+        }),
+        totalFiltered: 0
+      }
     });
   }
 
@@ -2118,7 +2255,7 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
 
       return {
         vendor_id: vendorId,
-        total_earnings: parseFloat(totalEarnings).toFixed(2),
+        total_earnings: parseFloat(totalEarnings),
       };
     })
   );
@@ -2131,11 +2268,11 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
 
   const earningsMap = new Map();
   earningsData.forEach((item) => {
-    earningsMap.set(item.vendor_id, item.total_earnings);
+    earningsMap.set(item.vendor_id, item.total_earnings.toFixed(2));
   });
 
   // Combine all data
-  const vendorStats = vendors.map((vendor) => ({
+  let vendorStats = vendors.map((vendor) => ({
     vendor_id: vendor.id,
     vendor_name: vendor.User
       ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() ||
@@ -2151,10 +2288,75 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     date_joined: vendor.approved_at,
   }));
 
-  const response = createPaginationResponse(vendorStats, page, limit, count);
+  // Apply client-side filters for earnings and product tags counts
+  if (minEarnings !== undefined) {
+    const minEarn = parseFloat(minEarnings) || 0;
+    vendorStats = vendorStats.filter(vendor => parseFloat(vendor.total_earnings) >= minEarn);
+  }
+
+  if (maxEarnings !== undefined) {
+    const maxEarn = parseFloat(maxEarnings) || Number.MAX_SAFE_INTEGER;
+    vendorStats = vendorStats.filter(vendor => parseFloat(vendor.total_earnings) <= maxEarn);
+  }
+
+  if (minProductTags !== undefined) {
+    const minTags = parseInt(minProductTags) || 0;
+    vendorStats = vendorStats.filter(vendor => vendor.product_tags_count >= minTags);
+  }
+
+  if (maxProductTags !== undefined) {
+    const maxTags = parseInt(maxProductTags) || Number.MAX_SAFE_INTEGER;
+    vendorStats = vendorStats.filter(vendor => vendor.product_tags_count <= maxTags);
+  }
+
+  // Calculate filtered count for pagination metadata
+  const filteredCount = vendorStats.length;
+
+  // If we have client-side filters applied, we need to recalculate total count
+  let finalCount = totalCount;
+  if (minEarnings !== undefined || maxEarnings !== undefined || minProductTags !== undefined || maxProductTags !== undefined) {
+    // Get count with database filters only (not client-side filters)
+    const { count: dbFilteredCount } = await db.Vendor.findAndCountAll({
+      attributes: ["id"],
+      include: [
+        {
+          model: db.User,
+          attributes: ["id"],
+        },
+        {
+          model: db.Store,
+          as: "store",
+          attributes: ["id"],
+        },
+      ],
+      where: {
+        ...vendorWhereClause,
+        ...searchFilter
+      },
+      subQuery: false,
+    });
+    finalCount = dbFilteredCount;
+  }
+
+  const response = createPaginationResponse(vendorStats, page, limit, finalCount);
   res.status(200).json({
     status: "success",
     ...response,
+    filters: {
+      appliedFilters: JSON.stringify({
+        status: vendorWhereClause.status,
+        search,
+        dateFrom,
+        dateTo,
+        minEarnings: minEarnings ? parseFloat(minEarnings) : undefined,
+        maxEarnings: maxEarnings ? parseFloat(maxEarnings) : undefined,
+        minProductTags: minProductTags ? parseInt(minProductTags) : undefined,
+        maxProductTags: maxProductTags ? parseInt(maxProductTags) : undefined,
+        sortBy: finalSortBy,
+        sortOrder: finalSortOrder
+      }),
+      totalFiltered: filteredCount
+    }
   });
 });
 

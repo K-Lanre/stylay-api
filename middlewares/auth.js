@@ -26,6 +26,12 @@ const localAuth = () => {
   };
 };
 
+const setUser = (req, res, next) => {
+  return passport.authenticate('jwt', { session: false }, (err, user, info) => {
+    req.user = user;
+    return next();
+  })(req, res, next);
+}
 /**
  * Protect routes - check if user is authenticated using JWT
  * Attaches user object to req.user with roles
@@ -466,5 +472,6 @@ module.exports = {
   hasPermission,
   hasAnyPermission,
   hasAllPermissions,
-  restrictToPermission
+  restrictToPermission,
+  setUser
 };
