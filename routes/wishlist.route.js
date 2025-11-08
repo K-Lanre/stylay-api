@@ -42,6 +42,14 @@ router.get(
   wishlistController.getWishlist
 );
 
+// Get wishlist summary with totals
+router.get(
+  '/:id/summary',
+  wishlistIdValidation,
+  validate,
+  wishlistController.getWishlistSummary
+);
+
 // Update a wishlist
 router.put(
   '/:id',
@@ -95,6 +103,14 @@ router.delete(
   wishlistItemIdValidation,
   validate,
   wishlistController.removeItemFromWishlist
+);
+
+// Move item from wishlist to cart
+router.post(
+  '/:id/move-to-cart',
+  wishlistIdValidation,
+  validate,
+  wishlistController.moveToCart
 );
 
 module.exports = router;

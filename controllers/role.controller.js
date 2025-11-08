@@ -1,4 +1,4 @@
-const { Role } = require('../models');
+const { Role, Permission } = require('../models');
 const AppError = require('../utils/appError');
 const logger = require('../utils/logger');
 
@@ -25,15 +25,21 @@ const getAllRoles = async (req, res, next) => {
   try {
     const roles = await Role.findAll({
       attributes: ['id', 'name', 'description'],
+      include: [
+        {
+          model: Permission,
+          as: 'permissions',
+          attributes: ['id', 'name', 'description'],
+          through: { attributes: [] } // exclude junction table attributes
+        }
+      ],
       order: [['id', 'ASC']]
     });
 
     res.status(200).json({
       status: 'success',
       results: roles.length,
-      data: {
-        roles
-      }
+      data: roles
     });
   } catch (error) {
     logger.error('Error fetching roles:', error);
@@ -65,7 +71,15 @@ const getAllRoles = async (req, res, next) => {
 const getRole = async (req, res, next) => {
   try {
     const role = await Role.findByPk(req.params.id, {
-      attributes: ['id', 'name', 'description']
+      attributes: ['id', 'name', 'description'],
+      include: [
+        {
+          model: Permission,
+          as: 'permissions',
+          attributes: ['id', 'name', 'description'],
+          through: { attributes: [] } // exclude junction table attributes
+        }
+      ]
     });
 
     if (!role) {
@@ -74,9 +88,7 @@ const getRole = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        role
-      }
+      data: role
     });
   } catch (error) {
     logger.error(`Error fetching role ${req.params.id}:`, error);
@@ -100,9 +112,7 @@ const createRole = async (req, res, next) => {
 
     res.status(201).json({
       status: 'success',
-      data: {
-        role: newRole
-      }
+      data: newRole
     });
   } catch (error) {
     logger.error('Error creating role:', error);
@@ -131,9 +141,7 @@ const updateRole = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        role
-      }
+      data: role
     });
   } catch (error) {
     logger.error(`Error updating role ${req.params.id}:`, error);

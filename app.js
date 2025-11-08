@@ -38,6 +38,7 @@ const webhookRoutes = require('./routes/webhook.route');
 const dashboardRoutes = require('./routes/dashboard.route');
 const reviewRoutes = require('./routes/review.route');
 const variantRoutes = require('./routes/variant.route');
+const wishlistRoutes = require('./routes/wishlist.route');
 const adminRoutes = require('./routes/admin');
 
 // Initialize express app
@@ -300,6 +301,7 @@ app.get('/metrics', metricsRoute);
 
 app.use(setUser);
 app.use(checkPermission);
+
 // Mount routes with caching for dashboard endpoints
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
@@ -315,6 +317,7 @@ app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/wishlists', wishlistRoutes);
 
 // Apply caching to dashboard routes
 app.use('/api/v1/dashboard', cache(300), dashboardRoutes); // 5 minutes cache

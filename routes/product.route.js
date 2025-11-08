@@ -15,7 +15,35 @@ const {
 const reviewController = require('../controllers/review.controller');
 const { listReviewsValidation } = require('../validators/review.validator');
 // Public routes
-// More specific routes first (with constraints)
+// More specific routes first (with parameters), then generic routes
+
+/**
+ * @desc    Get recently viewed products
+ * @route   GET /api/v1/products/recent
+ * @access  Public
+ */
+router.get('/recent', productController.getRecentViews);
+
+/**
+ * @desc    Get viewing statistics
+ * @route   GET /api/v1/products/recent/stats
+ * @access  Public
+ */
+router.get('/recent/stats', productController.getViewStatistics);
+
+/**
+ * @desc    Clear recently viewed products
+ * @route   DELETE /api/v1/products/recent
+ * @access  Public
+ */
+router.delete('/recent', productController.clearRecentViews);
+
+/**
+ * @desc    Anonymize user view data (GDPR compliance)
+ * @route   PATCH /api/v1/products/recent/anonymize
+ * @access  Public
+ */
+router.patch('/recent/anonymize', productController.anonymizeUserData);
 
 /**
  * @desc    Get reviews for a specific product
@@ -24,11 +52,22 @@ const { listReviewsValidation } = require('../validators/review.validator');
  */
 router.get('/:productId/reviews', listReviewsValidation, reviewController.getReviewsByProduct);
 
+/**
+ * @desc    Get products by vendor ID
+ * @route   GET /api/v1/products/vendor/:id
+ * @access  Public
+ */
+router.get('/vendor/:id', getVendorProductsValidation, validate, productController.getProductsByVendor);
+
+/**
+ * @desc    Get product by ID or slug
+ * @route   GET /api/v1/products/:identifier
+ * @access  Public
+ */
 router.get('/:identifier', getProductByIdentifierValidation, validate, productController.getProductByIdentifier);
 
-// General route for listing products with query parameters
+// General route for listing products - MUST be last to avoid shadowing
 router.get('/', getProductsValidation, validate, productController.getProducts);
-router.get('/vendor/:id', getVendorProductsValidation, validate, productController.getProductsByVendor);
 
 // Protected routes (require authentication)
 router.use(protect);

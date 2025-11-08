@@ -448,15 +448,16 @@ const getCategoryTree = async (req, res) => {
  */
 const getCategoryProducts = async (req, res) => {
   try {
-    const { id } = req.params;
+    console.log(req.params);
+    const { identifier } = req.params;
     const { page = 1, limit = 12, minPrice, maxPrice, sortBy = 'createdAt', sortOrder = 'DESC' } = req.query;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
 
     // Check if category exists (support both ID and slug)
-    const isNumericId = !isNaN(id) && !isNaN(parseFloat(id));
-    const categoryWhereClause = isNumericId ? { id: parseInt(id) } : { slug: id };
+    const isNumericId = !isNaN(identifier) && !isNaN(parseFloat(identifier));
+    const categoryWhereClause = isNumericId ? { id: parseInt(identifier) } : { slug: identifier };
 
     const category = await Category.findOne({ where: categoryWhereClause });
     if (!category) {

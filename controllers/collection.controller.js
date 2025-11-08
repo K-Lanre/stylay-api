@@ -136,7 +136,7 @@ const getCollectionById = async (req, res, next) => {
           model: Product,
           as: 'products',
           through: { attributes: [] },
-          attributes: ['id', 'name', 'slug', 'price', 'main_image']
+          attributes: ['id', 'name', 'slug', 'price', 'thumbnail']
         }
       ]
     });

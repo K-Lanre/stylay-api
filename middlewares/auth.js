@@ -27,11 +27,42 @@ const localAuth = () => {
 };
 
 const setUser = (req, res, next) => {
-  return passport.authenticate('jwt', { session: false }, (err, user, info) => {
-    req.user = user;
+  return passport.authenticate('jwt', { session: false }, async (err, user, info) => {
+    if (user) {
+      try {
+        // Load user with roles and permissions
+        const userWithRoles = await User.findByPk(user.id, {
+          include: [
+            {
+              model: Role,
+              as: 'roles',
+              include: [
+                {
+                  model: Permission,
+                  as: 'permissions',
+                  through: { attributes: [] }
+                }
+              ],
+              through: { attributes: [] }
+            }
+          ]
+        });
+        
+        if (userWithRoles) {
+          req.user = userWithRoles;
+        } else {
+          req.user = user;
+        }
+      } catch (error) {
+        console.warn('Failed to load user roles/permissions in setUser:', error.message);
+        req.user = user; // Continue with basic user if loading fails
+      }
+    } else {
+      req.user = null;
+    }
     return next();
   })(req, res, next);
-}
+};
 /**
  * Protect routes - check if user is authenticated using JWT
  * Attaches user object to req.user with roles

@@ -25,8 +25,13 @@ module.exports = {
       { type: Sequelize.QueryTypes.SELECT }
     );
 
-    const [subAdminRole] = await queryInterface.sequelize.query(
-      "SELECT id FROM roles WHERE name = 'sub-admin' LIMIT 1;",
+    const [vendorRole] = await queryInterface.sequelize.query(
+      "SELECT id FROM roles WHERE name = 'vendor' LIMIT 1;",
+      { type: Sequelize.QueryTypes.SELECT }
+    );
+
+    const [customerRole] = await queryInterface.sequelize.query(
+      "SELECT id FROM roles WHERE name = 'customer' LIMIT 1;",
       { type: Sequelize.QueryTypes.SELECT }
     );
 
@@ -47,45 +52,122 @@ module.exports = {
       await queryInterface.bulkInsert('role_permissions', adminRolePermissions, {});
     }
 
-    // Assign limited permissions to sub-admin role (exclude system admin permissions)
-    if (subAdminRole) {
-      // Get permissions excluding system admin group
-      const subAdminPermissions = await queryInterface.sequelize.query(
-        "SELECT id FROM permissions WHERE resource != 'system';",
+    // ========================================
+    // ASSIGN PERMISSIONS TO VENDOR ROLE
+    // ========================================
+    if (vendorRole) {
+      // Get all permissions to filter for vendor role
+      const allPermissions = await queryInterface.sequelize.query(
+        "SELECT id, name, resource, action FROM permissions;",
         { type: Sequelize.QueryTypes.SELECT }
       );
 
-      // Exclude user management create/delete/manage and analytics dashboard permissions
-      const filteredPermissions = subAdminPermissions.filter(permission => {
-        // Allow all vendor, product, earnings, feedback, notification permissions
-        if (['vendors', 'products', 'categories', 'collections', 'inventory', 'supply',
-             'orders', 'payments', 'payouts', 'earnings', 'journals',
-             'reviews', 'support', 'notifications'].includes(permission.resource)) {
-          return true;
-        }
+      // Vendor permissions: business operations, inventory, supply, orders, analytics
+      const vendorPermissionNames = [
+        // User management (vendor can manage their own profile)
+        'users_read', 'users_update',
+        // Product management (vendor can manage their own products)
+        'products_create', 'products_read', 'products_update', 'products_delete', 'products_analytics',
+        // Category management (vendor can view categories for products)
+        'categories_read', 'categories_update',
+        // Collection management (vendor can view collections for products)
+        'collections_read', 'collections_update',
+        // Inventory management
+        'inventory_read', 'inventory_update', 'inventory_manage',
+        // Supply management
+        'supplies_create', 'supplies_read', 'supplies_update', 'supplies_delete',
+        // Order management (vendor can view and update their orders)
+        'orders_read', 'orders_update', 'orders_process',
+        // Payment management (vendor can view their payment transactions)
+        'payments_read', 'payments_process',
+        // Payout management (vendor can view their payouts)
+        'payouts_read', 'payouts_update',
+        // Earnings/Analytics
+        'earnings_read', 'earnings_export',
+        'analytics_read', 'analytics_export', 'analytics_dashboard',
+        // Reviews (vendor can read reviews for their products)
+        'reviews_read',
+        // Vendor management (vendor can manage their own profile)
+        'vendors_read', 'vendors_update',
+        // Support
+        'support_read', 'support_create', 'support_update',
+        // Journals
+        'journals_read', 'journals_create', 'journals_update',
+        // Notifications
+        'notifications_read', 'notifications_update',
+      ];
 
-        // For user management, only allow read and update
-        if (permission.resource === 'users') {
-          return permission.action === 'read' || permission.action === 'update';
-        }
+      const vendorPermissions = allPermissions.filter(p =>
+        vendorPermissionNames.includes(p.name)
+      );
 
-        // For analytics, only allow read and export
-        if (permission.resource === 'analytics') {
-          return permission.action === 'read' || permission.action === 'export';
-        }
+      if (vendorPermissions.length > 0) {
+        const vendorRolePermissions = vendorPermissions.map(permission => ({
+          role_id: vendorRole.id,
+          permission_id: permission.id,
+          created_at: new Date(),
+          updated_at: new Date()
+        }));
 
-        return false;
-      });
+        await queryInterface.bulkInsert('role_permissions', vendorRolePermissions, {});
+      }
+    }
 
-      const subAdminRolePermissions = filteredPermissions.map(permission => ({
-        role_id: subAdminRole.id,
-        permission_id: permission.id,
-        created_at: new Date(),
-        updated_at: new Date()
-      }));
+    // ========================================
+    // ASSIGN PERMISSIONS TO CUSTOMER ROLE
+    // ========================================
+    if (customerRole) {
+      // Get all permissions to filter for customer role
+      const allPermissions = await queryInterface.sequelize.query(
+        "SELECT id, name, resource, action FROM permissions;",
+        { type: Sequelize.QueryTypes.SELECT }
+      );
 
-      if (subAdminRolePermissions.length > 0) {
-        await queryInterface.bulkInsert('role_permissions', subAdminRolePermissions, {});
+      // Customer permissions: personal data, shopping, orders, reviews
+      const customerPermissionNames = [
+        // User management (customer can manage their own profile)
+        'users_read', 'users_update',
+        // Address management
+        'addresses_create', 'addresses_read', 'addresses_update', 'addresses_delete',
+        // Cart management
+        'cart_create', 'cart_read', 'cart_update', 'cart_delete',
+        // Wishlist management
+        'wishlist_create', 'wishlist_read', 'wishlist_update', 'wishlist_delete',
+        // Order management (customer can create, view, and cancel their orders)
+        'orders_create', 'orders_read', 'orders_cancel',
+        // Product management (customer can view products)
+        'products_read',
+        // Category management (customer can view categories)
+        'categories_read',
+        // Collection management (customer can view collections)
+        'collections_read',
+        // Inventory (customer can view availability)
+        'inventory_read',
+        // Payment management (customer can view their payment history)
+        'payments_read',
+        // Review management (customer can manage their own reviews)
+        'reviews_create', 'reviews_read', 'reviews_update', 'reviews_delete',
+        // Vendor following
+        'vendors_read', 'vendors_follow',
+        // Support
+        'support_create', 'support_read', 'support_update',
+        // Notifications
+        'notifications_read', 'notifications_update',
+      ];
+
+      const customerPermissions = allPermissions.filter(p =>
+        customerPermissionNames.includes(p.name)
+      );
+
+      if (customerPermissions.length > 0) {
+        const customerRolePermissions = customerPermissions.map(permission => ({
+          role_id: customerRole.id,
+          permission_id: permission.id,
+          created_at: new Date(),
+          updated_at: new Date()
+        }));
+
+        await queryInterface.bulkInsert('role_permissions', customerRolePermissions, {});
       }
     }
   },

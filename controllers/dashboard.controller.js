@@ -1060,105 +1060,108 @@ const getAdminDashboard = catchAsync(async (req, res, next) => {
  */
 const getTopSellingVendors = catchAsync(async (req, res, next) => {
   const { limit = 10 } = req.query;
+  const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 50)); // Max 50 vendors
 
-  // Validate limit parameter
-  const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 50)); // Between 1-50
-
-  // Optimized query to get all vendor data in a single query
+  // STEP 1: Aggregate sales per vendor (NO includes = no grouping nightmare)
   const vendorSales = await db.OrderItem.findAll({
     attributes: [
-      "vendor_id",
-      [fn("COUNT", col("order_id")), "total_orders"],
-      [fn("SUM", col("sub_total")), "total_sales"],
-      [fn("SUM", col("quantity")), "total_units_sold"],
+      'vendor_id',
+      [fn('SUM', col('sub_total')), 'total_sales'],
+      [fn('SUM', col('quantity')), 'total_units_sold'],
+      [fn('COUNT', fn('DISTINCT', col('order_id'))), 'total_orders']
     ],
     include: [
       {
         model: db.Order,
-        as: "order",
-        where: { payment_status: "paid" },
+        as: 'order',
         attributes: [],
-      },
-      {
-        model: db.Vendor,
-        as: "vendor",
-        attributes: ["id"],
-        include: [
-          {
-            model: db.Store,
-            as: "store",
-            attributes: ["business_name"],
-          },
-          {
-            model: db.User,
-            attributes: ["first_name", "last_name"],
-          },
-        ],
-      },
+        where: {
+          payment_status: 'paid',
+          order_status: { [Op.in]: ['shipped', 'delivered', 'completed'] }
+        }
+      }
     ],
     where: {
-      vendor_id: { [Op.ne]: null },
+      vendor_id: { [Op.not]: null }
     },
-    group: ["vendor_id", "vendor.id", "store.id", "User.id"],
-    order: [[fn("SUM", col("sub_total")), "DESC"]],
+    group: ['vendor_id'],
+    order: [[literal('total_sales'), 'DESC']],
     limit: limitNum,
+    raw: true
   });
 
   if (vendorSales.length === 0) {
     return res.status(200).json({
-      status: "success",
+      status: 'success',
       data: [],
+      message: 'No vendor sales data available yet.'
     });
   }
 
-  // Get active product counts for each vendor in a single optimized query
-  const vendorIds = vendorSales.map(item => item.vendor_id);
-  const activeProductCounts = await db.Product.findAll({
-    attributes: [
-      "vendor_id",
-      [fn("COUNT", col("id")), "active_products"]
+  const vendorIds = vendorSales.map(v => v.vendor_id);
+
+  // STEP 2: Fetch full vendor details separately
+  const vendors = await db.Vendor.findAll({
+    where: { id: { [Op.in]: vendorIds } },
+    attributes: ['id', 'total_sales', 'total_earnings', 'status'],
+    include: [
+      {
+        model: db.User,
+        attributes: ['first_name', 'last_name', 'email']
+      },
+      {
+        model: db.Store,
+        as: 'store',
+        attributes: ['business_name', 'logo', 'slug', 'is_verified']
+      }
     ],
-    where: {
-      vendor_id: { [Op.in]: vendorIds },
-      status: "active",
-    },
-    group: ["vendor_id"],
-    raw: true,
+    order: [[literal(`FIELD(Vendor.id, ${vendorIds.join(',')})`)]], // Preserve sales order
+    raw: false
   });
 
-  // Create a map for efficient product count lookup
-  const productCountMap = new Map();
-  activeProductCounts.forEach((item) => {
-    productCountMap.set(item.vendor_id, parseInt(item.active_products) || 0);
-  });
+  // STEP 3: Combine + format beautifully
+  const salesMap = new Map(vendorSales.map(v => [
+    v.vendor_id,
+    {
+      total_sales: parseFloat(v.total_sales || 0),
+      total_units_sold: parseInt(v.total_units_sold || 0),
+      total_orders: parseInt(v.total_orders || 0)
+    }
+  ]));
 
-  // Combine all data
-  const topSellingVendors = vendorSales.map((salesItem) => {
-    const vendor = salesItem.vendor;
-    const activeProducts = productCountMap.get(salesItem.vendor_id) || 0;
-    const totalSales = parseFloat(salesItem.total_sales) || 0;
-    const totalOrders = parseInt(salesItem.total_orders) || 0;
-    const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+  const result = vendors.map(vendor => {
+    const sales = salesMap.get(vendor.id) || { total_sales: 0, total_units_sold: 0, total_orders: 0 };
+    const user = vendor.User;
+    const store = vendor.store;
 
     return {
-      vendor_id: salesItem.vendor_id,
-      vendor_name: vendor?.store?.business_name || "Unknown Store",
-      vendor_owner: vendor?.User
-        ? `${vendor.User.first_name || ""} ${
-            vendor.User.last_name || ""
-          }`.trim() || "Unknown Owner"
-        : "Unknown Owner",
-      total_orders: totalOrders,
-      total_sales: totalSales.toFixed(2),
-      total_units_sold: parseInt(salesItem.total_units_sold) || 0,
-      active_products: activeProducts,
-      average_order_value: averageOrderValue.toFixed(2),
+      id: vendor.id,
+      name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown Vendor' : 'Unknown Vendor',
+      email: user?.email || null,
+      business_name: store?.business_name || 'No Store Name',
+      store_slug: store?.slug || null,
+      logo: store?.logo || null,
+      is_verified: store?.is_verified || false,
+      status: vendor.status,
+      stats: {
+        total_sales: sales.total_sales,
+        total_units_sold: sales.total_units_sold,
+        total_orders: sales.total_orders,
+        avg_order_value: sales.total_orders > 0 
+          ? parseFloat((sales.total_sales / sales.total_orders).toFixed(2))
+          : 0
+      }
     };
-  }).filter((vendor) => vendor.total_sales > 0); // Only return vendors with actual sales
+  });
 
   res.status(200).json({
-    status: "success",
-    data: topSellingVendors,
+    status: 'success',
+    data: result,
+    summary: {
+      period: 'all_time',
+      total_vendors_returned: result.length,
+      top_performer: result[0]?.business_name || null
+    }
   });
 });
 

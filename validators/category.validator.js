@@ -152,12 +152,12 @@ exports.getCategoryByIdentifierValidation = [
   param('identifier')
     .notEmpty().withMessage('Category identifier is required')
     .custom(async (value) => {
-      // Check if it's a numeric ID
-      const isNumericId = !isNaN(value) && !isNaN(parseFloat(value));
+      // Check if it's a numeric ID (positive integer)
+      const isNumericId = /^\d+$/.test(value);
 
       if (isNumericId) {
         // Validate as ID
-        const category = await Category.findByPk(parseInt(value));
+        const category = await Category.findByPk(parseInt(value, 10));
         if (!category) {
           throw new Error('Category not found');
         }

@@ -27,8 +27,8 @@ router.get(
 
 // Get products by category
 router.get(
-  "/:id/products",
-  getCategoryProductsValidation,
+  "/:identifier/products",
+   getCategoryByIdentifierValidation,
   validate,
   getCategoryProducts
 );

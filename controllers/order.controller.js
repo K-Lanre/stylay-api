@@ -607,24 +607,34 @@ async function getOrder(req, res) {
                 "slug",
                 "price",
                 "discounted_price",
-                "images",
+                "thumbnail",
+              ],
+              include: [
+                {
+                  model: ProductImage,
+                  as: "images",
+                  attributes: ["id", "image_url", "is_featured"],
+                  required: false,
+                },
               ],
             },
             {
               model: Vendor,
+              as: 'vendor',
               attributes: ["id", "user_id"],
               include: [
-                { model: Store, attributes: ["id", "name", "slug", "logo"] },
+                { model: Store, as: 'store', attributes: ["id", "business_name", "slug", "logo"] },
               ],
             },
           ],
-          where: isVendor ? { vendor_id: req.user.vendor_id } : {},
         },
         {
           model: OrderDetail,
+          as: 'details',
           include: [
             {
               model: Address,
+              as: 'address',
               attributes: { exclude: ["created_at", "updated_at"] },
             },
           ],
@@ -633,7 +643,6 @@ async function getOrder(req, res) {
           model: PaymentTransaction,
           as: "transactions",
           attributes: { exclude: ["created_at", "updated_at"] },
-          order: [["created_at", "DESC"]],
         },
       ],
     });
@@ -649,13 +658,14 @@ async function getOrder(req, res) {
     const orderData = order.get({ plain: true });
 
     // Calculate order summary
+    const orderItems = orderData.items || orderData.order_items || [];
     const orderSummary = {
-      subtotal: orderData.order_items.reduce(
-        (sum, item) => sum + item.sub_total,
+      subtotal: orderItems.reduce(
+        (sum, item) => sum + (item.sub_total || 0),
         0
       ),
-      shipping: orderData.order_detail?.shipping_cost || 0,
-      tax: orderData.order_detail?.tax_amount || 0,
+      shipping: orderData.details?.shipping_cost || orderData.order_detail?.shipping_cost || 0,
+      tax: orderData.details?.tax_amount || orderData.order_detail?.tax_amount || 0,
       total: orderData.total_amount,
     };
 

@@ -72,9 +72,7 @@ const createJournal = async (req, res, next) => {
 
     res.status(201).json({
       status: 'success',
-      data: {
-        journal: createdJournal
-      }
+      data: createdJournal
     });
   } catch (error) {
     // Handle validation errors
@@ -201,9 +199,7 @@ const getJournalById = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        journal
-      }
+      data: journal
     });
   } catch (error) {
     next(error);
@@ -285,9 +281,7 @@ const updateJournal = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        journal: updatedJournal
-      }
+      data: updatedJournal
     });
   } catch (error) {
     next(error);

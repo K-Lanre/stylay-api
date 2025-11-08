@@ -441,48 +441,62 @@ class PermissionService {
    */
   static getPermissionTemplates() {
     return [
-      // Vendor Management Group
+      // ========================================
+      // VENDOR MANAGEMENT GROUP
+      // ========================================
       { resource: 'vendors', action: 'create', description: 'Create new vendors', group: 'vendor_management' },
       { resource: 'vendors', action: 'read', description: 'View vendor information', group: 'vendor_management' },
       { resource: 'vendors', action: 'update', description: 'Update vendor information', group: 'vendor_management' },
       { resource: 'vendors', action: 'delete', description: 'Delete vendors', group: 'vendor_management' },
       { resource: 'vendors', action: 'approve', description: 'Approve vendor applications', group: 'vendor_management' },
       { resource: 'vendors', action: 'reject', description: 'Reject vendor applications', group: 'vendor_management' },
-      { resource: 'vendors', action: 'follow', description: 'Manage vendor follow relationships', group: 'vendor_management' },
+      { resource: 'vendors', action: 'follow', description: 'Follow/unfollow vendors', group: 'vendor_management' },
 
-      // Products Management Group
+      // ========================================
+      // PRODUCTS MANAGEMENT GROUP
+      // ========================================
       { resource: 'products', action: 'create', description: 'Create new products', group: 'products_management' },
       { resource: 'products', action: 'read', description: 'View product information', group: 'products_management' },
       { resource: 'products', action: 'update', description: 'Update product information', group: 'products_management' },
       { resource: 'products', action: 'delete', description: 'Delete products', group: 'products_management' },
       { resource: 'products', action: 'analytics', description: 'View product analytics', group: 'products_management' },
 
-      // Categories Management (part of products)
+      // Categories Management
       { resource: 'categories', action: 'create', description: 'Create new categories', group: 'products_management' },
       { resource: 'categories', action: 'read', description: 'View category information', group: 'products_management' },
       { resource: 'categories', action: 'update', description: 'Update category information', group: 'products_management' },
       { resource: 'categories', action: 'delete', description: 'Delete categories', group: 'products_management' },
 
-      // Collections Management (part of products)
+      // Collections Management
       { resource: 'collections', action: 'create', description: 'Create new collections', group: 'products_management' },
       { resource: 'collections', action: 'read', description: 'View collection information', group: 'products_management' },
       { resource: 'collections', action: 'update', description: 'Update collection information', group: 'products_management' },
       { resource: 'collections', action: 'delete', description: 'Delete collections', group: 'products_management' },
 
-      // Inventory Management (part of products)
+      // Inventory Management
       { resource: 'inventory', action: 'read', description: 'View inventory information', group: 'products_management' },
       { resource: 'inventory', action: 'update', description: 'Update inventory levels', group: 'products_management' },
       { resource: 'inventory', action: 'manage', description: 'Manage inventory operations', group: 'products_management' },
 
-      // Supply Management (part of products)
-      { resource: 'supply', action: 'create', description: 'Create supply records', group: 'products_management' },
-      { resource: 'supply', action: 'read', description: 'View supply information', group: 'products_management' },
-      { resource: 'supply', action: 'update', description: 'Update supply information', group: 'products_management' },
-      { resource: 'supply', action: 'delete', description: 'Delete supply records', group: 'products_management' },
+      // Supply Management (Fixed namespace to 'supplies')
+      { resource: 'supplies', action: 'create', description: 'Create supply records', group: 'products_management' },
+      { resource: 'supplies', action: 'read', description: 'View supply information', group: 'products_management' },
+      { resource: 'supplies', action: 'update', description: 'Update supply information', group: 'products_management' },
+      { resource: 'supplies', action: 'delete', description: 'Delete supply records', group: 'products_management' },
 
-      // Earnings and Payment Group
+      // Variant Management (NEW)
+      { resource: 'variants', action: 'create', description: 'Create product variants and types', group: 'products_management' },
+      { resource: 'variants', action: 'read', description: 'View product variants and combinations', group: 'products_management' },
+      { resource: 'variants', action: 'update', description: 'Update variant stock, prices, and status', group: 'products_management' },
+      { resource: 'variants', action: 'delete', description: 'Delete product variant types', group: 'products_management' },
+
+      // ========================================
+      // ORDERS AND PAYMENT GROUP
+      // ========================================
+      { resource: 'orders', action: 'create', description: 'Create new orders', group: 'earnings_payment' },
       { resource: 'orders', action: 'read', description: 'View order information', group: 'earnings_payment' },
       { resource: 'orders', action: 'update', description: 'Update order status', group: 'earnings_payment' },
+      { resource: 'orders', action: 'delete', description: 'Delete orders', group: 'earnings_payment' },
       { resource: 'orders', action: 'cancel', description: 'Cancel orders', group: 'earnings_payment' },
       { resource: 'orders', action: 'process', description: 'Process order payments', group: 'earnings_payment' },
 
@@ -500,9 +514,11 @@ class PermissionService {
       // Earnings/Analytics
       { resource: 'earnings', action: 'read', description: 'View earnings reports', group: 'earnings_payment' },
       { resource: 'earnings', action: 'export', description: 'Export earnings data', group: 'earnings_payment' },
-      { resource: 'journals', action: 'read', description: 'View journal entries', group: 'earnings_payment' },
 
-      // Feedbacks and Support Group
+      // ========================================
+      // REVIEWS AND SUPPORT GROUP
+      // ========================================
+      { resource: 'reviews', action: 'create', description: 'Create product reviews', group: 'feedbacks_support' },
       { resource: 'reviews', action: 'read', description: 'View customer reviews', group: 'feedbacks_support' },
       { resource: 'reviews', action: 'update', description: 'Update review status', group: 'feedbacks_support' },
       { resource: 'reviews', action: 'delete', description: 'Delete inappropriate reviews', group: 'feedbacks_support' },
@@ -515,30 +531,79 @@ class PermissionService {
       { resource: 'support', action: 'resolve', description: 'Resolve support tickets', group: 'feedbacks_support' },
       { resource: 'support', action: 'escalate', description: 'Escalate support tickets', group: 'feedbacks_support' },
 
-      // Notification Panel Group
+      // ========================================
+      // CONTENT MANAGEMENT GROUP (NEW)
+      // ========================================
+      { resource: 'journals', action: 'create', description: 'Create journal entries', group: 'content_management' },
+      { resource: 'journals', action: 'read', description: 'View journal entries', group: 'content_management' },
+      { resource: 'journals', action: 'update', description: 'Update journal entries', group: 'content_management' },
+      { resource: 'journals', action: 'delete', description: 'Delete journal entries', group: 'content_management' },
+
+      // ========================================
+      // NOTIFICATION PANEL GROUP
+      // ========================================
       { resource: 'notifications', action: 'create', description: 'Create system notifications', group: 'notification_panel' },
       { resource: 'notifications', action: 'read', description: 'View notification history', group: 'notification_panel' },
       { resource: 'notifications', action: 'update', description: 'Update notification settings', group: 'notification_panel' },
       { resource: 'notifications', action: 'delete', description: 'Delete notifications', group: 'notification_panel' },
       { resource: 'notifications', action: 'send', description: 'Send bulk notifications', group: 'notification_panel' },
 
-      // User Management (Additional admin functions)
+      // ========================================
+      // USER MANAGEMENT GROUP
+      // ========================================
       { resource: 'users', action: 'create', description: 'Create new users', group: 'user_management' },
       { resource: 'users', action: 'read', description: 'View user information', group: 'user_management' },
       { resource: 'users', action: 'update', description: 'Update user information', group: 'user_management' },
       { resource: 'users', action: 'delete', description: 'Delete users', group: 'user_management' },
-      { resource: 'users', action: 'manage', description: 'Manage user accounts', group: 'user_management' },
+      { resource: 'users', action: 'manage', description: 'Manage user accounts and roles', group: 'user_management' },
 
-      // Analytics and Reports (System-wide)
+      // Role Management (NEW)
+      { resource: 'roles', action: 'create', description: 'Create new roles', group: 'user_management' },
+      { resource: 'roles', action: 'read', description: 'View role information', group: 'user_management' },
+      { resource: 'roles', action: 'update', description: 'Update role permissions', group: 'user_management' },
+      { resource: 'roles', action: 'delete', description: 'Delete roles', group: 'user_management' },
+
+      // ========================================
+      // CUSTOMER FEATURES GROUP (NEW)
+      // ========================================
+      // Address Management
+      { resource: 'addresses', action: 'create', description: 'Create delivery addresses', group: 'customer_features' },
+      { resource: 'addresses', action: 'read', description: 'View saved addresses', group: 'customer_features' },
+      { resource: 'addresses', action: 'update', description: 'Update address information', group: 'customer_features' },
+      { resource: 'addresses', action: 'delete', description: 'Delete addresses', group: 'customer_features' },
+
+      // Cart Management
+      { resource: 'cart', action: 'create', description: 'Add items to shopping cart', group: 'customer_features' },
+      { resource: 'cart', action: 'read', description: 'View cart contents', group: 'customer_features' },
+      { resource: 'cart', action: 'update', description: 'Update cart item quantities', group: 'customer_features' },
+      { resource: 'cart', action: 'delete', description: 'Remove items from cart', group: 'customer_features' },
+
+      // Wishlist Management
+      { resource: 'wishlist', action: 'create', description: 'Create and add to wishlists', group: 'customer_features' },
+      { resource: 'wishlist', action: 'read', description: 'View wishlist contents', group: 'customer_features' },
+      { resource: 'wishlist', action: 'update', description: 'Update wishlist items', group: 'customer_features' },
+      { resource: 'wishlist', action: 'delete', description: 'Delete wishlists and items', group: 'customer_features' },
+
+      // ========================================
+      // ANALYTICS AND REPORTS GROUP
+      // ========================================
       { resource: 'analytics', action: 'read', description: 'View analytics and reports', group: 'analytics_reports' },
       { resource: 'analytics', action: 'export', description: 'Export analytics data', group: 'analytics_reports' },
       { resource: 'analytics', action: 'dashboard', description: 'Access admin dashboard', group: 'analytics_reports' },
 
-      // System Administration
+      // ========================================
+      // SYSTEM ADMINISTRATION GROUP
+      // ========================================
       { resource: 'system', action: 'manage', description: 'Manage system settings', group: 'system_admin' },
       { resource: 'system', action: 'backup', description: 'Create system backups', group: 'system_admin' },
       { resource: 'system', action: 'logs', description: 'View system logs', group: 'system_admin' },
-      { resource: 'system', action: 'maintenance', description: 'Perform maintenance tasks', group: 'system_admin' }
+      { resource: 'system', action: 'maintenance', description: 'Perform maintenance tasks', group: 'system_admin' },
+
+      // Webhook Management (NEW)
+      { resource: 'webhooks', action: 'create', description: 'Create webhook configurations', group: 'system_admin' },
+      { resource: 'webhooks', action: 'read', description: 'View webhook logs and status', group: 'system_admin' },
+      { resource: 'webhooks', action: 'update', description: 'Update webhook settings', group: 'system_admin' },
+      { resource: 'webhooks', action: 'delete', description: 'Delete webhook configurations', group: 'system_admin' },
     ];
   }
 }

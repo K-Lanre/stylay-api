@@ -9,11 +9,13 @@ const {
   VariantType,
   VariantCombination,
   sequelize,
+  UserProductView,
 } = require("../models");
 const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
 const slugify = require("slugify");
 const VariantService = require("../services/variant.service");
+const recentlyViewedService = require("../services/recentlyViewed.service");
 
 /**
  * Creates a new product for an approved vendor, with support for variants and images.
@@ -427,7 +429,7 @@ const getProducts = async (req, res, next) => {
 
 /**
  * Retrieves detailed information about a specific product by its ID (numeric) or slug (string).
- * Increments product impression count for analytics purposes.
+ * Increments product impression count for analytics purposes and tracks user views.
  * @param {import('express').Request} req - Express request object
  * @param {Object} req.params - Route parameters
  * @param {string|number} req.params.identifier - Product ID (number) or slug (string)
@@ -544,13 +546,24 @@ const getProductByIdentifier = async (req, res, next) => {
       where: { id: product.id },
     });
 
-    // Track unique viewers (simplified - in production, use sessions/cookies)
-    // For now, we'll increment viewers on each view, but you could implement
-    // more sophisticated tracking based on user sessions
+    // Track the product view for recently viewed functionality
     const userId = req.user?.id;
     if (userId) {
-      // Optional: Implement unique viewer tracking logic here
-      // This could involve a separate table to track user-product views
+      try {
+        await recentlyViewedService.trackView({
+          userId,
+          productId: product.id,
+          metadata: {
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('User-Agent'),
+            referrer: req.get('Referrer'),
+            deviceType: req.user.deviceType || 'unknown'
+          }
+        });
+      } catch (error) {
+        // Log error but don't fail the request
+        console.warn('Failed to track product view:', error.message);
+      }
     }
 
     res.status(200).json({
@@ -563,68 +576,615 @@ const getProductByIdentifier = async (req, res, next) => {
 };
 
 /**
- * Updates an existing product. Vendors can only update their own products.
- * Admins can update any product regardless of ownership.
- * Supports partial updates and automatically regenerates slug when name changes.
+ * Retrieves the user's recently viewed products with full product details.
  * @param {import('express').Request} req - Express request object
- * @param {Object} req.params - Route parameters
- * @param {number} req.params.id - Product ID to update
- * @param {Object} req.body - Request body with update data
- * @param {string} [req.body.name] - New product name
- * @param {string} [req.body.description] - New product description
- * @param {number} [req.body.price] - New product price
- * @param {number} [req.body.category_id] - New category ID
- * @param {string} [req.body.sku] - New product SKU
- * @param {string} [req.body.status] - New product status
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.limit=10] - Number of products to return (max 50)
  * @param {Object} req.user - Authenticated user info
- * @param {Array} req.user.roles - User roles array
+ * @param {number} req.user.id - User ID
  * @param {import('express').Response} res - Express response object
  * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with updated product data
+ * @returns {Object} Success response with recently viewed products
  * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Updated product with associations
- * @returns {number} data.data.id - Product ID
- * @returns {string} data.data.name - Product name
- * @returns {string} data.data.slug - Product slug (regenerated if name changed)
- * @returns {string} data.data.description - Product description
- * @returns {number} data.data.price - Product price
- * @returns {string} data.data.sku - Product SKU
- * @returns {string} data.data.status - Product status
- * @returns {Object} data.data.category - Product category
- * @returns {Object} data.data.vendor - Product vendor with store info
- * @returns {Array} data.data.ProductVariants - Product variants
- * @returns {Array} data.data.images - Product images
- * @throws {AppError} 404 - When product or category not found
- * @throws {AppError} 403 - When user lacks permission to update product
- * @throws {AppError} 400 - When no valid fields provided for update
- * @api {put} /api/v1/products/:id Update Product
- * @private vendor, admin
+ * @returns {number} data.count - Number of products returned
+ * @returns {Array} data.data - Array of recently viewed products with details
+ * @throws {AppError} 401 - When user not authenticated
+ * @api {get} /api/v1/products/recent Get Recently Viewed Products
+ * @private user
  * @example
  * // Request
- * PUT /api/v1/products/123
+ * GET /api/v1/products/recent?limit=5
  * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
  * {
- *   "name": "Updated Headphones",
- *   "price": 89.99,
- *   "description": "Updated description"
+ *   "success": true,
+ *   "count": 3,
+ *   "data": [
+ *     {
+ *       "id": 123,
+ *       "name": "Wireless Headphones",
+ *       "slug": "wireless-headphones",
+ *       "description": "High-quality wireless headphones",
+ *       "price": 99.99,
+ *       "status": "active",
+ *       "Category": {"id": 1, "name": "Electronics"},
+ *       "Vendor": {"id": 1, "business_name": "Tech Store"},
+ *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
+ *     }
+ *   ]
  * }
+ */
+const getRecentViews = async (req, res, next) => {
+  try {
+    const { limit = 10 } = req.query;
+    const userId = req.user.id;
+
+    // Get recently viewed products
+    const recentViews = await recentlyViewedService.getRecentViews({
+      userId,
+      limit: parseInt(limit)
+    });
+
+    res.status(200).json({
+      success: true,
+      count: recentViews.length,
+      data: recentViews,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Clears the user's recently viewed products history.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming deletion
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Deletion result
+ * @returns {number} data.data.deletedCount - Number of records deleted
+ * @throws {AppError} 401 - When user not authenticated
+ * @api {delete} /api/v1/products/recent Clear Recently Viewed Products
+ * @private user
+ * @example
+ * // Request
+ * DELETE /api/v1/products/recent
+ * Authorization: Bearer <token>
  *
  * // Success Response (200)
  * {
  *   "success": true,
  *   "data": {
- *     "id": 123,
- *     "name": "Updated Headphones",
- *     "slug": "updated-headphones",
- *     "price": 89.99,
- *     "description": "Updated description",
- *     "category": {"id": 1, "name": "Electronics"},
- *     "vendor": {"id": 1, "store": {"business_name": "Tech Store"}},
- *     "ProductVariants": [],
- *     "images": []
+ *     "deletedCount": 15
  *   }
  * }
  */
+const clearRecentViews = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await recentlyViewedService.clearRecentViews({ userId });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Gets viewing statistics for the authenticated user.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with view statistics
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Statistics data
+ * @returns {number} data.data.totalViews - Total number of product views
+ * @returns {number} data.data.uniqueProducts - Number of unique products viewed
+ * @returns {string} data.data.lastViewDate - Date of most recent view
+ * @throws {AppError} 401 - When user not authenticated
+ * @api {get} /api/v1/products/recent/stats Get View Statistics
+ * @private user
+ * @example
+ * // Request
+ * GET /api/v1/products/recent/stats
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "totalViews": 45,
+ *     "uniqueProducts": 23,
+ *     "lastViewDate": "2024-11-08T20:15:00.000Z"
+ *   }
+ * }
+ */
+const getViewStatistics = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const statistics = await recentlyViewedService.getViewStatistics({ userId });
+
+    res.status(200).json({
+      success: true,
+      data: statistics,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Anonymizes user's view data for GDPR compliance.
+ * Removes personal identifiers while keeping aggregate analytics.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID to anonymize
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming anonymization
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Anonymization result
+ * @returns {number} data.data.anonymizedCount - Number of records anonymized
+ * @throws {AppError} 401 - When user not authenticated
+ * @api {patch} /api/v1/products/recent/anonymize Anonymize User View Data (GDPR)
+ * @private user
+ * @example
+ * // Request
+ * PATCH /api/v1/products/recent/anonymize
+ * Authorization: Bearer <token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "anonymizedCount": 12
+ *   }
+ * }
+ */
+const anonymizeUserData = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await recentlyViewedService.anonymizeUserData(userId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Retrieves comprehensive analytics summary for all products owned by a vendor.
+ * Includes overall performance metrics, top-performing products, and aggregated statistics.
+ * Only accessible to the vendor themselves.
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID for vendor lookup
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with vendor analytics summary
+ * @returns {boolean} data.success - Success flag
+ * @returns {Object} data.data - Analytics data container
+ * @returns {Object} data.data.summary - Overall vendor performance summary
+ * @returns {number} data.data.summary.total_products - Total number of products
+ * @returns {number} data.data.summary.active_products - Number of active products
+ * @returns {number} data.data.summary.total_impressions - Total impressions across all products
+ * @returns {number} data.data.summary.total_sold_units - Total units sold across all products
+ * @returns {number} data.data.summary.avg_impressions_per_product - Average impressions per product
+ * @returns {number} data.data.summary.avg_sales_per_product - Average sales per product
+ * @returns {Array} data.data.top_products - Top 10 performing products
+ * @returns {number} data.data.top_products[].id - Product ID
+ * @returns {string} data.data.top_products[].name - Product name
+ * @returns {number} data.data.top_products[].impressions - Product impressions
+ * @returns {number} data.data.top_products[].sold_units - Units sold
+ * @returns {number} data.data.top_products[].total_revenue - Total revenue from product
+ * @returns {number} data.data.top_products[].total_orders - Total orders
+ * @throws {AppError} 404 - When vendor account not found
+ * @api {get} /api/v1/products/analytics/vendor Get Vendor Analytics Summary
+ * @private vendor
+ * @example
+ * // Request
+ * GET /api/v1/products/analytics/vendor
+ * Authorization: Bearer <vendor_token>
+ *
+ * // Success Response (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "summary": {
+ *       "total_products": 25,
+ *       "active_products": 20,
+ *       "total_impressions": 15420,
+ *       "total_sold_units": 380,
+ *       "avg_impressions_per_product": 616.80,
+ *       "avg_sales_per_product": 15.20
+ *     },
+ *     "top_products": [
+ *       {
+ *         "id": 123,
+ *         "name": "Wireless Headphones",
+ *         "impressions": 1250,
+ *         "sold_units": 45,
+ *         "total_revenue": 4495.50,
+ *         "total_orders": 38
+ *       }
+ *     ]
+ *   }
+ * }
+ */
+const getVendorAnalytics = async (req, res, next) => {
+  try {
+    const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
+    if (!vendor) {
+      return next(new AppError("Vendor account not found", 404));
+    }
+
+    // Get overall vendor analytics
+    const vendorStats = await sequelize.query(
+      `
+      SELECT
+        COUNT(DISTINCT p.id) as total_products,
+        SUM(p.impressions) as total_impressions,
+        SUM(p.sold_units) as total_sold_units,
+        COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) as active_products,
+        AVG(p.impressions) as avg_impressions_per_product,
+        AVG(p.sold_units) as avg_sales_per_product
+      FROM products p
+      WHERE p.vendor_id = :vendorId
+    `,
+      {
+        replacements: { vendorId: vendor.id },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    // Get top performing products
+    const topProducts = await sequelize.query(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.impressions,
+        p.sold_units,
+        COALESCE(SUM(oi.sub_total), 0) as total_revenue,
+        COALESCE(COUNT(DISTINCT oi.order_id), 0) as total_orders
+      FROM products p
+      LEFT JOIN order_items oi ON p.id = oi.product_id
+      LEFT JOIN orders o ON oi.order_id = o.id AND o.payment_status = 'paid'
+      WHERE p.vendor_id = :vendorId
+      GROUP BY p.id, p.name, p.impressions, p.sold_units
+      ORDER BY total_revenue DESC
+      LIMIT 10
+    `,
+      {
+        replacements: { vendorId: vendor.id },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const stats = vendorStats[0] || {};
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          total_products: parseInt(stats.total_products) || 0,
+          active_products: parseInt(stats.active_products) || 0,
+          total_impressions: parseInt(stats.total_impressions) || 0,
+          total_sold_units: parseInt(stats.total_sold_units) || 0,
+          avg_impressions_per_product:
+            parseFloat(stats.avg_impressions_per_product) || 0,
+          avg_sales_per_product: parseFloat(stats.avg_sales_per_product) || 0,
+        },
+        top_products: topProducts.map((product) => ({
+          id: product.id,
+          name: product.name,
+          impressions: parseInt(product.impressions) || 0,
+          sold_units: parseInt(product.sold_units) || 0,
+          total_revenue: parseFloat(product.total_revenue) || 0,
+          total_orders: parseInt(product.total_orders) || 0,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admin methods
+const getAllProducts = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 12, search, category, vendor } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = {};
+
+    // Apply filters if provided
+    if (search) {
+      whereClause[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } },
+        { sku: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    if (category) whereClause.category_id = category;
+    if (vendor) whereClause.vendor_id = vendor;
+
+    const { count, rows: products } = await Product.findAndCountAll({
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at",
+      ],
+      where: whereClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      include: [
+        { model: Category, attributes: ["id", "name", "slug"] },
+        {
+          model: Vendor,
+          attributes: ["id"],
+          as: "vendor",
+          include: [
+            {
+              model: Store,
+              attributes: ["id", "business_name", "status"],
+              as: "store",
+            },
+          ],
+        },
+        { model: ProductImage, limit: 1, as: "images" },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: [
+            "variant_type_id",
+            "name",
+            "value",
+            "additional_price",
+            "stock",
+          ],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      total: count,
+      data: products,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const adminUpdateProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findByPk(req.params.id, {
+      include: [
+        { model: Category, attributes: ["id", "name"] },
+        {
+          model: Vendor,
+          attributes: ["id", "user_id"],
+          as: "vendor",
+          include: {
+            model: Store,
+            as: "store",
+            attributes: ["id", "business_name"],
+          },
+        },
+        { model: ProductVariant, as: "variants" },
+        { model: ProductImage, as: "images" },
+      ],
+    });
+
+    if (!product) {
+      return next(new AppError("Product not found", 404));
+    }
+
+    // Update product fields
+    const { name, description, price, category_id, sku, status } = req.body;
+
+    if (category_id) {
+      const category = await Category.findByPk(category_id);
+      if (!category) {
+        return next(new AppError("Category not found", 404));
+      }
+    }
+
+    // Generate new slug if name is being updated
+    let slug = product.slug;
+    if (name && name !== product.name) {
+      slug = slugify(name, {
+        lower: true,
+        strict: true,
+        remove: /[*+~.()'"!:@]/g,
+      });
+
+      // Check if slug already exists for another product
+      const existingProduct = await Product.findOne({ where: { slug } });
+      if (existingProduct && existingProduct.id !== product.id) {
+        slug = `${slug}-${Date.now()}`;
+      }
+    }
+
+    await product.update({
+      name: name || product.name,
+      slug,
+      description: description || product.description,
+      price: price || product.price,
+      category_id: category_id || product.category_id,
+      sku: sku || product.sku,
+      status: status || product.status,
+    });
+
+    // Fetch the updated product with associations
+    const updatedProduct = await Product.findByPk(product.id, {
+      include: [
+        { model: Category, attributes: ["id", "name", "slug"] },
+        {
+          model: Vendor,
+          attributes: ["id"],
+          as: "vendor",
+          include: [
+            {
+              model: Store,
+              as: "store",
+              attributes: ["id", "business_name"],
+            },
+          ],
+        },
+        { model: ProductVariant, as: "variants" },
+        { model: ProductImage, as: "images" },
+      ],
+    });
+
+    res.status(200).json({
+      success: true,
+      data: updatedProduct,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const adminDeleteProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findByPk(req.params.id);
+
+    if (!product) {
+      return next(new AppError("Product not found", 404));
+    }
+
+    await product.destroy();
+
+    res.status(200).json({
+      success: true,
+      data: {},
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateProductStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+
+    const product = await Product.findByPk(req.params.id, {
+      include: [
+        { model: Vendor, attributes: ["id", "business_name"], as: "vendor" },
+        { model: Category, attributes: ["id", "name"] },
+      ],
+    });
+
+    if (!product) {
+      return next(new AppError("Product not found", 404));
+    }
+
+    await product.update({ status });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: product.id,
+        name: product.name,
+        status: product.status,
+        vendor: product.Vendor,
+        category: product.Category,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getProductsByStatus = async (req, res, next) => {
+  try {
+    const { status } = req.params;
+    const { page = 1, limit = 12 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = {};
+
+    // Only filter by status if not 'all'
+    if (status !== "all") {
+      whereClause.status = status;
+    }
+
+    const { count, rows: products } = await Product.findAndCountAll({
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at",
+      ],
+      where: whereClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      include: [
+        { model: Category, attributes: ["id", "name", "slug"] },
+        {
+          model: Vendor,
+          attributes: ["id", "business_name", "status"],
+          as: "vendor",
+        },
+        { model: ProductImage, limit: 1, as: "images" },
+      ],
+      order: [["created_at", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      total: count,
+      data: products,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const updateProduct = async (req, res, next) => {
   try {
     const product = await Product.findByPk(req.params.id);
@@ -757,35 +1317,6 @@ const updateProduct = async (req, res, next) => {
   }
 };
 
-/**
- * Deletes a product permanently. Vendors can only delete their own products.
- * Admins can delete any product regardless of ownership.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.params - Route parameters
- * @param {number} req.params.id - Product ID to delete
- * @param {Object} req.user - Authenticated user info
- * @param {number} req.user.id - User ID for ownership verification
- * @param {string} req.user.role - User role ('admin' for admin access)
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response confirming deletion
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Empty object confirming deletion
- * @throws {AppError} 404 - When product not found
- * @throws {AppError} 403 - When user lacks permission to delete product
- * @api {delete} /api/v1/products/:id Delete Product
- * @private vendor, admin
- * @example
- * // Request
- * DELETE /api/v1/products/123
- * Authorization: Bearer <token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {}
- * }
- */
 const deleteProduct = async (req, res, next) => {
   try {
     const product = await Product.findByPk(req.params.id);
@@ -851,7 +1382,7 @@ const deleteProduct = async (req, res, next) => {
  *       "name": "Wireless Headphones",
  *       "slug": "wireless-headphones",
  *       "description": "High-quality wireless headphones",
- *       "price": 99.99,*
+ *       "price": 99.99,
  *       "Category": {"id": 1, "name": "Electronics"},
  *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
  *     }
@@ -894,520 +1425,6 @@ const getProductsByVendor = async (req, res, next) => {
         { model: Category, attributes: ["id", "name", "slug"] },
         { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
         { model: Review, as: "reviews" },
-      ],
-      order: [["created_at", "DESC"]],
-    });
-
-    res.status(200).json({
-      success: true,
-      count: products.length,
-      total: count,
-      data: products,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Retrieves a paginated list of all products (including inactive ones) with advanced admin filtering.
- * Provides comprehensive product listing with search, category, and vendor filters.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.query - Query parameters
- * @param {number} [req.query.page=1] - Page number for pagination
- * @param {number} [req.query.limit=12] - Number of products per page
- * @param {string} [req.query.search] - Search term for product name, description, or SKU
- * @param {number} [req.query.category] - Category ID filter
- * @param {number} [req.query.vendor] - Vendor ID filter
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with comprehensive product list
- * @returns {boolean} data.success - Success flag
- * @returns {number} data.count - Number of products in current page
- * @returns {number} data.total - Total number of products matching criteria
- * @returns {Array} data.data - Array of detailed product objects
- * @returns {number} data.data[].id - Product ID
- * @returns {string} data.data[].name - Product name
- * @returns {string} data.data[].description - Product description
- * @returns {number} data.data[].price - Product price
- * @returns {string} data.data[].sku - Product SKU
- * @returns {string} data.data[].status - Product status
- * @returns {Object} data.data[].Category - Product category
- * @returns {Object} data.data[].Vendor - Product vendor with business name and status
- * @returns {Array} data.data[].ProductImages - Product images
- * @returns {Array} data.data[].ProductVariants - Product variants
- * @api {get} /api/v1/products/admin/all Get All Products (Admin)
- * @private admin
- * @example
- * // Request
- * GET /api/v1/products/admin/all?page=1&limit=20&search=headphones&vendor=5
- * Authorization: Bearer <admin_token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "count": 15,
- *   "total": 150,
- *   "data": [
- *     {
- *       "id": 1,
- *       "name": "Wireless Headphones",
- *       "description": "High-quality wireless headphones",
- *       "price": 99.99,
- *       "sku": "WH-001",
- *       "status": "active",
- *       "Category": {"id": 1, "name": "Electronics"},
- *       "Vendor": {"id": 5, "business_name": "Tech Store", "status": "approved"},
- *       "ProductImages": [],
- *       "ProductVariants": []
- *     }
- *   ]
- * }
- */
-const getAllProducts = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 12, search, category, vendor } = req.query;
-    const offset = (page - 1) * limit;
-
-    const whereClause = {};
-
-    // Apply filters if provided
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } },
-        { sku: { [Op.like]: `%${search}%` } },
-      ];
-    }
-
-    if (category) whereClause.category_id = category;
-    if (vendor) whereClause.vendor_id = vendor;
-
-    const { count, rows: products } = await Product.findAndCountAll({
-      attributes: [
-        "id",
-        "vendor_id",
-        "category_id",
-        "name",
-        "slug",
-        "description",
-        "thumbnail",
-        "price",
-        "discounted_price",
-        "sku",
-        "status",
-        "impressions",
-        "sold_units",
-        "created_at",
-        "updated_at",
-      ],
-      where: whereClause,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      include: [
-        { model: Category, attributes: ["id", "name", "slug"] },
-        {
-          model: Vendor,
-          attributes: ["id"],
-          as: "vendor",
-          include: [
-            {
-              model: Store,
-              attributes: ["id", "business_name", "status"],
-              as: "store",
-            },
-          ],
-        },
-        { model: ProductImage, limit: 1, as: "images" },
-        {
-          model: ProductVariant,
-          as: "variants",
-          attributes: [
-            "variant_type_id",
-            "name",
-            "value",
-            "additional_price",
-            "stock",
-          ],
-        },
-      ],
-      order: [["created_at", "DESC"]],
-    });
-
-    res.status(200).json({
-      success: true,
-      count: products.length,
-      total: count,
-      data: products,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Administrative update of any product regardless of ownership.
- * Allows full control over product data including category and vendor associations.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.params - Route parameters
- * @param {number} req.params.id - Product ID to update
- * @param {Object} req.body - Request body with update data
- * @param {string} [req.body.name] - New product name
- * @param {string} [req.body.description] - New product description
- * @param {number} [req.body.price] - New product price
- * @param {number} [req.body.category_id] - New category ID
- * @param {string} [req.body.sku] - New product SKU
- * @param {string} [req.body.status] - New product status
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with updated product data
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Updated product with all associations
- * @returns {number} data.data.id - Product ID
- * @returns {string} data.data.name - Product name
- * @returns {string} data.data.slug - Product slug (regenerated if name changed)
- * @returns {string} data.data.description - Product description
- * @returns {number} data.data.price - Product price
- * @returns {string} data.data.sku - Product SKU
- * @returns {string} data.data.status - Product status
- * @returns {Object} data.data.category - Product category
- * @returns {Object} data.data.vendor - Product vendor with store info
- * @returns {Array} data.data.ProductVariants - Product variants
- * @returns {Array} data.data.images - Product images
- * @throws {AppError} 404 - When product or category not found
- * @api {put} /api/v1/products/:id/admin Admin Update Product
- * @private admin
- * @example
- * // Request
- * PUT /api/v1/products/123/admin
- * Authorization: Bearer <admin_token>
- * {
- *   "name": "Admin Updated Product",
- *   "price": 79.99,
- *   "status": "inactive"
- * }
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {
- *     "id": 123,
- *     "name": "Admin Updated Product",
- *     "slug": "admin-updated-product",
- *     "price": 79.99,
- *     "status": "inactive",
- *     "category": {"id": 1, "name": "Electronics"},
- *     "vendor": {"id": 1, "store": {"business_name": "Tech Store"}},
- *     "ProductVariants": [],
- *     "images": []
- *   }
- * }
- */
-const adminUpdateProduct = async (req, res, next) => {
-  try {
-    const product = await Product.findByPk(req.params.id, {
-      include: [
-        { model: Category, attributes: ["id", "name"] },
-        {
-          model: Vendor,
-          attributes: ["id", "user_id"],
-          as: "vendor",
-          include: {
-            model: Store,
-            as: "store",
-            attributes: ["id", "business_name"],
-          },
-        },
-        { model: ProductVariant, as: "variants" },
-        { model: ProductImage, as: "images" },
-      ],
-    });
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
-    }
-
-    // Update product fields
-    const { name, description, price, category_id, sku, status } = req.body;
-
-    if (category_id) {
-      const category = await Category.findByPk(category_id);
-      if (!category) {
-        return next(new AppError("Category not found", 404));
-      }
-    }
-
-    // Generate new slug if name is being updated
-    let slug = product.slug;
-    if (name && name !== product.name) {
-      slug = slugify(name, {
-        lower: true,
-        strict: true,
-        remove: /[*+~.()'"!:@]/g,
-      });
-
-      // Check if slug already exists for another product
-      const existingProduct = await Product.findOne({ where: { slug } });
-      if (existingProduct && existingProduct.id !== product.id) {
-        slug = `${slug}-${Date.now()}`;
-      }
-    }
-
-    await product.update({
-      name: name || product.name,
-      slug,
-      description: description || product.description,
-      price: price || product.price,
-      category_id: category_id || product.category_id,
-      sku: sku || product.sku,
-      status: status || product.status,
-    });
-
-    // Fetch the updated product with associations
-    const updatedProduct = await Product.findByPk(product.id, {
-      include: [
-        { model: Category, attributes: ["id", "name", "slug"] },
-        {
-          model: Vendor,
-          attributes: ["id"],
-          as: "vendor",
-          include: [
-            {
-              model: Store,
-              as: "store",
-              attributes: ["id", "business_name"],
-            },
-          ],
-        },
-        { model: ProductVariant, as: "variants" },
-        { model: ProductImage, as: "images" },
-      ],
-    });
-
-    res.status(200).json({
-      success: true,
-      data: updatedProduct,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Administrative deletion of any product regardless of ownership.
- * Permanently removes product and all associated data.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.params - Route parameters
- * @param {number} req.params.id - Product ID to delete
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response confirming deletion
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Empty object confirming deletion
- * @throws {AppError} 404 - When product not found
- * @api {delete} /api/v1/products/:id/admin Admin Delete Product
- * @private admin
- * @example
- * // Request
- * DELETE /api/v1/products/123/admin
- * Authorization: Bearer <admin_token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {}
- * }
- */
-const adminDeleteProduct = async (req, res, next) => {
-  try {
-    const product = await Product.findByPk(req.params.id);
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
-    }
-
-    await product.destroy();
-
-    res.status(200).json({
-      success: true,
-      data: {},
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Updates the status of any product regardless of ownership.
- * Used for product approval workflow and status management.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.params - Route parameters
- * @param {number} req.params.id - Product ID to update status for
- * @param {Object} req.body - Request body
- * @param {string} req.body.status - New product status ('active', 'inactive', etc.)
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with updated product status
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Updated product status information
- * @returns {number} data.data.id - Product ID
- * @returns {string} data.data.name - Product name
- * @returns {string} data.data.status - Updated product status
- * @returns {Object} data.data.vendor - Product vendor info
- * @returns {Object} data.data.category - Product category info
- * @throws {AppError} 404 - When product not found
- * @api {patch} /api/v1/products/:id/admin/status Update Product Status (Admin)
- * @private admin
- * @example
- * // Request
- * PATCH /api/v1/products/123/admin/status
- * Authorization: Bearer <admin_token>
- * {
- *   "status": "active"
- * }
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {
- *     "id": 123,
- *     "name": "Wireless Headphones",
- *     "status": "active",
- *     "vendor": {"id": 1, "business_name": "Tech Store"},
- *     "category": {"id": 1, "name": "Electronics"}
- *   }
- * }
- */
-const updateProductStatus = async (req, res, next) => {
-  try {
-    const { status } = req.body;
-
-    const product = await Product.findByPk(req.params.id, {
-      include: [
-        { model: Vendor, attributes: ["id", "business_name"], as: "vendor" },
-        { model: Category, attributes: ["id", "name"] },
-      ],
-    });
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
-    }
-
-    await product.update({ status });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        id: product.id,
-        name: product.name,
-        status: product.status,
-        vendor: product.Vendor,
-        category: product.Category,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Retrieves products filtered by status with pagination.
- * Use 'all' as status to get all products regardless of status.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.params - Route parameters
- * @param {string} req.params.status - Product status filter ('active', 'inactive', 'all', etc.)
- * @param {Object} req.query - Query parameters
- * @param {number} [req.query.page=1] - Page number for pagination
- * @param {number} [req.query.limit=12] - Number of products per page
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with filtered products
- * @returns {boolean} data.success - Success flag
- * @returns {number} data.count - Number of products in current page
- * @returns {number} data.total - Total number of products with specified status
- * @returns {Array} data.data - Array of product objects
- * @returns {number} data.data[].id - Product ID
- * @returns {string} data.data[].name - Product name
- * @returns {string} data.data[].slug - Product slug
- * @returns {string} data.data[].description - Product description
- * @returns {number} data.data[].price - Product price
- * @returns {string} data.data[].status - Product status
- * @returns {Object} data.data[].Category - Product category
- * @returns {Object} data.data[].Vendor - Product vendor info
- * @returns {Array} data.data[].images - Product images (first image only)
- * @api {get} /api/v1/products/admin/status/:status Get Products by Status (Admin)
- * @private admin
- * @example
- * // Request for active products
- * GET /api/v1/products/admin/status/active?page=1&limit=20
- * Authorization: Bearer <admin_token>
- *
- * // Request for all products
- * GET /api/v1/products/admin/status/all?page=1&limit=20
- * Authorization: Bearer <admin_token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "count": 15,
- *   "total": 150,
- *   "data": [
- *     {
- *       "id": 1,
- *       "name": "Wireless Headphones",
- *       "slug": "wireless-headphones",
- *       "description": "High-quality wireless headphones",
- *       "price": 99.99,
- *       "status": "active",
- *       "Category": {"id": 1, "name": "Electronics"},
- *       "Vendor": {"id": 5, "business_name": "Tech Store", "status": "approved"},
- *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
- *     }
- *   ]
- * }
- */
-const getProductsByStatus = async (req, res, next) => {
-  try {
-    const { status } = req.params;
-    const { page = 1, limit = 12 } = req.query;
-    const offset = (page - 1) * limit;
-
-    const whereClause = {};
-
-    // Only filter by status if not 'all'
-    if (status !== "all") {
-      whereClause.status = status;
-    }
-
-    const { count, rows: products } = await Product.findAndCountAll({
-      attributes: [
-        "id",
-        "vendor_id",
-        "category_id",
-        "name",
-        "slug",
-        "description",
-        "thumbnail",
-        "price",
-        "discounted_price",
-        "sku",
-        "status",
-        "impressions",
-        "sold_units",
-        "created_at",
-        "updated_at",
-      ],
-      where: whereClause,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      include: [
-        { model: Category, attributes: ["id", "name", "slug"] },
-        {
-          model: Vendor,
-          attributes: ["id", "business_name", "status"],
-          as: "vendor",
-        },
-        { model: ProductImage, limit: 1, as: "images" },
       ],
       order: [["created_at", "DESC"]],
     });
@@ -1596,144 +1613,6 @@ const getProductAnalytics = async (req, res, next) => {
   }
 };
 
-/**
- * Retrieves comprehensive analytics summary for all products owned by a vendor.
- * Includes overall performance metrics, top-performing products, and aggregated statistics.
- * Only accessible to the vendor themselves.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.user - Authenticated user info
- * @param {number} req.user.id - User ID for vendor lookup
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with vendor analytics summary
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Analytics data container
- * @returns {Object} data.data.summary - Overall vendor performance summary
- * @returns {number} data.data.summary.total_products - Total number of products
- * @returns {number} data.data.summary.active_products - Number of active products
- * @returns {number} data.data.summary.total_impressions - Total impressions across all products
- * @returns {number} data.data.summary.total_sold_units - Total units sold across all products
- * @returns {number} data.data.summary.avg_impressions_per_product - Average impressions per product
- * @returns {number} data.data.summary.avg_sales_per_product - Average sales per product
- * @returns {Array} data.data.top_products - Top 10 performing products
- * @returns {number} data.data.top_products[].id - Product ID
- * @returns {string} data.data.top_products[].name - Product name
- * @returns {number} data.data.top_products[].impressions - Product impressions
- * @returns {number} data.data.top_products[].sold_units - Units sold
- * @returns {number} data.data.top_products[].total_revenue - Total revenue from product
- * @returns {number} data.data.top_products[].total_orders - Total orders
- * @throws {AppError} 404 - When vendor account not found
- * @api {get} /api/v1/products/analytics/vendor Get Vendor Analytics Summary
- * @private vendor
- * @example
- * // Request
- * GET /api/v1/products/analytics/vendor
- * Authorization: Bearer <vendor_token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {
- *     "summary": {
- *       "total_products": 25,
- *       "active_products": 20,
- *       "total_impressions": 15420,
- *       "total_sold_units": 380,
- *       "avg_impressions_per_product": 616.80,
- *       "avg_sales_per_product": 15.20
- *     },
- *     "top_products": [
- *       {
- *         "id": 123,
- *         "name": "Wireless Headphones",
- *         "impressions": 1250,
- *         "sold_units": 45,
- *         "total_revenue": 4495.50,
- *         "total_orders": 38
- *       }
- *     ]
- *   }
- * }
- */
-const getVendorAnalytics = async (req, res, next) => {
-  try {
-    const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-    if (!vendor) {
-      return next(new AppError("Vendor account not found", 404));
-    }
-
-    // Get overall vendor analytics
-    const vendorStats = await sequelize.query(
-      `
-      SELECT
-        COUNT(DISTINCT p.id) as total_products,
-        SUM(p.impressions) as total_impressions,
-        SUM(p.sold_units) as total_sold_units,
-        COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) as active_products,
-        AVG(p.impressions) as avg_impressions_per_product,
-        AVG(p.sold_units) as avg_sales_per_product
-      FROM products p
-      WHERE p.vendor_id = :vendorId
-    `,
-      {
-        replacements: { vendorId: vendor.id },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    // Get top performing products
-    const topProducts = await sequelize.query(
-      `
-      SELECT
-        p.id,
-        p.name,
-        p.impressions,
-        p.sold_units,
-        COALESCE(SUM(oi.sub_total), 0) as total_revenue,
-        COALESCE(COUNT(DISTINCT oi.order_id), 0) as total_orders
-      FROM products p
-      LEFT JOIN order_items oi ON p.id = oi.product_id
-      LEFT JOIN orders o ON oi.order_id = o.id AND o.payment_status = 'paid'
-      WHERE p.vendor_id = :vendorId
-      GROUP BY p.id, p.name, p.impressions, p.sold_units
-      ORDER BY total_revenue DESC
-      LIMIT 10
-    `,
-      {
-        replacements: { vendorId: vendor.id },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    const stats = vendorStats[0] || {};
-
-    res.status(200).json({
-      success: true,
-      data: {
-        summary: {
-          total_products: parseInt(stats.total_products) || 0,
-          active_products: parseInt(stats.active_products) || 0,
-          total_impressions: parseInt(stats.total_impressions) || 0,
-          total_sold_units: parseInt(stats.total_sold_units) || 0,
-          avg_impressions_per_product:
-            parseFloat(stats.avg_impressions_per_product) || 0,
-          avg_sales_per_product: parseFloat(stats.avg_sales_per_product) || 0,
-        },
-        top_products: topProducts.map((product) => ({
-          id: product.id,
-          name: product.name,
-          impressions: parseInt(product.impressions) || 0,
-          sold_units: parseInt(product.sold_units) || 0,
-          total_revenue: parseFloat(product.total_revenue) || 0,
-          total_orders: parseInt(product.total_orders) || 0,
-        })),
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 module.exports = {
   createProduct,
   updateProduct,
@@ -1743,6 +1622,11 @@ module.exports = {
   getProductsByVendor,
   getProductAnalytics,
   getVendorAnalytics,
+  // Recently viewed products methods
+  getRecentViews,
+  clearRecentViews,
+  getViewStatistics,
+  anonymizeUserData,
   // Admin methods
   getAllProducts,
   adminUpdateProduct,

@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const passport = require('passport');
-const { User, Role } = require("../models");
+const { User, Role, Permission } = require("../models");
 const { Op } = require("sequelize");
 const AppError = require("../utils/appError");
 const { sendWelcomeEmail, sendPasswordResetEmail } = require("../services/email.service"); // Assuming sendPasswordResetEmail is here
@@ -535,6 +535,14 @@ exports.getMe = async (req, res, next) => {
           as: "roles",
           through: { attributes: [] },
           attributes: ["id", "name", "description"],
+          include: [
+            {
+              model: Permission,
+              as: "permissions",
+              through: { attributes: [] },
+              attributes: ["id", "name", "description"]
+            }
+          ]
         },
       ],
     });
