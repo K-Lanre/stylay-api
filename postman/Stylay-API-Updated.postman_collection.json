@@ -2484,7 +2484,7 @@
         },
         {
             "name": "Supply Management",
-            "description": "Supply and inventory management endpoints",
+            "description": "Supply and inventory management endpoints (Vendor & Admin)",
             "item": [
                 {
                     "name": "Create Supply",
@@ -2643,7 +2643,7 @@
                         "header": [
                             {
                                 "key": "Authorization",
-                                "value": "Bearer {{auth_token}}"
+                                "value": "Bearer {{vendor_token}}"
                             }
                         ],
                         "url": {
@@ -2889,12 +2889,13 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/admin/supplies/all?page=1&limit=20",
+                                    "raw": "{{base_url}}/api/v1/admin/supplies/all?page=1&limit=20",
                                     "host": [
                                         "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
+                                        "v1",
                                         "admin",
                                         "supplies",
                                         "all"
@@ -2924,7 +2925,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/supplies/admin/vendor/:vendor_id?page=1&limit=20",
+                                    "raw": "{{base_url}}/api/v1/supplies/admin/vendor/:vendorId?page=1&limit=20",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -2934,11 +2935,11 @@
                                         "supplies",
                                         "admin",
                                         "vendor",
-                                        ":vendor_id"
+                                        ":vendorId"
                                     ],
                                     "variable": [
                                         {
-                                            "key": "vendor_id",
+                                            "key": "vendorId",
                                             "value": ""
                                         }
                                     ],
@@ -2977,7 +2978,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/supplies/admin/product/:product_id?page=1&limit=20",
+                                    "raw": "{{base_url}}/api/v1/supplies/admin/product/:productId?page=1&limit=20",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -2987,11 +2988,11 @@
                                         "supplies",
                                         "admin",
                                         "product",
-                                        ":product_id"
+                                        ":productId"
                                     ],
                                     "variable": [
                                         {
-                                            "key": "product_id",
+                                            "key": "productId",
                                             "value": ""
                                         }
                                     ],

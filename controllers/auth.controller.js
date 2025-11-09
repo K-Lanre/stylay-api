@@ -843,8 +843,8 @@ exports.forgotPassword = async (req, res, next) => {
 };
 
 /**
- * Logout user by clearing authentication cookies
- * Clears JWT cookies on the client side. For token-based auth, client removes token.
+ * Logout user by clearing authentication cookies and blacklisting JWT token
+ * Clears JWT cookies and adds the JWT token to blacklist to prevent reuse.
  * Always returns success to prevent user being stuck in logged-in state.
  *
  * @param {import('express').Request} req - Express request object (may include JWT cookie)
@@ -858,7 +858,7 @@ exports.forgotPassword = async (req, res, next) => {
  * POST /api/v1/auth/logout
  * Authorization: Bearer <jwt_token> (optional)
  */
-exports.logout = (req, res) => {
+exports.logout = async (req, res) => {
   try {
     // Clear the JWT cookie if it exists
     if (req.cookies?.jwt) {
@@ -868,6 +868,18 @@ exports.logout = (req, res) => {
         sameSite: "strict",
         path: "/",
       });
+    }
+
+    // Blacklist the JWT token if provided in Authorization header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      
+      // Import the blacklist service
+      const tokenBlacklistService = require('../services/token-blacklist.service');
+      
+      // Add token to blacklist
+      await tokenBlacklistService.blacklistToken(token);
     }
 
     // If using token-based auth, the client should remove the token

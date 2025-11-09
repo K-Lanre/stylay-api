@@ -34,6 +34,7 @@ const { Op } = require("sequelize");
 const getProductInventory = async (req, res, next) => {
   try {
     const { productId } = req.params;
+    const numericProductId = parseInt(productId, 10); // Convert string to number
     const vendor = await Vendor.findOne({
       where: { user_id: req.user.id },
     });
@@ -64,9 +65,11 @@ const getProductInventory = async (req, res, next) => {
           attributes: ["id", "name", "sku"],
           include: [{
             model: Vendor,
+            as: 'vendor',
             attributes: ["id"],
             include: [{
               model: Store,
+              as: 'store',
               attributes: ["id", "business_name"]
             }]
           }]
@@ -95,6 +98,7 @@ const updateProductInventory = async (req, res, next) => {
 
   try {
     const { productId } = req.params;
+    const numericProductId = parseInt(productId, 10); // Convert string to number
     const { adjustment, note } = req.body;
     const vendor = await Vendor.findOne({
       where: { user_id: req.user.id },
@@ -108,7 +112,7 @@ const updateProductInventory = async (req, res, next) => {
 
     // Verify product belongs to the vendor
     const product = await Product.findOne({
-      where: { id: productId, vendor_id: vendorId },
+      where: { id: numericProductId, vendor_id: vendorId },
       transaction,
     });
 
@@ -119,7 +123,7 @@ const updateProductInventory = async (req, res, next) => {
 
     // Find or create inventory record
     const [inventory] = await Inventory.findOrCreate({
-      where: { product_id: productId },
+      where: { product_id: numericProductId },
       defaults: { stock: 0 },
       transaction,
     });
@@ -209,7 +213,7 @@ const getLowStockItems = async (req, res, next) => {
           model: Product,
           where: {
             vendor_id: vendorId,
-            is_active: true,
+            status: 'active',
           },
           attributes: ["id", "name", "sku"],
           required: true,
@@ -243,6 +247,7 @@ const getLowStockItems = async (req, res, next) => {
 const getInventoryHistory = async (req, res, next) => {
   try {
     const { productId } = req.params;
+    const numericProductId = parseInt(productId, 10); // Convert string to number
     const vendor = await Vendor.findOne({
       where: { user_id: req.user.id },
     });
@@ -255,7 +260,7 @@ const getInventoryHistory = async (req, res, next) => {
 
     // Verify product belongs to the vendor
     const product = await Product.findOne({
-      where: { id: productId, vendor_id: vendorId },
+      where: { id: numericProductId, vendor_id: vendorId },
     });
 
     if (!product) {
@@ -263,9 +268,8 @@ const getInventoryHistory = async (req, res, next) => {
     }
 
     const inventory = await Inventory.findOne({
-      where: { product_id: productId },
+      where: { product_id: numericProductId },
     });
-
     if (!inventory) {
       return res.status(200).json({
         status: "success",

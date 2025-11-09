@@ -271,9 +271,7 @@ const getAllSupplies = async (req, res, next) => {
       status: 'success',
       count: supplies.length,
       total: count,
-      data: {
-        supplies
-      }
+      data: supplies
     });
     
   } catch (error) {
@@ -329,9 +327,7 @@ const getVendorSupplies = async (req, res, next) => {
       status: 'success',
       count: supplies.length,
       total: count,
-      data: {
-        supplies
-      }
+      data: supplies
     });
     
   } catch (error) {
@@ -360,9 +356,7 @@ const getSupplyById = async (req, res, next) => {
     
     res.status(200).json({
       status: 'success',
-      data: {
-        supply
-      }
+      data: supply
     });
     
   } catch (error) {
@@ -418,7 +412,7 @@ const updateInventory = async (productId, quantity, transaction, supplyId = null
 
 /**
  * @desc    Get supplies by vendor ID (Admin only)
- * @route   GET /api/admin/supplies/vendor/:vendorId
+ * @route   GET /api/v1/admin/supplies/vendor/:vendorId
  * @access  Private/Admin
  */
 const getSuppliesByVendor = async (req, res, next) => {
@@ -474,7 +468,7 @@ const getSuppliesByVendor = async (req, res, next) => {
 
 /**
  * @desc    Get supply history for a product (Admin only)
- * @route   GET /api/admin/supplies/product/:productId
+ * @route   GET /api/v1/admin/supplies/product/:productId
  * @access  Private/Admin
  */
 const getProductSupplyHistory = async (req, res, next) => {
@@ -549,7 +543,7 @@ const getProductSupplyHistory = async (req, res, next) => {
 
 /**
  * @desc    Get supply summary (Admin only)
- * @route   GET /api/admin/supplies/summary
+ * @route   GET /api/v1/admin/supplies/summary
  * @access  Private/Admin
  */
 const getSupplySummary = async (req, res, next) => {

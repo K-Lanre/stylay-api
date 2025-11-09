@@ -199,10 +199,9 @@ const createSubAdmin = catchAsync(async (req, res, next) => {
     // Send response first
     res.status(201).json({
       status: "success",
-      message: "Sub-admin created successfully. Please check your email for verification code.",
-      data: {
-        user: userResponse,
-      },
+      message:
+        "Sub-admin created successfully. Please check your email for verification code.",
+      data: userResponse,
     });
   } catch (error) {
     // Rollback transaction on any error
@@ -329,9 +328,7 @@ const getSubAdmin = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    data: {
-      subAdmin: userResponse,
-    },
+    data: userResponse,
   });
 });
 
@@ -467,9 +464,7 @@ const updateSubAdminPermissions = catchAsync(async (req, res, next) => {
     res.status(200).json({
       status: "success",
       message: "Sub-admin permissions updated successfully",
-      data: {
-        subAdmin: userResponse,
-      },
+      data: userResponse,
     });
   } catch (error) {
     // Rollback transaction on any error
@@ -552,9 +547,7 @@ const updateSubAdmin = catchAsync(async (req, res, next) => {
   res.status(200).json({
     status: "success",
     message: "Sub-admin updated successfully",
-    data: {
-      subAdmin: userResponse,
-    },
+    data: userResponse,
   });
 });
 
@@ -602,9 +595,7 @@ const getPermissions = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    data: {
-      permissions,
-    },
+    data: permissions,
   });
 });
 
@@ -630,9 +621,7 @@ const getRoles = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    data: {
-      roles,
-    },
+    data: roles,
   });
 });
 
@@ -651,9 +640,7 @@ const getPermissionGroups = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    data: {
-      permissionGroups: groups,
-    },
+    data: groups,
   });
 });
 

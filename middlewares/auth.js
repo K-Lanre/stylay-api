@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 const AppError = require('../utils/appError');
 const { User, Role, Permission } = require('../models');
 const PermissionService = require('../services/permission.service');
+const tokenBlacklistService = require('../services/token-blacklist.service');
 
 /**
  * Middleware to handle local authentication using Passport
@@ -68,7 +69,7 @@ const setUser = (req, res, next) => {
  * Attaches user object to req.user with roles
  */
 const protect = (req, res, next) => {
-  return passport.authenticate('jwt', { session: false }, (err, user, info) => {
+  return passport.authenticate('jwt', { session: false }, async (err, user, info) => {
     if (err) {
       return next(err);
     }
@@ -83,6 +84,17 @@ const protect = (req, res, next) => {
         }
       }
       return next(new AppError(message, 401));
+    }
+
+    // Check if token is blacklisted
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const isBlacklisted = await tokenBlacklistService.isTokenBlacklisted(token);
+      
+      if (isBlacklisted) {
+        return next(new AppError('Token has been invalidated. Please log in again.', 401));
+      }
     }
 
     // Attach user to request object
