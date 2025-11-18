@@ -1715,6 +1715,9 @@ const getTopSellingItems = catchAsync(async (req, res, next) => {
  * @param {import('express').Request} req - Express request object
  * @param {Object} req.params - Route parameters
  * @param {number} req.params.vendorId - Vendor ID to get overview for
+ * @param {Object} req.query - Query parameters
+ * @param {number} [req.query.page=1] - Page number for products pagination
+ * @param {number} [req.query.limit=10] - Number of products per page (max 50)
  * @param {import('express').Response} res - Express response object
  * @param {import('express').NextFunction} next - Express next middleware function
  * @returns {Object} Success response with comprehensive vendor overview
@@ -1740,7 +1743,7 @@ const getTopSellingItems = catchAsync(async (req, res, next) => {
  * @returns {string} data.monthly_ratings[].month - Month in YYYY-MM format
  * @returns {number} data.monthly_ratings[].average_rating - Average rating for the month
  * @returns {number} data.monthly_ratings[].total_reviews - Number of reviews for the month
- * @returns {Array} data.products_breakdown - Per-product performance metrics
+ * @returns {Array} data.products_breakdown - Paginated per-product performance metrics
  * @returns {number} data.products_breakdown[].product_id - Product ID
  * @returns {string} data.products_breakdown[].product_name - Product name
  * @returns {number} data.products_breakdown[].units_sold - Total units sold
@@ -1749,12 +1752,20 @@ const getTopSellingItems = catchAsync(async (req, res, next) => {
  * @returns {string} data.products_breakdown[].total_sales - Total sales for this product
  * @returns {number} data.products_breakdown[].views - Product view count
  * @returns {number} data.products_breakdown[].average_rating - Product average rating
+ * @returns {string} data.products_breakdown[].last_updated - Last update timestamp for the product
+ * @returns {Object} data.products_pagination - Pagination metadata for products breakdown
+ * @returns {number} data.products_pagination.currentPage - Current page number
+ * @returns {number} data.products_pagination.totalPages - Total number of pages
+ * @returns {number} data.products_pagination.totalItems - Total number of products
+ * @returns {number} data.products_pagination.itemsPerPage - Items per page
+ * @returns {boolean} data.products_pagination.hasNextPage - Whether next page exists
+ * @returns {boolean} data.products_pagination.hasPrevPage - Whether previous page exists
  * @throws {AppError} 404 - When vendor not found
  * @api {get} /api/dashboard/admin/vendor-overview/:vendorId Get Vendor Overview
  * @private admin
  * @example
- * // Request
- * GET /api/dashboard/admin/vendor-overview/1
+ * // Request with pagination
+ * GET /api/dashboard/admin/vendor-overview/1?page=1&limit=10
  * Authorization: Bearer <admin_token>
  *
  * // Success Response (200)
@@ -1802,18 +1813,30 @@ const getTopSellingItems = catchAsync(async (req, res, next) => {
  *         "views": 150,
  *         "average_rating": 4.8
  *       }
- *     ]
+ *     ],
+ *     "products_pagination": {
+ *       "currentPage": 1,
+ *       "totalPages": 2,
+ *       "totalItems": 15,
+ *       "itemsPerPage": 10,
+ *       "hasNextPage": true,
+ *       "hasPrevPage": false
+ *     }
  *   }
  * }
  */
 const getVendorOverview = catchAsync(async (req, res, next) => {
   const { vendorId } = req.params;
+  const { page = 1, limit = 10 } = req.query;
 
   // Validate vendor ID
   const vendorID = parseInt(vendorId);
   if (isNaN(vendorID) || vendorID <= 0) {
     return next(new AppError("Invalid vendor ID", 400));
   }
+
+  // Validate and get pagination parameters for products
+  const { limit: limitNum, offset } = paginate(page, limit);
 
   // Get vendor basic information
   const vendor = await db.Vendor.findOne({
@@ -1915,30 +1938,39 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     total_reviews: parseInt(rating.total_reviews),
   }));
 
-  // Get products breakdown
-  const vendorProducts = await db.Product.findAll({
+  // Get products breakdown with pagination
+  const { count: totalPaginatedProducts, rows: vendorProducts } = await db.Product.findAndCountAll({
     where: { vendor_id: vendorID },
     attributes: [
-      "id", "name", "sold_units", "impressions",
-      [fn("AVG", col("reviews.rating")), "average_rating"],
+      "id", "name", "sold_units", "impressions", "updated_at",
+      [literal("COALESCE(AVG(`reviews`.`rating`), 0)"), "average_rating"],
     ],
     include: [
       {
         model: db.Review,
         as: "reviews",
         attributes: [],
+        required: false,
       },
       {
         model: db.Inventory,
-        attributes: ["stock"],
+        attributes: ["id", "stock"],
+        required: false,
       },
       {
         model: db.Supply,
         attributes: ["id"],
+        required: false,
       },
     ],
-    group: ["Product.id", "Inventory.id"],
-    raw: true,
+    group: ["Product.id", "Inventory.id", "Inventory.stock"],
+    subQuery: false,
+    raw: false,
+    limit: limitNum,
+    offset: offset,
+  }).catch(error => {
+    console.error("[DEBUG] Error in products breakdown query:", error.message);
+    throw error;
   });
 
   // Get sales data for each product
@@ -1982,10 +2014,11 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     product_name: product.name,
     units_sold: product.sold_units || 0,
     supplied_count: supplyMap.get(product.id) || 0,
-    stock_status: product["Inventory.stock"] || 0,
+    stock_status: product.Inventory ? product.Inventory.stock : 0,
     total_sales: salesMap.get(product.id) || "0.00",
     views: product.impressions || 0,
     average_rating: product.average_rating ? parseFloat(product.average_rating).toFixed(1) : 0,
+    last_updated: product.updated_at,
   }));
 
   // Prepare response
@@ -2014,6 +2047,14 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     },
     monthly_ratings: formattedMonthlyRatings,
     products_breakdown: productsBreakdown,
+    products_pagination: {
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalProducts / limitNum),
+      totalItems: totalProducts,
+      itemsPerPage: parseInt(limit),
+      hasNextPage: page < Math.ceil(totalProducts / limitNum),
+      hasPrevPage: page > 1,
+    },
   };
 
   res.status(200).json({

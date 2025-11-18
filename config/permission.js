@@ -199,19 +199,15 @@ export const permissionMap = {
   'POST /webhooks/paystack': null, // Public (webhook)
 
   // ========================================
-  // WISHLIST ROUTES
+  // WISHLIST ROUTES (Single Wishlist per User)
   // ========================================
-  'GET /wishlists': null, // Public - get all user wishlists
-  'POST /wishlists': 'wishlist_create',
-  'GET /wishlists/:id': 'wishlist_read',
-  'GET /wishlists/:id/summary': 'wishlist_read',
-  'PUT /wishlists/:id': 'wishlist_update',
-  'DELETE /wishlists/:id': 'wishlist_delete',
-  'GET /wishlists/:id/items': 'wishlist_read',
-  'POST /wishlists/:id/items': 'wishlist_create',
-  'PUT /wishlists/:id/items/:itemId': 'wishlist_update',
-  'DELETE /wishlists/:id/items/:itemId': 'wishlist_delete',
-  'POST /wishlists/:id/move-to-cart': 'wishlist_update',
+  'GET /wishlist': null, // Get user's single wishlist
+  'GET /wishlist/items': null, // Get wishlist items
+  'POST /wishlist/items': null, // Add item to wishlist
+  'PUT /wishlist/items/:itemId': null, // Update wishlist item
+  'DELETE /wishlist/items/:itemId': null, // Remove wishlist item
+  'GET /wishlist/summary': null, // Get wishlist summary
+  'POST /wishlist/move-to-cart': null, // Move item to cart
 
   // ========================================
   // ADMIN ROUTES

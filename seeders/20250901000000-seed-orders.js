@@ -1,5 +1,6 @@
 'use strict';
 const { faker } = require('@faker-js/faker/locale/en_US');
+const { generateOrderNumber } = require('../utils/orderUtils');
 
 // Configure faker
 const {
@@ -158,21 +159,38 @@ module.exports = {
           });
         }
 
-        // Batch insert orders
-        const ordersToInsert = batchOrders.map(b => b.order);
-        await queryInterface.bulkInsert('orders', ordersToInsert, { transaction });
-
-        // Get inserted order IDs
-        const lastOrder = await queryInterface.sequelize.query(
+        // Get the next order ID to generate order numbers
+        const lastOrderResult = await queryInterface.sequelize.query(
           'SELECT id FROM orders ORDER BY id DESC LIMIT 1',
           { type: queryInterface.sequelize.QueryTypes.SELECT, transaction }
         );
-        const firstOrderId = lastOrder[0].id - ordersToInsert.length + 1;
+        const nextOrderId = lastOrderResult.length > 0 ? lastOrderResult[0].id + 1 : 1;
+
+        // Generate order numbers and add to orders
+        const ordersToInsert = batchOrders.map((b, index) => {
+          const orderId = nextOrderId + index;
+          const orderNumber = generateOrderNumber(orderId);
+          // Store the order number for later use in notifications
+          b.orderNumber = orderNumber;
+          return {
+            ...b.order,
+            order_number: orderNumber
+          };
+        });
+
+        // Batch insert orders with order numbers
+        await queryInterface.bulkInsert('orders', ordersToInsert, { transaction });
+
+        // Get the actual order IDs that were inserted
+        const insertedOrderIds = await queryInterface.sequelize.query(
+          `SELECT id FROM orders WHERE id >= ${nextOrderId} ORDER BY id ASC LIMIT ${batchOrders.length}`,
+          { type: queryInterface.sequelize.QueryTypes.SELECT, transaction }
+        );
 
         // Process each order in the batch
         for (let i = 0; i < batchOrders.length; i++) {
           const orderData = batchOrders[i];
-          const orderId = firstOrderId + i;
+          const orderId = insertedOrderIds[i].id;
 
           // Update order items with order_id
           const orderItemsToInsert = orderData.orderItems.map(item => ({

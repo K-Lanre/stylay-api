@@ -8,6 +8,7 @@ router.use(protect);
 
 // Admin routes
 router.get("/", isAdmin, orderController.getAllOrders);
+router.get("/:id", isAdmin, orderController.getOrder);
 router.patch("/:id/status", isAdmin, orderController.updateOrderStatus);
 
 module.exports = router;

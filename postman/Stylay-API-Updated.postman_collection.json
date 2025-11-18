@@ -3441,548 +3441,332 @@
                 }
             ]
         },
+     {
+    "name": "Wishlist Management",
+    "description": "Single automatic wishlist per user with cart-like functionality including multiple variants, automatic price calculations, and total tracking",
+    "item": [
         {
-            "name": "Wishlist Endpoints - Enhanced with Multi-Variant Support",
-            "description": "Enhanced wishlist management with cart-like functionality including multiple variants, automatic price calculations, and total tracking",
-            "item": [
-                {
-                    "name": "Create Wishlist",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"My Favorite Products\",\n    \"description\": \"Products I want to buy later\",\n    \"is_public\": false,\n    \"priority\": 1\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists"
-                            ]
-                        },
-                        "description": "Create a new wishlist with priority and privacy settings"
+            "name": "Get My Wishlist",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
                     }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist"
+                    ]
                 },
-                {
-                    "name": "Get User Wishlists",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists?page=1&limit=10",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists"
-                            ],
-                            "query": [
-                                {
-                                    "key": "page",
-                                    "value": "1"
-                                },
-                                {
-                                    "key": "limit",
-                                    "value": "10"
-                                }
-                            ]
-                        },
-                        "description": "Get all wishlists for the authenticated user with totals"
-                    }
-                },
-                {
-                    "name": "Get Wishlist by ID",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Get a specific wishlist by ID with all items and aggregate totals"
-                    }
-                },
-                {
-                    "name": "Update Wishlist",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Updated Wishlist Name\",\n    \"description\": \"Updated description\",\n    \"is_public\": true,\n    \"priority\": 2\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Update wishlist properties including name, description, privacy, and priority"
-                    }
-                },
-                {
-                    "name": "Add Item to Wishlist - New Multi-Variant Format",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"product_id\": 123,\n    \"quantity\": 2,\n    \"selected_variants\": [\n        {\n            \"id\": 456,\n            \"name\": \"size\",\n            \"value\": \"Large\",\n            \"additional_price\": 5.00\n        },\n        {\n            \"id\": 789,\n            \"name\": \"color\",\n            \"value\": \"Blue\",\n            \"additional_price\": 0.00\n        }\n    ]\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "items"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Add item to wishlist using new multi-variant format (recommended). Supports multiple variants per product with automatic price calculation."
-                    }
-                },
-                {
-                    "name": "Add Item to Wishlist - Legacy Single Variant Format",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"product_id\": 456,\n    \"quantity\": 1,\n    \"variant_id\": 789\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "items"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Add item to wishlist using legacy single variant format for backward compatibility. Automatically converts to new format internally."
-                    }
-                },
-                {
-                    "name": "Get Wishlist Items with Totals",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items?page=1&limit=20",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "items"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ],
-                            "query": [
-                                {
-                                    "key": "page",
-                                    "value": "1"
-                                },
-                                {
-                                    "key": "limit",
-                                    "value": "20"
-                                }
-                            ]
-                        },
-                        "description": "Get all items in a specific wishlist with calculated totals, variants, and price breakdowns"
-                    }
-                },
-                {
-                    "name": "Update Wishlist Item - Quantity",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"quantity\": 5\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items/:item_id",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "items",
-                                ":item_id"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                },
-                                {
-                                    "key": "item_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Update item quantity in wishlist (triggers automatic total recalculation)"
-                    }
-                },
-                {
-                    "name": "Update Wishlist Item - Variants",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"selected_variants\": [\n        {\n            \"id\": 456,\n            \"name\": \"size\",\n            \"value\": \"Medium\",\n            \"additional_price\": 0.00\n        },\n        {\n            \"id\": 789,\n            \"name\": \"color\",\n            \"value\": \"Red\",\n            \"additional_price\": 2.00\n        }\n    ]\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items/:item_id",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "items",
-                                ":item_id"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                },
-                                {
-                                    "key": "item_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Update item variants in wishlist (triggers automatic price recalculation)"
-                    }
-                },
-                {
-                    "name": "Remove Item from Wishlist",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/items/:item_id",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "items",
-                                ":item_id"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                },
-                                {
-                                    "key": "item_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Remove an item from wishlist (triggers automatic total recalculation for remaining items)"
-                    }
-                },
-                {
-                    "name": "Delete Wishlist",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Delete a specific wishlist and all its items"
-                    }
-                },
-                {
-                    "name": "Get Wishlist Summary with Totals",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/summary",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "summary"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Get wishlist summary including total items count, total amount, and aggregate statistics"
-                    }
-                },
-                {
-                    "name": "Move Item to Cart",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{auth_token}}",
-                                "type": "text"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"wishlist_item_id\": 1\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/v1/wishlists/:wishlist_id/move-to-cart",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "wishlists",
-                                ":wishlist_id",
-                                "move-to-cart"
-                            ],
-                            "variable": [
-                                {
-                                    "key": "wishlist_id",
-                                    "value": "1"
-                                }
-                            ]
-                        },
-                        "description": "Move a specific item from wishlist to cart, preserving all variant selections and quantity"
-                    }
-                }
-            ]
+                "description": "Get the authenticated user's wishlist (automatically creates if doesn't exist)"
+            }
         },
+        {
+            "name": "Add Item to Wishlist (Multi-Variant)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                   "raw": "{\n    \"product_id\": 123,\n    \"quantity\": 2,\n    \"selected_variants\": [\n        {\n            \"name\": \"size\",\n            \"id\": 456,\n            \"value\": \"Large\",\n            \"additional_price\": 5.00\n        },\n        {\n            \"name\": \"color\",\n            \"id\": 789,\n            \"value\": \"Blue\",\n            \"additional_price\": 0.00\n        }\n    ]\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/items",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "items"
+                    ]
+                },
+                "description": "Add item to wishlist using new multi-variant format (recommended). Supports multiple variants per product with automatic price calculation."
+            }
+        },
+        {
+            "name": "Add Item to Wishlist (Legacy Single Variant)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"product_id\": 1,\n    \"variant_id\": 1,\n    \"quantity\": 2\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/items",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "items"
+                    ]
+                },
+                "description": "Add item to wishlist using legacy single variant format for backward compatibility. Automatically converts to new format internally."
+            }
+        },
+        {
+            "name": "Get Wishlist Items",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/items?page=1&limit=20",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "items"
+                    ],
+                    "query": [
+                        {
+                            "key": "page",
+                            "value": "1"
+                        },
+                        {
+                            "key": "limit",
+                            "value": "20"
+                        }
+                    ]
+                },
+                "description": "Get all items in the user's wishlist with calculated totals, variants, and price breakdowns"
+            }
+        },
+        {
+            "name": "Update Wishlist Item Quantity",
+            "request": {
+                "method": "PATCH",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"quantity\": 3\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/items/:item_id",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "items",
+                        ":item_id"
+                    ],
+                    "variable": [
+                        {
+                            "key": "item_id",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "description": "Update item quantity in wishlist (triggers automatic total recalculation)"
+            }
+        },
+        {
+            "name": "Update Wishlist Item Variants",
+            "request": {
+                "method": "PATCH",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                     "raw": "{\n    \"product_id\": 123,\n    \"quantity\": 2,\n    \"selected_variants\": [\n        {\n            \"name\": \"size\",\n            \"id\": 456,\n            \"value\": \"Large\",\n            \"additional_price\": 5.00\n        },\n        {\n            \"name\": \"color\",\n            \"id\": 789,\n            \"value\": \"Blue\",\n            \"additional_price\": 0.00\n        }\n    ]\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/items/:item_id",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "items",
+                        ":item_id"
+                    ],
+                    "variable": [
+                        {
+                            "key": "item_id",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "description": "Update item variants in wishlist (triggers automatic price recalculation)"
+            }
+        },
+        {
+            "name": "Remove Item from Wishlist",
+            "request": {
+                "method": "DELETE",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/items/:item_id",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "items",
+                        ":item_id"
+                    ],
+                    "variable": [
+                        {
+                            "key": "item_id",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "description": "Remove an item from wishlist (triggers automatic total recalculation for remaining items)"
+            }
+        },
+        {
+            "name": "Get Wishlist Summary",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/summary",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "summary"
+                    ]
+                },
+                "description": "Get wishlist summary including total items count, total amount, and aggregate statistics"
+            }
+        },
+        {
+            "name": "Move Item to Cart",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"wishlist_item_id\": 1\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/wishlist/move-to-cart",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "wishlist",
+                        "move-to-cart"
+                    ]
+                },
+                "description": "Move a specific item from wishlist to cart, preserving all variant selections and quantity"
+            }
+        }
+    ]
+},
         {
             "name": "Addresses Management",
             "item": [
@@ -4439,6 +4223,31 @@
                                             "key": "limit",
                                             "value": "10"
                                         }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Get Order by ID (Admin)",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/admin/orders/1",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "admin",
+                                        "orders",
+                                        "1"
                                     ]
                                 }
                             }
@@ -5055,6 +4864,7 @@
                         },
                         {
                             "name": "Get Vendor Overview",
+                            "description": "Get vendor overview including business info, product tags count, earnings, and approval dates.",
                             "request": {
                                 "method": "GET",
                                 "header": [
@@ -5065,7 +4875,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{base_url}}/api/v1/admin/dashboard/vendor-overview/:vendorId",
+                                    "raw": "{{base_url}}/api/v1/admin/dashboard/vendor-overview/:vendorId?page=1&limit=10",
                                     "host": [
                                         "{{base_url}}"
                                     ],
@@ -5078,12 +4888,21 @@
                                         ":vendorId"
                                     ]
                                 },
-                                "description": "Get vendor overview including business info, product tags count, earnings, and approval dates.",
                                 "query": [
                                     {
                                         "key": "vendorId",
                                         "value": "{{vendorId}}",
                                         "description": "Vendor ID"
+                                    },
+                                    {
+                                        "key": "page",
+                                        "value": "1",
+                                        "description": "Page number for pagination"
+                                    },
+                                    {
+                                        "key": "limit",
+                                        "value": "10",
+                                        "description": "Number of products per page (max 50)"
                                     }
                                 ]
                             }

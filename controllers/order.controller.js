@@ -20,6 +20,7 @@ const {
 const paymentService = require("../services/payment.service");
 const emailService = require("../services/email.service");
 const logger = require("../utils/logger");
+const { generateOrderNumber } = require("../utils/orderUtils");
 const { v4: uuidv4 } = require("uuid");
 
 /**
@@ -265,6 +266,10 @@ async function createOrder(req, res) {
         transaction,
       }
     );
+
+    // Generate and update order number
+    const orderNumber = generateOrderNumber(order.id);
+    await order.update({ order_number: orderNumber }, { transaction });
 
     // Update inventory for all items in the order
     for (const item of itemsWithDetails) {
@@ -675,6 +680,7 @@ async function getOrder(req, res) {
         order: {
           ...orderData,
           summary: orderSummary,
+          delivery_address: orderData.details?.address || null,
         },
       },
     });
@@ -1115,7 +1121,7 @@ async function getUserOrders(req, res) {
 
       return {
         id: orderData.id,
-        order_number: `#${String(orderData.id).padStart(8, "0")}`,
+        order_number: orderData.order_number,
         status: orderData.order_status,
         payment_status: orderData.payment_status,
         order_date: orderData.order_date,
@@ -1762,13 +1768,23 @@ async function getVendorOrders(req, res) {
       order: [["created_at", "DESC"]],
     });
 
+    // Format response to include delivery_address for each order
+    const formattedOrders = orders.map((order) => {
+      const orderData = order.get({ plain: true });
+      const delivery_address = orderData.details?.address || null;
+      return {
+        ...orderData,
+        delivery_address,
+      };
+    });
+
     res.status(200).json({
       status: "success",
       data: {
         total: count,
         page: parseInt(page),
         limit: parseInt(limit),
-        orders,
+        orders: formattedOrders,
       },
     });
   } catch (error) {
@@ -2034,6 +2050,17 @@ async function getAllOrders(req, res) {
                   ],
                 },
               ],
+            },
+          ],
+        },
+        {
+          model: OrderDetail,
+          as: "details",
+          include: [
+            {
+              model: Address,
+              as: "address",
+              attributes: { exclude: ["created_at", "updated_at"] },
             },
           ],
         },

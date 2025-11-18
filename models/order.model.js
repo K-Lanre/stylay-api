@@ -61,6 +61,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true
     },
+    order_number: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      unique: true
+    },
     order_status: {
       type: DataTypes.ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled'),
       allowNull: false,

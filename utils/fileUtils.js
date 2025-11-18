@@ -35,7 +35,7 @@ const generateFilename = (originalname, mimetype) => {
 
 /**
  * Validate file size
- * @param {Object} file - File object from multer
+ * @param {Object} file - File object from file upload middleware
  * @param {number} maxSizeInMB - Maximum file size in MB
  * @returns {boolean} True if file size is valid
  */
@@ -46,7 +46,7 @@ const validateFileSize = (file, maxSizeInMB = 5) => {
 
 /**
  * Validate file type
- * @param {Object} file - File object from multer
+ * @param {Object} file - File object from file upload middleware
  * @param {Array<string>} allowedTypes - Array of allowed mime types
  * @returns {boolean} True if file type is allowed
  */

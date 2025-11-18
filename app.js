@@ -317,7 +317,7 @@ app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
-app.use('/api/v1/wishlists', wishlistRoutes);
+app.use('/api/v1/wishlist', wishlistRoutes);
 
 // Apply caching to dashboard routes
 app.use('/api/v1/dashboard', cache(300), dashboardRoutes); // 5 minutes cache
