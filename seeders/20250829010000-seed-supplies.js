@@ -239,110 +239,67 @@ module.exports = {
              console.log(`Got ${supplyIds.length} supply IDs from fallback query`);
            }
 
-          // Process each supply item to update/create inventory and history
-          const createdInventoriesForHistory = []; // To store newly created inventory instances for history creation
-          const updatedInventoryIdsForHistory = []; // To store IDs of updated inventory for history creation
-
-          for (const [index, supply] of batch.entries()) {
-            const supplyId = supplyIds[index];
+          // Update combination stock directly (new system) and create inventory records as logs
+          await Promise.all(batch.map(async (supply, index) => {
+            const combinationId = supply.combination_id;
             const productId = supply.product_id;
             const quantity = supply.quantity_supplied;
-            const supplyDate = supply.supply_date;
+            const supplyId = supplyIds[index]; // Use the correctly retrieved supplyId
 
-            let existingInventory = await sequelize.models.Inventory.findOne({
-                where: { product_id: productId },
-                transaction
+            console.log(`Processing supply for combination ${combinationId}, product ${productId}, quantity ${quantity}`);
+
+            // Find or create the product-level Inventory record (now just a log/status holder)
+            // No 'stock' field on Inventory anymore, so only update restocked_at and supply_id
+            const [inventoryRecord, created] = await sequelize.models.Inventory.findOrCreate({
+              where: { product_id: productId },
+              defaults: {
+                supply_id: supplyId,
+                restocked_at: supply.supply_date,
+                created_at: new Date(),
+                updated_at: new Date()
+              },
+              transaction
             });
 
-            if (existingInventory) {
-                // Update existing inventory
-                console.log(`Updating inventory for product ${productId} (ID: ${existingInventory.id}) with supply ID ${supplyId}`);
-                const previousStock = existingInventory.stock;
-                existingInventory.stock += quantity;
-                existingInventory.restocked_at = supplyDate;
-                existingInventory.updated_at = new Date();
-                // If the supply_id is different, we might want to update it, or just ensure it's linked.
-                // For simplicity, we'll update it if it's different or if it was null.
-                if (existingInventory.supply_id !== supplyId) {
-                    existingInventory.supply_id = supplyId;
-                }
-                await existingInventory.save({ transaction });
-                updatedInventoryIdsForHistory.push({ id: existingInventory.id, previousStock: previousStock, newStock: existingInventory.stock });
-            } else {
-                // Create new inventory record
-                console.log(`Creating new inventory for product ${productId} with supply ID ${supplyId}`);
-                const newInventory = await sequelize.models.Inventory.create({
-                    product_id: productId,
-                    supply_id: supplyId,
-                    stock: quantity,
-                    restocked_at: supplyDate,
-                    created_at: new Date(),
-                    updated_at: new Date()
-                }, { transaction });
-                createdInventoriesForHistory.push({ id: newInventory.id, previousStock: 0, newStock: quantity });
+            if (!created) {
+              await inventoryRecord.update({
+                supply_id: supplyId,
+                restocked_at: supply.supply_date,
+                updated_at: new Date()
+              }, { transaction });
             }
-          }
 
-          // Create inventory history records based on created/updated inventories
-          const inventoryHistoryRecords = [];
+            // Update the combination stock (this is the single source of truth)
+            const combination = await VariantCombination.findByPk(combinationId, { transaction });
+            if (combination) {
+              const previousCombinationStock = combination.stock || 0;
+              const newCombinationStock = previousCombinationStock + quantity;
 
-          // Add history for newly created inventories
-          createdInventoriesForHistory.forEach(item => {
-            inventoryHistoryRecords.push({
-              inventory_id: item.id,
-              change_amount: item.newStock,
-              change_type: 'supply',
-              previous_stock: item.previousStock,
-              new_stock: item.newStock,
-              adjusted_by: adminUser.id,
-              changed_at: new Date(),
-              created_at: new Date()
-            });
-          });
+              await VariantCombination.update(
+                { stock: newCombinationStock },
+                { where: { id: combinationId }, transaction }
+              );
 
-          // Add history for updated inventories
-          updatedInventoryIdsForHistory.forEach(item => {
-            inventoryHistoryRecords.push({
-              inventory_id: item.id,
-              change_amount: item.newStock - item.previousStock, // Amount added
-              change_type: 'supply',
-              previous_stock: item.previousStock,
-              new_stock: item.newStock,
-              adjusted_by: adminUser.id,
-              changed_at: new Date(),
-              created_at: new Date()
-            });
-          });
+              console.log(`Updated combination ${combinationId} stock from ${previousCombinationStock} to ${newCombinationStock}`);
 
-          if (inventoryHistoryRecords.length > 0) {
-            console.log(`Creating ${inventoryHistoryRecords.length} inventory history records`);
-            await sequelize.models.InventoryHistory.bulkCreate(inventoryHistoryRecords, { transaction });
-          }
+              // Create Inventory History for this combination update
+              await sequelize.models.InventoryHistory.create({
+                inventory_id: inventoryRecord.id, // Link to the product-level inventory record (log)
+                change_amount: quantity,
+                change_type: 'supply',
+                previous_stock: previousCombinationStock, // Previous stock of the combination
+                new_stock: newCombinationStock, // New stock of the combination
+                adjusted_by: adminUser.id,
+                changed_at: new Date(),
+                created_at: new Date(),
+                // Include combination_id in history for better tracking
+                combination_id: combinationId
+              }, { transaction });
 
-          // Update combination stock directly (new system)
-           await Promise.all(batch.map(async (supply, index) => {
-             const combinationId = supply.combination_id;
-             const quantity = supply.quantity_supplied;
-             const supplyId = supplyIds[index]; // Use the correctly retrieved supplyId
-
-             console.log(`Updating stock for combination ${combinationId}, supply ${supplyId}, quantity ${quantity}`);
-
-             // Update the combination stock
-             const combination = await VariantCombination.findByPk(combinationId, { transaction });
-             if (combination) {
-               const currentStock = combination.stock || 0;
-               const newStock = currentStock + quantity;
-
-               await VariantCombination.update(
-                 { stock: newStock },
-                 { where: { id: combinationId }, transaction }
-               );
-
-               console.log(`Updated combination ${combinationId} stock from ${currentStock} to ${newStock}`);
-             } else {
-               console.error(`Combination ${combinationId} not found for supply update!`);
-             }
-           }));
+            } else {
+              console.error(`Combination ${combinationId} not found for supply update!`);
+            }
+          }));
 
           progress.update(batch.length);
         }
@@ -361,9 +318,15 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('inventory_history', null, {}); // Clean up history first
+    // Delete all records from tables in reverse order of dependency
+    await queryInterface.bulkDelete('inventory_history', null, {});
+    // Note: VariantCombination records are deleted via product cascade or manually cleared
+    // We should ensure VariantCombination records are cleared before products for clean state if products do not cascade delete combinations
+    // For now, assuming products table cascade deletes variant_combinations.
+    // If not, add a line here: await queryInterface.bulkDelete('variant_combinations', null, {});
+
     await queryInterface.bulkDelete('inventory', null, {});
     await queryInterface.bulkDelete('supply', null, {});
-    await queryInterface.bulkDelete('vendor_product_tags', null, {}); // Clean up associated tags
+    await queryInterface.bulkDelete('vendor_product_tags', null, {});
   }
 };

@@ -72,10 +72,12 @@ const createReview = async (req, res, next) => {
       include: [
         {
           model: User,
-          attributes: ["id", "first_name", "last_name", "email"],
+          as: "user",
+          attributes: ["id", "first_name", "last_name", "email", "profile_image"],
         },
         {
           model: Product,
+          as: "product",
           attributes: ["id", "name", "slug", "thumbnail"],
         },
       ],
@@ -124,10 +126,12 @@ const getReviews = async (req, res, next) => {
       include: [
         {
           model: User,
-          attributes: ["id", "first_name", "last_name", "email"],
+          as: "user",
+          attributes: ["id", "first_name", "last_name", "email", "profile_image"],
         },
         {
           model: Product,
+          as: "product",
           attributes: ["id", "name", "slug", "thumbnail"],
         },
       ],
@@ -163,10 +167,12 @@ const getReviewById = async (req, res, next) => {
       include: [
         {
           model: User,
-          attributes: ["id", "first_name", "last_name", "email"],
+          as: "user",
+          attributes: ["id", "first_name", "last_name", "email", "profile_image"],
         },
         {
           model: Product,
+          as: "product",
           attributes: ["id", "name", "slug", "thumbnail"],
         },
       ],
@@ -283,10 +289,12 @@ const updateReview = async (req, res, next) => {
       include: [
         {
           model: User,
+          as: "user",
           attributes: ["id", "first_name", "last_name", "email"],
         },
         {
           model: Product,
+          as: "product",
           attributes: ["id", "name", "slug", "thumbnail"],
         },
       ],
@@ -430,6 +438,7 @@ const getReviewsByProduct = async (req, res, next) => {
       include: [
         {
           model: User,
+          as: "user",
           attributes: ["id", "first_name", "last_name", "email", "profile_image" ],
         },
       ],

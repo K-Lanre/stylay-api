@@ -49,14 +49,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(100),
       allowNull: false
     },
-    additional_price: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: true
-    },
-    stock: {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

@@ -180,7 +180,7 @@ const getProductCombinations = async (req, res, next) => {
       include: [{
         model: ProductVariant,
         as: 'variants',
-        attributes: ['id', 'name', 'value', 'additional_price'],
+        attributes: ['id', 'name', 'value'],
         through: { attributes: [] }
       }],
       order: [['combination_name', 'ASC']]
@@ -219,7 +219,7 @@ const getCombinationById = async (req, res, next) => {
         {
           model: ProductVariant,
           as: 'variants',
-          attributes: ['id', 'name', 'value', 'additional_price'],
+          attributes: ['id', 'name', 'value'],
           through: { attributes: [] }
         }
       ]
@@ -289,7 +289,7 @@ const updateCombinationStock = async (req, res, next) => {
       include: [{
         model: ProductVariant,
         as: 'variants',
-        attributes: ['id', 'name', 'value', 'additional_price'],
+        attributes: ['id', 'name', 'value'],
         through: { attributes: [] }
       }]
     });

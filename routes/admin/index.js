@@ -25,7 +25,7 @@ router.use('/collections', collectionRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/products', productRoutes);
 router.use('/inventory', inventoryRoutes);
-router.use('/journal', journalRoutes);
+router.use('/journals', journalRoutes);
 router.use('/orders', orderRoutes);
 router.use('/supplies', supplyRoutes);
 router.use('/webhooks', webhookRoutes);

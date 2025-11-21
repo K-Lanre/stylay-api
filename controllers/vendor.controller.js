@@ -14,6 +14,7 @@ const { Op } = require("sequelize");
 const { default: slugify } = require("slugify");
 const { sendEmail, sendWelcomeEmail } = require("../services/email.service");
 const AppError = require("../utils/appError");
+const fs = require("fs");
 
 // Generate a random 6-digit code and expiration time (10 minutes from now)
 const generateVerificationCode = () => {
@@ -418,7 +419,7 @@ const completeOnboarding = async (req, res, next) => {
       include: [
         {
           model: Store,
-          as: "Store",
+          as: "store",
         },
       ],
       transaction,
@@ -547,6 +548,30 @@ const completeOnboarding = async (req, res, next) => {
   } catch (error) {
     await transaction.rollback();
     logger.error("Complete onboarding error:", error);
+
+    // Clean up uploaded files if onboarding failed
+    if (req.processedFiles) {
+      const files = [];
+      if (req.processedFiles.logo && typeof req.processedFiles.logo === 'object' && req.processedFiles.logo.path) {
+        files.push(req.processedFiles.logo.path);
+      }
+      if (req.processedFiles.business_images && Array.isArray(req.processedFiles.business_images)) {
+        req.processedFiles.business_images.forEach(img => {
+          if (img.path) files.push(img.path);
+        });
+      }
+      files.forEach(path => {
+        if (fs.existsSync(path)) {
+          try {
+            fs.unlinkSync(path);
+            console.log(`Cleaned up file: ${path}`);
+          } catch (cleanupError) {
+            console.warn(`Failed to clean up file ${path}:`, cleanupError.message);
+          }
+        }
+      });
+    }
+
     next(error);
   }
 };
@@ -898,7 +923,7 @@ const approveVendor = async (req, res, next) => {
     try {
       await sendEmail(vendor.User.email, "VENDOR_APPROVED", {
         name: `${vendor.User.first_name} ${vendor.User.last_name}`,
-        storeName: vendor.Store.business_name,
+        storeName: vendor.store.business_name,
         loginUrl: `${process.env.FRONTEND_URL}/vendor/login`,
         supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.ng",
       });
@@ -1020,7 +1045,7 @@ const rejectVendor = async (req, res, next) => {
         template: "vendor-rejected",
         context: {
           name: `${vendor.User.first_name} ${vendor.User.last_name}`,
-          storeName: vendor.Store.business_name,
+          storeName: vendor.store.business_name,
           reason: reason,
           supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.ng",
           contactUrl: `${process.env.FRONTEND_URL}/contact`,
@@ -1492,7 +1517,7 @@ const getMyFollowers = async (req, res, next) => {
       include: [
         {
           model: Store,
-          as: "Store",
+          as: "store",
           attributes: ["business_name"],
         },
       ],
@@ -1530,7 +1555,7 @@ const getMyFollowers = async (req, res, next) => {
       data: {
         vendor: {
           id: vendor.id,
-          business_name: vendor.Store.business_name,
+          business_name: vendor.store.business_name,
         },
         followers: followers,
       },

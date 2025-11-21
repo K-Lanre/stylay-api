@@ -125,6 +125,7 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
           model: this.sequelize.models.Store,
+          as: "store",
           attributes: [
             "slug",
             "business_name",

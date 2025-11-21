@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { param, body, query } = require('express-validator');
 const productController = require('../controllers/product.controller');
+const recentlyViewedController = require('../controllers/recently-viewed.controller');
 const { protect, isVendor } = require('../middlewares/auth');
 const validate = require('../middlewares/validation');
 const {
   createProductValidation,
-  updateProductValidation,
   getProductsValidation,
   getProductByIdentifierValidation,
   deleteProductValidation,
@@ -22,28 +22,28 @@ const { listReviewsValidation } = require('../validators/review.validator');
  * @route   GET /api/v1/products/recent
  * @access  Public
  */
-router.get('/recent', productController.getRecentViews);
+router.get('/recent', recentlyViewedController.getRecentViews);
 
 /**
  * @desc    Get viewing statistics
  * @route   GET /api/v1/products/recent/stats
  * @access  Public
  */
-router.get('/recent/stats', productController.getViewStatistics);
+router.get('/recent/stats', recentlyViewedController.getViewStatistics);
 
 /**
  * @desc    Clear recently viewed products
  * @route   DELETE /api/v1/products/recent
  * @access  Public
  */
-router.delete('/recent', productController.clearRecentViews);
+router.delete('/recent', recentlyViewedController.clearRecentViews);
 
 /**
  * @desc    Anonymize user view data (GDPR compliance)
  * @route   PATCH /api/v1/products/recent/anonymize
  * @access  Public
  */
-router.patch('/recent/anonymize', productController.anonymizeUserData);
+router.patch('/recent/anonymize', recentlyViewedController.anonymizeUserData);
 
 /**
  * @desc    Get reviews for a specific product

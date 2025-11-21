@@ -192,37 +192,25 @@ const addToCart = async (req, res, next) => {
             new AppError(`Variant ${variantId} not found for product`, 404)
           );
         }
-        if (variant.stock !== null && variant.stock < quantity) {
-          return next(
-            new AppError(
-              `Low stock for ${sel.value}: ${variant.stock} available`,
-              400
-            )
-          );
-        }
+        // Stock is now managed at combination level; skip per-variant stock checks here
         totalAdditionalPrice += sel.additional_price || 0;
       }
       finalVariantId = null;
     } else if (variant_id) {
-      // Backward compatibility: single variant
+      // Backward compatibility: single variant (no additional_price/stock on ProductVariant anymore)
       const variant = product.variants.find((v) => v.id === variant_id);
       if (!variant) {
         return next(new AppError("Product variant not found", 404));
-      }
-      if (variant.stock !== null && variant.stock < quantity) {
-        return next(
-          new AppError(`Low stock for variant: ${variant.stock} available`, 400)
-        );
       }
       finalSelectedVariants = [
         {
           name: variant.name,
           id: variant.id,
           value: variant.value,
-          additional_price: variant.additional_price || 0,
+          additional_price: 0,
         },
       ];
-      totalAdditionalPrice = variant.additional_price || 0;
+      totalAdditionalPrice = 0;
       finalVariantId = null;
     } else {
       // No variants, check product inventory if applicable
@@ -422,20 +410,8 @@ const updateCartItem = async (req, res, next) => {
 
     // Check stock availability for the new quantity
     if (quantity > 0) {
-      // Check stock for variants if they exist
-      if (cartItem.selected_variants && cartItem.selected_variants.length > 0) {
-        const variants = typeof cartItem.selected_variants === 'string'
-          ? JSON.parse(cartItem.selected_variants)
-          : cartItem.selected_variants;
-        
-        for (const variantInfo of variants) {
-          const { ProductVariant } = require('../models');
-          const variant = await ProductVariant.findByPk(variantInfo.id);
-          if (variant && variant.stock !== null && variant.stock < quantity) {
-            return next(new AppError(`Insufficient stock for ${variantInfo.value}. Available: ${variant.stock}`, 400));
-          }
-        }
-      } else if (cartItem.product) {
+      // Variant-level stock is managed at combination level; skip per-variant checks here
+      if (cartItem.product) {
         // Check main product stock
         const inventory = await cartItem.product.getInventory();
         if (inventory && inventory.stock !== null && inventory.stock < quantity) {
@@ -920,20 +896,8 @@ const syncCart = async (req, res, next) => {
         // Check stock availability
         let availableStock = null;
         if (sortedSelectedVariants.length > 0) {
-          // Check variant stock
-          const variantMap = new Map(
-            product.variants.map((v) => [Number(v.id), v])
-          );
-          let hasLowStock = false;
-          for (const sel of sortedSelectedVariants) {
-            const variant = variantMap.get(Number(sel.id));
-            if (variant && variant.stock !== null) {
-              availableStock = Math.min(
-                availableStock ?? variant.stock,
-                variant.stock
-              );
-            }
-          }
+          // Variant-level stock now handled by combinations; do not derive from ProductVariant
+          availableStock = null;
         } else {
           // Check product stock
           const inventory = await product.getInventory({ transaction });

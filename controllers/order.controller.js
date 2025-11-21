@@ -220,6 +220,7 @@ async function createOrder(req, res) {
 
       itemsWithDetails.push({
         ...item,
+        combinationId: item.combinationId || item.combination_id || null,
         price: itemPrice,
         vendorId: product.vendor.id,
         selected_variants: selectedVariants,
@@ -245,6 +246,7 @@ async function createOrder(req, res) {
         items: itemsWithDetails.map((item) => ({
           product_id: item.productId,
           vendor_id: item.vendorId,
+          combination_id: item.combinationId || item.combination_id || null,
           variant_id: item.variantId || null,
           quantity: item.quantity,
           price: item.price,
@@ -271,61 +273,56 @@ async function createOrder(req, res) {
     const orderNumber = generateOrderNumber(order.id);
     await order.update({ order_number: orderNumber }, { transaction });
 
-    // Update inventory for all items in the order
+    // Update stock for all items using VariantCombination and write inventory history
     for (const item of itemsWithDetails) {
       const product = await Product.findByPk(item.productId, {
         include: [{ model: Inventory }],
         transaction,
       });
 
-      // Update inventory and inventory history
-      const inventory = await Inventory.findOne({
+      // Resolve or create product-level inventory log row
+      let inventory = await Inventory.findOne({
         where: { product_id: product.id },
         transaction,
       });
-
       if (!inventory) {
-        throw new Error(`Inventory not found for product ${product.id}`);
+        inventory = await Inventory.create({ product_id: product.id }, { transaction });
       }
 
-      const previousStock = inventory.stock;
-      const newStock = previousStock - item.quantity;
-
-      await Inventory.decrement("stock", {
-        by: item.quantity,
-        where: { product_id: product.id },
-        transaction,
-      });
-
-      await InventoryHistory.create(
-        {
-          inventory_id: inventory.id,
-          adjustment: -item.quantity,
-          previous_stock: previousStock,
-          new_stock: newStock,
-          note: `Order #${order.id}: Stock reduced for order placement`,
-          adjusted_by: userId,
-        },
-        { transaction }
-      );
-
-      // Decrement variant stock for multiple variants or single variant
-      if (item.selected_variants && item.selected_variants.length > 0) {
-        // Handle multiple variants
-        for (const variant of item.selected_variants) {
-          await ProductVariant.decrement("stock", {
-            by: item.quantity,
-            where: { id: variant.id },
-            transaction,
-          });
+      // If combination is provided, enforce VariantCombination stock management
+      if (item.combinationId || item.combination_id) {
+        const combinationId = item.combinationId || item.combination_id;
+        const combination = await sequelize.models.VariantCombination.findByPk(combinationId, { transaction });
+        if (!combination || combination.product_id !== product.id) {
+          throw new Error(`Variant combination ${combinationId} not found for product ${product.id}`);
         }
-      } else if (item.variantId) {
-        // Backward compatibility: single variant
-        await ProductVariant.decrement("stock", {
-          by: item.quantity,
-          where: { id: item.variantId },
-          transaction,
-        });
+        if (combination.stock < item.quantity) {
+          throw new Error(`Insufficient stock for combination ${combinationId}`);
+        }
+
+        const previousStock = combination.stock;
+        const newStock = previousStock - item.quantity;
+
+        // Decrement combination stock
+        await sequelize.models.VariantCombination.update(
+          { stock: newStock },
+          { where: { id: combinationId }, transaction }
+        );
+
+        // Log inventory history for combination
+        await InventoryHistory.create(
+          {
+            inventory_id: inventory.id,
+            combination_id: combinationId,
+            change_amount: -item.quantity,
+            change_type: 'sale',
+            previous_stock: previousStock,
+            new_stock: newStock,
+            note: `Order #${order.id}: Stock reduced for sale`,
+            adjusted_by: userId,
+          },
+          { transaction }
+        );
       }
 
       // Track items by vendor for notifications
@@ -336,6 +333,7 @@ async function createOrder(req, res) {
         vendorItems.get(product.vendor_id).push({
           product_id: product.id,
           vendor_id: product.vendor_id,
+          combination_id: item.combinationId || item.combination_id || null,
           variant_id: item.variantId || null,
           selected_variants: item.selected_variants || null,
           quantity: item.quantity,
@@ -846,15 +844,36 @@ async function updateOrderStatus(req, res) {
         break;
 
       case "cancelled":
-        // Restore inventory for cancelled orders
+        // Restore VariantCombination stock for cancelled orders and log history
         await Promise.all(
-          order.order_items.map((item) =>
-            Inventory.increment("stock", {
-              by: item.quantity,
-              where: { product_id: item.product_id },
-              transaction,
-            })
-          )
+          order.order_items.map(async (item) => {
+            if (!item.combination_id) return true;
+            const combination = await sequelize.models.VariantCombination.findByPk(item.combination_id, { transaction });
+            if (!combination) return true;
+
+            const prev = combination.stock;
+            const next = prev + item.quantity;
+
+            await sequelize.models.VariantCombination.update(
+              { stock: next },
+              { where: { id: combination.id }, transaction }
+            );
+
+            const inventory = await Inventory.findOne({ where: { product_id: item.product_id }, transaction });
+            if (inventory) {
+              await InventoryHistory.create({
+                inventory_id: inventory.id,
+                combination_id: combination.id,
+                change_amount: item.quantity,
+                change_type: 'return',
+                previous_stock: prev,
+                new_stock: next,
+                note: `Order #${order.id} cancelled: Stock restored`,
+                adjusted_by: userId,
+              }, { transaction });
+            }
+            return true;
+          })
         );
 
         // Send cancellation email
@@ -1522,32 +1541,33 @@ async function cancelOrder(req, res) {
       { transaction }
     );
 
-    // Restore inventory for cancelled orders with history tracking
+    // Restore VariantCombination stock for cancelled orders with history tracking
     await Promise.all(
       order.order_items.map(async (item) => {
-        const inventory = await Inventory.findOne({
-          where: { product_id: item.product_id },
-          transaction,
-        });
+        if (!item.combination_id) return true;
+        const combination = await sequelize.models.VariantCombination.findByPk(item.combination_id, { transaction });
+        if (!combination) return true;
 
+        const prev = combination.stock;
+        const next = prev + item.quantity;
+
+        // Restore combination stock
+        await sequelize.models.VariantCombination.update(
+          { stock: next },
+          { where: { id: combination.id }, transaction }
+        );
+
+        const inventory = await Inventory.findOne({ where: { product_id: item.product_id }, transaction });
         if (inventory) {
-          const previousStock = inventory.stock;
-          const newStock = previousStock + item.quantity;
-
-          // Restore inventory
-          await Inventory.increment("stock", {
-            by: item.quantity,
-            where: { product_id: item.product_id },
-            transaction,
-          });
-
           // Record inventory history for restoration
           await sequelize.models.InventoryHistory.create(
             {
               inventory_id: inventory.id,
-              adjustment: item.quantity, // Positive for stock in
-              previous_stock: previousStock,
-              new_stock: newStock,
+              combination_id: combination.id,
+              change_amount: item.quantity, // Positive for stock in
+              change_type: 'return',
+              previous_stock: prev,
+              new_stock: next,
               note: `Order #${order.id} cancelled: Stock restored`,
               adjusted_by: req.user.id,
             },

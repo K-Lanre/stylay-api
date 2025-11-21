@@ -40,6 +40,13 @@ const storage = {
       visibility: 'public',
     },
 
+    'journal-images': {
+      driver: 'local',
+      root: `public/Upload/journal-images`,
+      url: `/uploads/journal-images`,
+      visibility: 'public',
+    },
+
     s3: {
       driver: 's3',
       key: process.env.AWS_ACCESS_KEY_ID,

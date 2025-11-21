@@ -156,11 +156,12 @@ exports.addToCartValidation = [
 
           // Ensure sel.id is treated as a number
           const variantId = Number(sel.id);
+          console.log('Validating variant:', { id: sel.id, name: sel.name, value: sel.value, additional_price: sel.additional_price, variantId });
           if (isNaN(variantId)) {
             throw new Error('Invalid variant ID: must be a number');
           }
 
-          if (typeof sel.additional_price !== 'number' || sel.additional_price < 0) {
+          if (sel.additional_price !== undefined && (typeof sel.additional_price !== 'number' || sel.additional_price < 0)) {
             throw new Error('Invalid selected variant: additional_price must be a non-negative number');
           }
 
@@ -206,12 +207,12 @@ exports.updateCartItemValidation = [
       if (isNaN(numericValue) || numericValue <= 0) {
         throw new Error('Invalid cart item ID format');
       }
-      
+
       const cartItem = await CartItem.findByPk(numericValue);
       if (!cartItem) {
         throw new Error(`Cart item with ID ${numericValue} does not exist or has been removed`);
       }
-   
+
       // Check if user owns this cart item (if authenticated)
       if (req.user) {
         const cart = await Cart.findByPk(cartItem.cart_id);
@@ -225,7 +226,7 @@ exports.updateCartItemValidation = [
           throw new Error('Access denied to this cart item');
         }
       }
-   
+
       return true;
     }),
 
@@ -271,7 +272,7 @@ exports.removeFromCartValidation = [
       if (isNaN(numericValue) || numericValue <= 0) {
         throw new Error('Invalid cart item ID format');
       }
-      
+
       const cartItem = await CartItem.findByPk(numericValue);
       if (!cartItem) {
         throw new Error(`Cart item with ID ${numericValue} does not exist or has been removed`);
@@ -442,13 +443,8 @@ exports.syncCartValidation = [
         if (isNaN(numericProductId) || numericProductId <= 0) {
           throw new Error('Product ID must be a valid positive integer string');
         }
-        const product = await Product.findByPk(numericProductId);
-        if (!product) {
-          throw new Error('Product not found');
-        }
-        if (product.status !== 'active') {
-          throw new Error('Product is not available for purchase');
-        }
+        // Note: Product existence and status validation is handled in the controller
+        // to allow graceful handling of missing/inactive products during sync
 
         // Validate quantity
         if (!item.quantity || typeof item.quantity !== 'number' || item.quantity < 1 || item.quantity > 100) {
@@ -466,10 +462,8 @@ exports.syncCartValidation = [
             throw new Error('Selected variants must be an array');
           }
           if (item.selected_variants.length > 0) {
-            const productVariants = await ProductVariant.findAll({
-              where: { product_id: numericProductId }
-            });
-            const variantMap = new Map(productVariants.map(v => [Number(v.id), v]));
+            // For sync validation, we only check basic structure since product may not exist
+            // Full variant validation is done in the controller after product lookup
             const seenIds = new Set();
 
             for (const sel of item.selected_variants) {
@@ -482,17 +476,12 @@ exports.syncCartValidation = [
                 throw new Error('Invalid variant ID: must be a positive integer');
               }
 
-              if (typeof sel.additional_price !== 'number' || sel.additional_price < 0) {
+              if (sel.additional_price !== undefined && (typeof sel.additional_price !== 'number' || sel.additional_price < 0)) {
                 throw new Error('Invalid selected variant: additional_price must be a non-negative number');
               }
 
               if (seenIds.has(variantId)) throw new Error('Duplicate variant ID');
               seenIds.add(variantId);
-
-              const variant = variantMap.get(variantId);
-              if (!variant) {
-                throw new Error(`Variant ${variantId} not found for product`);
-              }
             }
           }
         }

@@ -77,12 +77,23 @@ module.exports = (sequelize, DataTypes) => {
       }
       
       const variantIds = variants.map(v => v.id);
-      
-      return await sequelize.models.ProductVariant.findAll({
+
+      // Fetch only fields that exist on ProductVariant. additional_price is no longer a DB column.
+      const dbVariants = await sequelize.models.ProductVariant.findAll({
         where: { id: variantIds },
-        attributes: ['id', 'name', 'value', 'additional_price'],
+        attributes: ['id', 'name', 'value'],
         raw: true
       });
+
+      // Merge additional_price from selected_variants payload (client-provided or derived)
+      const additionalPriceMap = new Map(
+        variants.map(v => [Number(v.id), parseFloat(v.additional_price) || 0])
+      );
+
+      return dbVariants.map(v => ({
+        ...v,
+        additional_price: additionalPriceMap.get(Number(v.id)) || 0
+      }));
     }
 
     // Instance method to get item details with product and variant info

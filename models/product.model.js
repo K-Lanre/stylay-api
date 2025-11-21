@@ -24,9 +24,6 @@ module.exports = (sequelize, DataTypes) => {
       Product.hasOne(models.Inventory, {
         foreignKey: 'product_id'
       });
-      Product.hasMany(models.Journal, {
-        foreignKey: 'product_id'
-      });
       Product.hasMany(models.OrderItem, {
         foreignKey: 'product_id'
       });

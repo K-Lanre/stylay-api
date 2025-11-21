@@ -345,19 +345,6 @@ const getLatestJournal = catchAsync(async (req, res, next) => {
   const { limit: limitNum, offset } = paginate(page, limit);
 
   const { count, rows: journals } = await db.Journal.findAndCountAll({
-    include: [
-      {
-        model: db.Product,
-        as: "product",
-        attributes: ["id", "name", "slug", "thumbnail"],
-        include: [
-          {
-            model: db.Category,
-            attributes: ["name"],
-          },
-        ],
-      },
-    ],
     order: [["updated_at", "DESC"]],
     limit: limitNum,
     offset,
@@ -369,6 +356,7 @@ const getLatestJournal = catchAsync(async (req, res, next) => {
     ...response,
   });
 });
+
 
 /**
  * Retrieves comprehensive dashboard metrics for an approved vendor.
@@ -1065,80 +1053,89 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
   // STEP 1: Aggregate sales per vendor (NO includes = no grouping nightmare)
   const vendorSales = await db.OrderItem.findAll({
     attributes: [
-      'vendor_id',
-      [fn('SUM', col('sub_total')), 'total_sales'],
-      [fn('SUM', col('quantity')), 'total_units_sold'],
-      [fn('COUNT', fn('DISTINCT', col('order_id'))), 'total_orders']
+      "vendor_id",
+      [fn("SUM", col("sub_total")), "total_sales"],
+      [fn("SUM", col("quantity")), "total_units_sold"],
+      [fn("COUNT", fn("DISTINCT", col("order_id"))), "total_orders"],
     ],
     include: [
       {
         model: db.Order,
-        as: 'order',
+        as: "order",
         attributes: [],
         where: {
-          payment_status: 'paid',
-          order_status: { [Op.in]: ['shipped', 'delivered', 'completed'] }
-        }
-      }
+          payment_status: "paid",
+          order_status: { [Op.in]: ["shipped", "delivered", "completed"] },
+        },
+      },
     ],
     where: {
-      vendor_id: { [Op.not]: null }
+      vendor_id: { [Op.not]: null },
     },
-    group: ['vendor_id'],
-    order: [[literal('total_sales'), 'DESC']],
+    group: ["vendor_id"],
+    order: [[literal("total_sales"), "DESC"]],
     limit: limitNum,
-    raw: true
+    raw: true,
   });
 
   if (vendorSales.length === 0) {
     return res.status(200).json({
-      status: 'success',
+      status: "success",
       data: [],
-      message: 'No vendor sales data available yet.'
+      message: "No vendor sales data available yet.",
     });
   }
 
-  const vendorIds = vendorSales.map(v => v.vendor_id);
+  const vendorIds = vendorSales.map((v) => v.vendor_id);
 
   // STEP 2: Fetch full vendor details separately
   const vendors = await db.Vendor.findAll({
     where: { id: { [Op.in]: vendorIds } },
-    attributes: ['id', 'total_sales', 'total_earnings', 'status'],
+    attributes: ["id", "total_sales", "total_earnings", "status"],
     include: [
       {
         model: db.User,
-        attributes: ['first_name', 'last_name', 'email']
+        attributes: ["first_name", "last_name", "email"],
       },
       {
         model: db.Store,
-        as: 'store',
-        attributes: ['business_name', 'logo', 'slug', 'is_verified']
-      }
+        as: "store",
+        attributes: ["business_name", "logo", "slug", "is_verified"],
+      },
     ],
-    order: [[literal(`FIELD(Vendor.id, ${vendorIds.join(',')})`)]], // Preserve sales order
-    raw: false
+    order: [[literal(`FIELD(Vendor.id, ${vendorIds.join(",")})`)]], // Preserve sales order
+    raw: false,
   });
 
   // STEP 3: Combine + format beautifully
-  const salesMap = new Map(vendorSales.map(v => [
-    v.vendor_id,
-    {
-      total_sales: parseFloat(v.total_sales || 0),
-      total_units_sold: parseInt(v.total_units_sold || 0),
-      total_orders: parseInt(v.total_orders || 0)
-    }
-  ]));
+  const salesMap = new Map(
+    vendorSales.map((v) => [
+      v.vendor_id,
+      {
+        total_sales: parseFloat(v.total_sales || 0),
+        total_units_sold: parseInt(v.total_units_sold || 0),
+        total_orders: parseInt(v.total_orders || 0),
+      },
+    ])
+  );
 
-  const result = vendors.map(vendor => {
-    const sales = salesMap.get(vendor.id) || { total_sales: 0, total_units_sold: 0, total_orders: 0 };
+  const result = vendors.map((vendor) => {
+    const sales = salesMap.get(vendor.id) || {
+      total_sales: 0,
+      total_units_sold: 0,
+      total_orders: 0,
+    };
     const user = vendor.User;
     const store = vendor.store;
 
     return {
       id: vendor.id,
-      name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown Vendor' : 'Unknown Vendor',
+      name: user
+        ? `${user.first_name || ""} ${user.last_name || ""}`.trim() ||
+          "Unknown Vendor"
+        : "Unknown Vendor",
       email: user?.email || null,
-      business_name: store?.business_name || 'No Store Name',
+      business_name: store?.business_name || "No Store Name",
       store_slug: store?.slug || null,
       logo: store?.logo || null,
       is_verified: store?.is_verified || false,
@@ -1147,21 +1144,22 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
         total_sales: sales.total_sales,
         total_units_sold: sales.total_units_sold,
         total_orders: sales.total_orders,
-        avg_order_value: sales.total_orders > 0 
-          ? parseFloat((sales.total_sales / sales.total_orders).toFixed(2))
-          : 0
-      }
+        avg_order_value:
+          sales.total_orders > 0
+            ? parseFloat((sales.total_sales / sales.total_orders).toFixed(2))
+            : 0,
+      },
     };
   });
 
   res.status(200).json({
-    status: 'success',
+    status: "success",
     data: result,
     summary: {
-      period: 'all_time',
+      period: "all_time",
       total_vendors_returned: result.length,
-      top_performer: result[0]?.business_name || null
-    }
+      top_performer: result[0]?.business_name || null,
+    },
   });
 });
 
@@ -1502,13 +1500,7 @@ const getRecentOrders = catchAsync(async (req, res, next) => {
       {
         model: db.OrderItem,
         as: "items",
-        attributes: [
-          "id",
-          "product_id",
-          "quantity",
-          "price",
-          "sub_total",
-        ],
+        attributes: ["id", "product_id", "quantity", "price", "sub_total"],
         include: [
           {
             model: db.Product,
@@ -1554,7 +1546,12 @@ const getRecentOrders = catchAsync(async (req, res, next) => {
     };
   });
 
-  const response = createPaginationResponse(formattedOrders, page, limit, count);
+  const response = createPaginationResponse(
+    formattedOrders,
+    page,
+    limit,
+    count
+  );
   res.status(200).json({
     status: "success",
     ...response,
@@ -1859,7 +1856,13 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
   }
 
   // Calculate overall metrics
-  const [totalSales, totalPayouts, productTagsCount, totalProducts, totalViews] = await Promise.all([
+  const [
+    totalSales,
+    totalPayouts,
+    productTagsCount,
+    totalProducts,
+    totalViews,
+  ] = await Promise.all([
     // Total sales from completed orders
     db.OrderItem.sum("sub_total", {
       where: { vendor_id: vendorID },
@@ -1876,7 +1879,7 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     db.Payout.count({
       where: {
         vendor_id: vendorID,
-        status: "paid"
+        status: "paid",
       },
     }),
 
@@ -1897,12 +1900,13 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
   ]);
 
   // Calculate conversion rates
-  const earningsConversion = totalViews > 0 ? (totalSales / totalViews).toFixed(2) : "0.00";
+  const earningsConversion =
+    totalViews > 0 ? (totalSales / totalViews).toFixed(2) : "0.00";
   const salesConversion = earningsConversion; // Same as earnings for this context
 
   // Get monthly ratings for vendor's products - DEBUG: Add logging to identify ambiguous column issue
   console.log(`[DEBUG] Getting monthly ratings for vendor ID: ${vendorID}`);
-  
+
   const monthlyRatings = await db.Review.findAll({
     attributes: [
       [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "month"],
@@ -1918,75 +1922,97 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
       },
     ],
     where: {
-      '$Product.vendor_id$': vendorID,
+      "$Product.vendor_id$": vendorID,
     },
     group: [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')")],
     order: [[literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "ASC"]],
     raw: true,
-  }).catch(error => {
+  }).catch((error) => {
     console.error("[DEBUG] Error in monthly ratings query:", error.message);
     console.error("[DEBUG] Full error:", error);
     throw error;
   });
-  
+
   console.log("[DEBUG] Monthly ratings query successful");
 
   // Format monthly ratings
-  const formattedMonthlyRatings = monthlyRatings.map(rating => ({
+  const formattedMonthlyRatings = monthlyRatings.map((rating) => ({
     month: rating.month,
     average_rating: parseFloat(rating.average_rating).toFixed(1),
     total_reviews: parseInt(rating.total_reviews),
   }));
 
   // Get products breakdown with pagination
-  const { count: totalPaginatedProducts, rows: vendorProducts } = await db.Product.findAndCountAll({
-    where: { vendor_id: vendorID },
-    attributes: [
-      "id", "name", "sold_units", "impressions", "updated_at",
-      [literal("COALESCE(AVG(`reviews`.`rating`), 0)"), "average_rating"],
-    ],
-    include: [
-      {
-        model: db.Review,
-        as: "reviews",
-        attributes: [],
-        required: false,
-      },
-      {
-        model: db.Inventory,
-        attributes: ["id", "stock"],
-        required: false,
-      },
-      {
-        model: db.Supply,
-        attributes: ["id"],
-        required: false,
-      },
-    ],
-    group: ["Product.id", "Inventory.id", "Inventory.stock"],
-    subQuery: false,
-    raw: false,
-    limit: limitNum,
-    offset: offset,
-  }).catch(error => {
-    console.error("[DEBUG] Error in products breakdown query:", error.message);
-    throw error;
+  const { count: totalPaginatedProducts, rows: vendorProducts } =
+    await db.Product.findAndCountAll({
+      where: { vendor_id: vendorID },
+      attributes: [
+        "id",
+        "name",
+        "sold_units",
+        "impressions",
+        "updated_at",
+        [literal("COALESCE(AVG(`reviews`.`rating`), 0)"), "average_rating"],
+      ],
+      include: [
+        {
+          model: db.Review,
+          as: "reviews",
+          attributes: [],
+          required: false,
+        },
+        {
+          model: db.Supply,
+          attributes: ["id"],
+          required: false,
+        },
+      ],
+      group: ["Product.id"],
+      subQuery: false,
+      raw: false,
+      limit: limitNum,
+      offset: offset,
+    }).catch((error) => {
+      console.error(
+        "[DEBUG] Error in products breakdown query:",
+        error.message
+      );
+      throw error;
+    });
+
+  // Get stock data separately for each product
+  var productIds = vendorProducts.map((p) => p.id);
+  const stockData = await Promise.all(
+    productIds.map(async (productId) => {
+      const totalStock =
+        (await db.VariantCombination.sum("stock", {
+          where: { product_id: productId },
+        })) || 0;
+      return { product_id: productId, total_stock: totalStock };
+    })
+  );
+
+  // Create stock map
+  const stockMap = new Map();
+  stockData.forEach((item) => {
+    stockMap.set(item.product_id, item.total_stock);
   });
 
   // Get sales data for each product
-  const productIds = vendorProducts.map(p => p.id);
+  productIds = vendorProducts.map((p) => p.id);
   const productSales = await Promise.all(
     productIds.map(async (productId) => {
-      const sales = await db.OrderItem.sum("sub_total", {
-        where: { product_id: productId },
-        include: [
-          {
-            model: db.Order,
-            as: "order",
-            where: { payment_status: "paid" },
-          },
-        ],
-      }) || 0;
+      const sales =
+        (await db.OrderItem.sum("sub_total", {
+          where: { product_id: productId },
+          include: [
+            {
+              model: db.Order,
+              as: "order",
+              where: { payment_status: "paid" },
+            },
+          ],
+        })) || 0;
 
       const supplyCount = await db.Supply.count({
         where: { product_id: productId },
@@ -2003,21 +2029,23 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
   // Create sales and supply maps
   const salesMap = new Map();
   const supplyMap = new Map();
-  productSales.forEach(item => {
+  productSales.forEach((item) => {
     salesMap.set(item.product_id, item.total_sales);
     supplyMap.set(item.product_id, item.supplied_count);
   });
 
   // Format products breakdown
-  const productsBreakdown = vendorProducts.map(product => ({
+  const productsBreakdown = vendorProducts.map((product) => ({
     product_id: product.id,
     product_name: product.name,
     units_sold: product.sold_units || 0,
     supplied_count: supplyMap.get(product.id) || 0,
-    stock_status: product.Inventory ? product.Inventory.stock : 0,
+    stock_status: stockMap.get(product.id) || 0,
     total_sales: salesMap.get(product.id) || "0.00",
     views: product.impressions || 0,
-    average_rating: product.average_rating ? parseFloat(product.average_rating).toFixed(1) : 0,
+    average_rating: product.average_rating
+      ? parseFloat(product.average_rating).toFixed(1)
+      : 0,
     last_updated: product.updated_at,
   }));
 
@@ -2026,7 +2054,9 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     vendor_info: {
       id: vendor.id,
       name: vendor.User
-        ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() || "Unknown Vendor"
+        ? `${vendor.User.first_name || ""} ${
+            vendor.User.last_name || ""
+          }`.trim() || "Unknown Vendor"
         : "Unknown Vendor",
       business_name: vendor.store?.business_name || "Unknown Business",
       email: vendor.User?.email || "No Email",
@@ -2161,19 +2191,26 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     minProductTags,
     maxProductTags,
     sortBy = "approved_at",
-    sortOrder = "DESC"
+    sortOrder = "DESC",
   } = req.query;
 
   const { limit: limitNum, offset } = paginate(page, limit);
 
   // Validate and build filter parameters
   const validStatuses = ["approved", "pending", "rejected", "suspended"];
-  const validSortFields = ["approved_at", "vendor_name", "business_name", "total_earnings", "product_tags_count", "created_at"];
+  const validSortFields = [
+    "approved_at",
+    "vendor_name",
+    "business_name",
+    "total_earnings",
+    "product_tags_count",
+    "created_at",
+  ];
   const validSortOrders = ["ASC", "DESC"];
 
   // Build where clause for vendor filters
   const vendorWhereClause = {};
-  
+
   // Status filter
   if (status && validStatuses.includes(status)) {
     vendorWhereClause.status = status;
@@ -2186,20 +2223,28 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
   if (dateFrom) {
     const fromDate = new Date(dateFrom);
     if (!isNaN(fromDate.getTime())) {
-      vendorWhereClause.approved_at = { ...vendorWhereClause.approved_at, [Op.gte]: fromDate };
+      vendorWhereClause.approved_at = {
+        ...vendorWhereClause.approved_at,
+        [Op.gte]: fromDate,
+      };
     }
   }
-  
+
   if (dateTo) {
     const toDate = new Date(dateTo);
     if (!isNaN(toDate.getTime())) {
-      vendorWhereClause.approved_at = { ...vendorWhereClause.approved_at, [Op.lt]: toDate };
+      vendorWhereClause.approved_at = {
+        ...vendorWhereClause.approved_at,
+        [Op.lt]: toDate,
+      };
     }
   }
 
   // Validate sort parameters
   const finalSortBy = validSortFields.includes(sortBy) ? sortBy : "approved_at";
-  const finalSortOrder = validSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : "DESC";
+  const finalSortOrder = validSortOrders.includes(sortOrder.toUpperCase())
+    ? sortOrder.toUpperCase()
+    : "DESC";
 
   // Build search filter for User and Store
   let searchFilter = null;
@@ -2210,8 +2255,8 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
         { "$User.first_name$": { [Op.like]: `%${searchTerm}%` } },
         { "$User.last_name$": { [Op.like]: `%${searchTerm}%` } },
         { "$User.email$": { [Op.like]: `%${searchTerm}%` } },
-        { "$store.business_name$": { [Op.like]: `%${searchTerm}%` } }
-      ]
+        { "$store.business_name$": { [Op.like]: `%${searchTerm}%` } },
+      ],
     };
   }
 
@@ -2238,9 +2283,16 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     ],
     where: {
       ...vendorWhereClause,
-      ...searchFilter
+      ...searchFilter,
     },
-    order: [[finalSortBy === "vendor_name" ? literal("CONCAT(User.first_name, ' ', User.last_name)") : finalSortBy, finalSortOrder]],
+    order: [
+      [
+        finalSortBy === "vendor_name"
+          ? literal("CONCAT(User.first_name, ' ', User.last_name)")
+          : finalSortBy,
+        finalSortOrder,
+      ],
+    ],
     limit: limitNum,
     offset,
     subQuery: false, // Disable subquery for better performance with joins
@@ -2262,10 +2314,10 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
           minProductTags,
           maxProductTags,
           sortBy: finalSortBy,
-          sortOrder: finalSortOrder
+          sortOrder: finalSortOrder,
         }),
-        totalFiltered: 0
-      }
+        totalFiltered: 0,
+      },
     });
   }
 
@@ -2319,8 +2371,9 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
   let vendorStats = vendors.map((vendor) => ({
     vendor_id: vendor.id,
     vendor_name: vendor.User
-      ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() ||
-        "Unknown Vendor"
+      ? `${vendor.User.first_name || ""} ${
+          vendor.User.last_name || ""
+        }`.trim() || "Unknown Vendor"
       : "Unknown Vendor",
     business_name: vendor.store?.business_name || "Unknown Business",
     email: vendor.User?.email || "No Email",
@@ -2335,22 +2388,30 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
   // Apply client-side filters for earnings and product tags counts
   if (minEarnings !== undefined) {
     const minEarn = parseFloat(minEarnings) || 0;
-    vendorStats = vendorStats.filter(vendor => parseFloat(vendor.total_earnings) >= minEarn);
+    vendorStats = vendorStats.filter(
+      (vendor) => parseFloat(vendor.total_earnings) >= minEarn
+    );
   }
 
   if (maxEarnings !== undefined) {
     const maxEarn = parseFloat(maxEarnings) || Number.MAX_SAFE_INTEGER;
-    vendorStats = vendorStats.filter(vendor => parseFloat(vendor.total_earnings) <= maxEarn);
+    vendorStats = vendorStats.filter(
+      (vendor) => parseFloat(vendor.total_earnings) <= maxEarn
+    );
   }
 
   if (minProductTags !== undefined) {
     const minTags = parseInt(minProductTags) || 0;
-    vendorStats = vendorStats.filter(vendor => vendor.product_tags_count >= minTags);
+    vendorStats = vendorStats.filter(
+      (vendor) => vendor.product_tags_count >= minTags
+    );
   }
 
   if (maxProductTags !== undefined) {
     const maxTags = parseInt(maxProductTags) || Number.MAX_SAFE_INTEGER;
-    vendorStats = vendorStats.filter(vendor => vendor.product_tags_count <= maxTags);
+    vendorStats = vendorStats.filter(
+      (vendor) => vendor.product_tags_count <= maxTags
+    );
   }
 
   // Calculate filtered count for pagination metadata
@@ -2358,7 +2419,12 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
 
   // If we have client-side filters applied, we need to recalculate total count
   let finalCount = totalCount;
-  if (minEarnings !== undefined || maxEarnings !== undefined || minProductTags !== undefined || maxProductTags !== undefined) {
+  if (
+    minEarnings !== undefined ||
+    maxEarnings !== undefined ||
+    minProductTags !== undefined ||
+    maxProductTags !== undefined
+  ) {
     // Get count with database filters only (not client-side filters)
     const { count: dbFilteredCount } = await db.Vendor.findAndCountAll({
       attributes: ["id"],
@@ -2375,14 +2441,19 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
       ],
       where: {
         ...vendorWhereClause,
-        ...searchFilter
+        ...searchFilter,
       },
       subQuery: false,
     });
     finalCount = dbFilteredCount;
   }
 
-  const response = createPaginationResponse(vendorStats, page, limit, finalCount);
+  const response = createPaginationResponse(
+    vendorStats,
+    page,
+    limit,
+    finalCount
+  );
   res.status(200).json({
     status: "success",
     ...response,
@@ -2397,10 +2468,10 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
         minProductTags: minProductTags ? parseInt(minProductTags) : undefined,
         maxProductTags: maxProductTags ? parseInt(maxProductTags) : undefined,
         sortBy: finalSortBy,
-        sortOrder: finalSortOrder
+        sortOrder: finalSortOrder,
       }),
-      totalFiltered: filteredCount
-    }
+      totalFiltered: filteredCount,
+    },
   });
 });
 
@@ -2519,9 +2590,10 @@ const getProductOverview = catchAsync(async (req, res, next) => {
       ],
     },
     {
-      model: db.Inventory,
+      model: db.VariantCombination,
+      as: "combinations",
       attributes: ["id", "stock"],
-      required: false, // Left join to handle products without inventory
+      required: false, // Left join to handle products without variants
     },
     {
       model: db.Vendor,
@@ -2585,9 +2657,13 @@ const getProductOverview = catchAsync(async (req, res, next) => {
   // Calculate availability status based on product status and stock
   let availabilityStatus = "unavailable";
   if (product.status === "active") {
-    if (product.Inventory && product.Inventory.stock > 0) {
-      availabilityStatus =
-        product.Inventory.stock > 10 ? "available" : "low_stock";
+    // Get total stock from variant combinations
+    const totalStock = product.combinations
+      ? product.combinations.reduce((sum, combo) => sum + (combo.stock || 0), 0)
+      : 0;
+
+    if (totalStock > 0) {
+      availabilityStatus = totalStock > 10 ? "available" : "low_stock";
     } else {
       availabilityStatus = "out_of_stock";
     }
@@ -2613,7 +2689,9 @@ const getProductOverview = catchAsync(async (req, res, next) => {
         }
       : null,
     images: product.images || [],
-    stock_status: product.Inventory ? product.Inventory.stock : 0,
+    stock_status: product.combinations
+      ? product.combinations.reduce((sum, combo) => sum + (combo.stock || 0), 0)
+      : 0,
     availability_status: availabilityStatus,
     views: product.impressions || 0,
     items_sold: product.sold_units || 0,
@@ -2637,7 +2715,6 @@ const getProductOverview = catchAsync(async (req, res, next) => {
     data: productOverview,
   });
 });
-
 
 /**
  * Retrieves paginated list of products added by administrators with comprehensive filtering.
@@ -2775,7 +2852,7 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
 
   // Build optimized where clause for product filters
   const whereClause = {};
-  
+
   // Enhanced Category filter - support ID, slug, or name search
   let categoryFilter = null;
   if (category) {
@@ -2788,12 +2865,12 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
       categoryFilter = {
         [Op.or]: [
           { name: { [Op.like]: `%${searchTerm}%` } },
-          { slug: { [Op.like]: `%${searchTerm}%` } }
-        ]
+          { slug: { [Op.like]: `%${searchTerm}%` } },
+        ],
       };
     }
   }
-  
+
   // Enhanced Vendor filter - support ID or business name search
   let vendorFilter = null;
   if (vendor) {
@@ -2804,7 +2881,7 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
       // Name search - will be handled via subquery (MariaDB compatible)
       const vendorSearchTerm = vendor.toLowerCase();
       vendorFilter = {
-        [Op.like]: `%${vendorSearchTerm}%`
+        [Op.like]: `%${vendorSearchTerm}%`,
       };
     }
   }
@@ -2842,7 +2919,10 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
       attributes: ["id", "image_url", "is_featured"],
       required: false,
       separate: true, // Use separate query for images to improve performance
-      order: [["is_featured", "DESC"], ["id", "ASC"]],
+      order: [
+        ["is_featured", "DESC"],
+        ["id", "ASC"],
+      ],
     },
     {
       model: db.Inventory,
@@ -2912,8 +2992,9 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
     const variantsMap = new Map();
     if (product.variants && product.variants.length > 0) {
       product.variants.reduce((map, variant) => {
-        const variantTypeName = variant.variantType?.name || variant.name || "Unknown";
-        
+        const variantTypeName =
+          variant.variantType?.name || variant.name || "Unknown";
+
         if (!map.has(variantTypeName)) {
           map.set(variantTypeName, {
             name: variantTypeName,
@@ -2922,7 +3003,7 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
         }
 
         const variantGroup = map.get(variantTypeName);
-        
+
         // Optimized variant value extraction
         let variantValue = "Default";
         if (variant.value) {
@@ -2930,32 +3011,38 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
         } else if (variant.combinations && variant.combinations.length > 0) {
           variantValue = variant.combinations[0]?.combination_name || "Default";
         }
-        
+
         variantGroup.values.push({
           value: variantValue,
           price_modifier: parseFloat(variant.additional_price) || 0,
         });
-        
+
         return map;
       }, variantsMap);
     }
 
     // Format vendor info efficiently
     const vendor = product.vendor;
-    const vendorInfo = vendor ? {
-      id: vendor.id,
-      name: vendor.User
-        ? `${vendor.User.first_name || ""} ${vendor.User.last_name || ""}`.trim() || "Unknown Vendor"
-        : "Unknown Vendor",
-      business_name: vendor.store?.business_name || "Unknown Business",
-    } : null;
+    const vendorInfo = vendor
+      ? {
+          id: vendor.id,
+          name: vendor.User
+            ? `${vendor.User.first_name || ""} ${
+                vendor.User.last_name || ""
+              }`.trim() || "Unknown Vendor"
+            : "Unknown Vendor",
+          business_name: vendor.store?.business_name || "Unknown Business",
+        }
+      : null;
 
     return {
       id: product.id,
       name: product.name,
       slug: product.slug,
       price: parseFloat(product.price),
-      discounted_price: product.discounted_price ? parseFloat(product.discounted_price) : null,
+      discounted_price: product.discounted_price
+        ? parseFloat(product.discounted_price)
+        : null,
       sku: product.sku,
       thumbnail: product.thumbnail,
       status: product.status,
@@ -2975,21 +3062,28 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
   let finalCount = count;
 
   if (status) {
-    const validStatuses = ["in_stock", "low_stock", "out_of_stock", "discontinued"];
+    const validStatuses = [
+      "in_stock",
+      "low_stock",
+      "out_of_stock",
+      "discontinued",
+    ];
     if (validStatuses.includes(status)) {
       // For in_stock/low_stock/out_of_stock, we can filter efficiently
       if (["in_stock", "low_stock", "out_of_stock"].includes(status)) {
-        finalProducts = processedProducts.filter(product => {
+        finalProducts = processedProducts.filter((product) => {
           if (status === "in_stock") return product.stock_status === "in_stock";
-          if (status === "low_stock") return product.stock_status === "low_stock";
-          if (status === "out_of_stock") return product.stock_status === "out_of_stock";
+          if (status === "low_stock")
+            return product.stock_status === "low_stock";
+          if (status === "out_of_stock")
+            return product.stock_status === "out_of_stock";
           return true;
         });
         finalCount = finalProducts.length;
       } else {
         // For "discontinued", we'd need to check product status in database
-        finalProducts = processedProducts.filter(product =>
-          product.status === "discontinued"
+        finalProducts = processedProducts.filter(
+          (product) => product.status === "discontinued"
         );
         finalCount = finalProducts.length;
       }
@@ -2997,7 +3091,12 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
   }
 
   // Create pagination response with accurate count
-  const response = createPaginationResponse(finalProducts, page, limit, finalCount);
+  const response = createPaginationResponse(
+    finalProducts,
+    page,
+    limit,
+    finalCount
+  );
   res.status(200).json({
     status: "success",
     ...response,

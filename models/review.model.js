@@ -6,10 +6,12 @@ module.exports = (sequelize, DataTypes) => {
   class Review extends Model {
     static associate(models) {
       Review.belongsTo(models.Product, {
-        foreignKey: 'product_id'
+        foreignKey: 'product_id',
+        as: "product"
       });
       Review.belongsTo(models.User, {
-        foreignKey: 'user_id'
+        foreignKey: 'user_id',
+        as: "user"
       });
     }
   }

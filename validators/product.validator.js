@@ -81,57 +81,49 @@ exports.createProductValidation = [
   // Variants validation
   body('variants')
     .optional()
-    .isArray().withMessage('Variants must be an array')
-    .custom(async (variants) => {
-      if (!Array.isArray(variants)) return true;
-      
+    .custom(async (value) => {
+      let variants = value;
+      if (typeof value === 'string') {
+        try {
+          variants = JSON.parse(value);
+        } catch (e) {
+          throw new Error('Variants must be a valid JSON array');
+        }
+      }
+      if (!Array.isArray(variants)) {
+        throw new Error('Variants must be an array');
+      }
+
       // Validate variant structure based on ProductVariant model
       const validVariantTypes = ['Size', 'Color', 'Material', 'Style'];
-      
+
       for (const [index, variant] of variants.entries()) {
-        const { name, value, additional_price, stock } = variant;
-        
+        const { type: name, value, additional_price, stock } = variant;
+
         // Check required fields
         if (!name || typeof name !== 'string' || !name.trim()) {
           throw new Error(`Variant at index ${index}: Name is required`);
         }
-        
+
         if (name.length > 100) {
           throw new Error(`Variant at index ${index}: Name cannot exceed 100 characters`);
         }
-        
+
         if (!validVariantTypes.includes(name)) {
           throw new Error(`Variant at index ${index}: Name must be one of: ${validVariantTypes.join(', ')}`);
         }
-        
+
         if (!value || typeof value !== 'string' || !value.trim()) {
           throw new Error(`Variant at index ${index}: Value is required`);
         }
-        
+
         if (value.length > 100) {
           throw new Error(`Variant at index ${index}: Value cannot exceed 100 characters`);
         }
-        
-        // Validate additional_price if provided
-        if (additional_price !== undefined) {
-          const price = parseFloat(additional_price);
-          if (isNaN(price) || !Number.isFinite(price)) {
-            throw new Error(`Variant at index ${index}: Additional price must be a valid number`);
-          }
-          if (price < -1000000 || price > 1000000) {
-            throw new Error(`Variant at index ${index}: Additional price must be between -1,000,000 and 1,000,000`);
-          }
-        }
-        
-        // Validate stock if provided
-        if (stock !== undefined) {
-          const stockNum = Number(stock);
-          if (!Number.isInteger(stockNum) || stockNum < 0 || stockNum > 1000000) {
-            throw new Error(`Variant at index ${index}: Stock must be an integer between 0 and 1,000,000`);
-          }
-        }
+
+        // Note: additional_price and stock are managed at VariantCombination level, not individual variants
       }
-      
+
       return true;
     }),
     

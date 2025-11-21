@@ -21,6 +21,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'variant_id',
         as: 'variant'
       });
+      OrderItem.belongsTo(models.VariantCombination, {
+        foreignKey: 'combination_id',
+        as: 'combination'
+      });
     }
 
     // Instance method to calculate total price for this item including variant prices
@@ -216,6 +220,16 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSON,
       allowNull: true,
       comment: 'Array of selected variant objects with id, name, value, and additional_price'
+    },
+    combination_id: {
+      type: DataTypes.BIGINT({ unsigned: true }),
+      allowNull: true,
+      references: {
+        model: 'variant_combinations',
+        key: 'id'
+      },
+      onDelete: 'SET NULL',
+      comment: 'Reference to variant combination for complex variant selections'
     },
     // Timestamps are now handled automatically by Sequelize
   }, {

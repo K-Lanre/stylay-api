@@ -23,22 +23,20 @@ module.exports = (sequelize, DataTypes) => {
     },
     product_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false
+      allowNull: false,
+      unique: true // Product can only have one inventory record
     },
     supply_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: true
-    },
-    stock: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0
+      allowNull: true,
+      comment: 'Last supply event that affected this inventory record'
     },
     restocked_at: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      comment: 'Date of the last restock activity'
     },
-    // Timestamps are handled by Sequelize automatically
+    // The actual stock quantity is now managed by VariantCombination.stock
   }, {
     sequelize,
     modelName: 'Inventory',
@@ -46,10 +44,6 @@ module.exports = (sequelize, DataTypes) => {
     timestamps: true,
     underscored: true,
     indexes: [
-      {
-        unique: false,
-        fields: ['product_id']
-      },
       {
         unique: false,
         fields: ['supply_id']

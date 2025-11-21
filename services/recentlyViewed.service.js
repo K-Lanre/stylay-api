@@ -1,5 +1,5 @@
 const redis = require('../config/redis');
-const { UserProductView, Product, Category, Vendor, Store } = require('../models');
+const { UserProductView, Product, Category, Vendor, Store, ProductImage } = require('../models');
 const { Op } = require('sequelize');
 
 class RecentlyViewedService {
@@ -28,7 +28,7 @@ class RecentlyViewedService {
    */
   async trackView({ userId, productId, metadata = {} }) {
     const transaction = await UserProductView.sequelize.transaction();
-    
+
     try {
       // First, remove any existing view for this product by this user
       await UserProductView.destroy({
@@ -55,12 +55,12 @@ class RecentlyViewedService {
       if (redis.isConnected) {
         try {
           const redisKey = this.getRedisKey(userId);
-          await redis.lrem(redisKey, 0, productId.toString()); // Remove if exists
-          await redis.lpush(redisKey, productId.toString());
-          
+          await redis.lRem(redisKey, 0, productId.toString()); // Remove if exists
+          await redis.lPush(redisKey, productId.toString());
+
           // Trim list to max size
-          await redis.ltrim(redisKey, 0, this.maxViewsPerUser - 1);
-          
+          await redis.lTrim(redisKey, 0, this.maxViewsPerUser - 1);
+
           // Set expiration if not exists
           await redis.expire(redisKey, this.defaultRetentionDays * 24 * 60 * 60);
         } catch (redisError) {
@@ -70,7 +70,7 @@ class RecentlyViewedService {
       }
 
       await transaction.commit();
-      
+
       return {
         success: true,
         viewId: viewRecord.id,
@@ -91,19 +91,19 @@ class RecentlyViewedService {
    */
   async getRecentViews({ userId, limit = 10 }) {
     try {
+      const redisKey = this.getRedisKey(userId);
       let productIds = [];
-      
+
       // Try Redis first for fast access (only if Redis is connected)
       if (redis.isConnected) {
         try {
-          const redisKey = this.getRedisKey(userId);
-          productIds = await redis.lrange(redisKey, 0, limit - 1);
+          productIds = await redis.lRange(redisKey, 0, limit - 1);
         } catch (redisError) {
           console.warn('Redis error, falling back to database:', redisError.message);
           productIds = [];
         }
       }
-      
+
       // If Redis is empty or unavailable, fall back to database
       if (productIds.length === 0) {
         const dbViews = await UserProductView.findAll({
@@ -112,14 +112,14 @@ class RecentlyViewedService {
           order: [['viewed_at', 'DESC']],
           limit: this.maxViewsPerUser
         });
-        
+
         productIds = dbViews.map(view => view.product_id.toString());
-        
+
         // Rebuild Redis cache - only if Redis is connected
         if (productIds.length > 0 && redis.isConnected) {
           try {
             await redis.del(redisKey);
-            await redis.rpush(redisKey, ...productIds);
+            await redis.rPush(redisKey, ...productIds);
             await redis.expire(redisKey, this.defaultRetentionDays * 24 * 60 * 60);
           } catch (redisError) {
             console.warn('Redis cache rebuild failed:', redisError.message);
@@ -134,16 +134,15 @@ class RecentlyViewedService {
 
       // Convert string IDs to integers and fetch products
       const numericIds = productIds.map(id => parseInt(id)).filter(id => !isNaN(id));
-      
+
       if (numericIds.length === 0) {
         return [];
       }
 
       // Get products with proper associations
       const products = await Product.findAll({
-        where: { 
-          id: { [Op.in]: numericIds },
-          status: 'active' // Only return active products
+        where: {
+          id: { [Op.in]: numericIds }
         },
         attributes: [
           'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
@@ -151,13 +150,13 @@ class RecentlyViewedService {
           'impressions', 'sold_units', 'created_at', 'updated_at'
         ],
         include: [
-          { 
-            model: Category, 
-            attributes: ['id', 'name', 'slug'] 
+          {
+            model: Category,
+            attributes: ['id', 'name', 'slug']
           },
           {
             model: Vendor,
-            attributes: ['id', 'business_name', 'status'],
+            attributes: ['id', 'status'],
             as: 'vendor',
             include: [
               {
@@ -167,10 +166,10 @@ class RecentlyViewedService {
               }
             ]
           },
-          { 
-            model: require('../models/product-image.model'), 
-            limit: 1, 
-            as: 'images' 
+          {
+            model: ProductImage,
+            limit: 1,
+            as: 'images'
           }
         ]
       });
@@ -178,7 +177,7 @@ class RecentlyViewedService {
       // Sort products according to Redis order (most recent first)
       const productMap = new Map(products.map(p => [p.id, p]));
       const orderedProducts = [];
-      
+
       for (const id of numericIds) {
         if (productMap.has(id)) {
           orderedProducts.push(productMap.get(id));
@@ -187,15 +186,15 @@ class RecentlyViewedService {
 
       // Add viewed_at timestamps from database
       const viewTimestamps = await UserProductView.findAll({
-        where: { 
-          user_id: userId, 
-          product_id: { [Op.in]: numericIds } 
+        where: {
+          user_id: userId,
+          product_id: { [Op.in]: numericIds }
         },
         attributes: ['product_id', 'viewed_at']
       });
 
       const timestampMap = new Map(viewTimestamps.map(v => [v.product_id, v.viewed_at]));
-      
+
       return orderedProducts.map(product => {
         const viewedAt = timestampMap.get(product.id);
         return {
@@ -216,7 +215,7 @@ class RecentlyViewedService {
    */
   async clearRecentViews({ userId }) {
     const transaction = await UserProductView.sequelize.transaction();
-    
+
     try {
       // Delete from database
       const deletedCount = await UserProductView.destroy({
@@ -236,7 +235,7 @@ class RecentlyViewedService {
       }
 
       await transaction.commit();
-      
+
       return {
         success: true,
         deletedCount
@@ -261,7 +260,7 @@ class RecentlyViewedService {
           COUNT(*) as totalViews,
           COUNT(DISTINCT product_id) as uniqueProducts,
           MAX(viewed_at) as lastViewDate
-        FROM user_product_views 
+        FROM user_product_views
         WHERE user_id = :userId
       `, {
         replacements: { userId },
@@ -285,7 +284,7 @@ class RecentlyViewedService {
    */
   async anonymizeUserData(userId) {
     const transaction = await UserProductView.sequelize.transaction();
-    
+
     try {
       // Anonymize personal data while keeping aggregate analytics
       const anonymizedCount = await UserProductView.update({
@@ -311,7 +310,7 @@ class RecentlyViewedService {
       }
 
       await transaction.commit();
-      
+
       return {
         success: true,
         anonymizedCount: Array.isArray(anonymizedCount) ? anonymizedCount[0] : anonymizedCount
@@ -331,7 +330,7 @@ class RecentlyViewedService {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-      
+
       const deletedCount = await UserProductView.destroy({
         where: {
           viewed_at: {
@@ -385,7 +384,7 @@ class RecentlyViewedService {
         ORDER BY view_count DESC
         LIMIT :limit
       `, {
-        replacements: { 
+        replacements: {
           startDate: startDate.toISOString(),
           limit: parseInt(limit)
         },

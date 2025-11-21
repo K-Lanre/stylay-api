@@ -4,6 +4,7 @@ const { param, body, query } = require('express-validator');
 const productController = require('../../controllers/product.controller');
 const { protect, loadPermissions } = require('../../middlewares/auth');
 const { requirePermission } = require('../../middlewares/permissions');
+const uploadFiles = require('../../middlewares/fileUpload');
 const validate = require('../../middlewares/validation');
 const {
   updateProductValidation,
@@ -28,7 +29,14 @@ router.get('/all', requirePermission('products_read'), getProductsValidation, va
  * @route   POST /api/admin/products
  * @access  Private/Admin
  */
-router.post('/', requirePermission('products_create'), createProductValidation, validate, productController.createProduct);
+router.post(
+  '/',
+  requirePermission('products_create'),
+  uploadFiles('images', 10, 'product-images'), // Add file upload middleware
+  createProductValidation,
+  validate,
+  productController.createProduct
+);
 
 /**
  * @desc    Update any product (Admin)

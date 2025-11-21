@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
@@ -131,9 +131,9 @@ As we look to the future, street style continues to evolve, incorporating sustai
         category: "Fashion Culture",
         view_count: 2103,
         featured_images: JSON.stringify([
-          "https://picsum.photos/seed/street-style-evolution/300/300",
-          "https://picsum.photos/seed/urban-fashion/300/300",
-          "https://picsum.photos/seed/fashion-subcultures/300/300",
+          "street-style-evolution.jpg",
+          "urban-fashion.jpg",
+          "fashion-subcultures.jpg",
         ]),
         created_at: new Date(),
         updated_at: new Date(),

@@ -10,12 +10,16 @@ const {
   VariantCombination,
   sequelize,
   UserProductView,
+  ProductVariantCombination,
+  User,
 } = require("../models");
 const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
 const slugify = require("slugify");
 const VariantService = require("../services/variant.service");
+const ImageProcessor = require("../utils/imageProcessor");
 const recentlyViewedService = require("../services/recentlyViewed.service");
+const fs = require("fs");
 
 /**
  * Creates a new product for an approved vendor, with support for variants and images.
@@ -100,172 +104,259 @@ const createProduct = async (req, res, next) => {
       price,
       category_id,
       sku,
-      variants = [],
-      images = [],
+      variants: rawVariants = [],
       vendor_id: vendorId, // Optional vendor_id for admin
     } = req.body;
 
+    // Parse variants if it's a string
+    let variants = rawVariants;
+    if (typeof rawVariants === "string") {
+      try {
+        variants = JSON.parse(rawVariants);
+      } catch (e) {
+        throw new AppError("Variants must be a valid JSON array", 400);
+      }
+    }
+    // Initialize ImageProcessor for enhanced image handling
+    const imageProcessor = new ImageProcessor({
+      uploadPath: "product-images",
+      maxSize: 10 * 1024 * 1024, // 10MB
+      allowedTypes: ["image/jpeg", "image/png", "image/jpg", "image/webp"],
+    });
+
+    // Process images from multiple sources (multipart, base64, URLs)
+    const processedImages = await imageProcessor.processImages(req, {
+      fieldName: "images",
+      maxCount: 10,
+    });
+
+    console.log("=== PRODUCT CREATION DIAGNOSTIC ===");
+    console.log("Request body keys:", Object.keys(req.body));
+    console.log(
+      "Images from req.uploadedFiles:",
+      processedImages.length,
+      "files"
+    );
+    console.log(
+      "Images details:",
+      processedImages.map((img) => ({
+        fieldname: img.fieldname,
+        filename: img.filename,
+        url: img.url,
+      }))
+    );
+    console.log("Raw req.body.images:", req.body.images);
+    console.log("req.files present:", !!req.files);
+    console.log("req.files keys:", req.files ? Object.keys(req.files) : "N/A");
+    console.log("Content-Type:", req.get("Content-Type"));
+    console.log("=====================================");
+
     let vendor;
-
-    // If vendor_id is provided in request (admin case)
-    if (vendorId) {
-      // Check if user is admin
-      if (req.user.role !== "admin") {
-        return next(
-          new AppError("Only admins can create products for other vendors", 403)
-        );
-      }
-
-      vendor = await Vendor.findByPk(vendorId);
-    } else {
-      // Regular vendor creating their own product
-      vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-
-      if (!vendor) {
-        return next(new AppError("Vendor account not found", 404));
-      }
-    }
-
-    // Check if vendor is approved
-    if (vendor.status !== "approved") {
-      return next(
-        new AppError("Only approved vendors can create products", 403)
-      );
-    }
-
-    // Check if category exists
-    const category = await Category.findByPk(category_id);
-    if (!category) {
-      return next(new AppError("Category not found", 404));
-    }
-
-    // Generate unique slug from product name
-    let slug = slugify(name, {
-      lower: true,
-      strict: true,
-      remove: /[*+~.()'"!:@]/g,
-    });
-
-    // Check if slug already exists and make it unique if needed
-    const slugCount = await Product.count({
-      where: { slug: { [Op.like]: `${slug}%` } },
-    });
-    if (slugCount > 0) {
-      const randomString = Math.random().toString(36).substring(2, 8);
-      slug = `${slug}-${randomString}`;
-    }
-
-    // Create the product with the vendor's ID (not user ID)
-    const product = await Product.create({
-      vendor_id: vendor.id, // Use the vendor's ID from the vendors table
-      category_id,
-      name,
-      slug,
-      description,
-      price,
-      sku,
-      status: "active",
-      impressions: 0,
-      sold_units: 0,
-    });
-
-    // Add variants and generate combinations if any
-    if (variants && variants.length > 0) {
-      // Validate variant data
-      const validation = VariantService.validateVariantData(variants);
-      if (!validation.isValid) {
-        return next(
-          new AppError(
-            `Invalid variant data: ${validation.errors.join(", ")}`,
-            400
-          )
-        );
-      }
-
-      // Create variants with type associations
-      const createdVariants = [];
-      for (const variantData of variants) {
-        // Find or create variant type
-        let variantType = await VariantType.findOne({
-          where: { name: variantData.type.toLowerCase() },
-        });
-
-        if (!variantType) {
-          variantType = await VariantType.create({
-            name: variantData.type.toLowerCase(),
-            display_name: variantData.type,
-            sort_order: 0,
-          });
+    let createdProduct;
+    await sequelize.transaction(async (t) => {
+      // If vendor_id is provided in request (admin case)
+      if (vendorId) {
+        // Check if user is admin
+        if (!req.user.roles.some((role) => role.name === "admin")) {
+          throw new AppError(
+            "Only admins can create products for other vendors",
+            403
+          );
         }
 
-        // Create the variant
-        const variant = await ProductVariant.create({
-          product_id: product.id,
-          variant_type_id: variantType.id,
-          name: variantData.type,
-          value: variantData.value,
-          additional_price: variantData.additional_price || 0,
-          stock: variantData.stock || 0,
+        vendor = await Vendor.findByPk(vendorId, { transaction: t });
+      } else {
+        // Regular vendor creating their own product
+        vendor = await Vendor.findOne({
+          where: { user_id: req.user.id },
+          transaction: t,
         });
 
-        createdVariants.push({
-          id: variant.id,
-          type: variantData.type,
-          value: variantData.value,
-          additional_price: variantData.additional_price || 0,
-          stock: variantData.stock || 0,
-        });
+        if (!vendor) {
+          throw new AppError("Vendor account not found", 404);
+        }
       }
 
-      // Generate and create combinations
-      try {
-        await VariantService.createCombinationsForProduct(
-          product.id,
-          createdVariants
-        );
-      } catch (error) {
-        console.error("Error creating combinations:", error);
-        // Continue without combinations for now - they can be generated later
+      // Check if vendor is approved
+      if (vendor.status !== "approved") {
+        throw new AppError("Only approved vendors can create products", 403);
       }
-    }
 
-    // Add images if any
-    if (images && images.length > 0) {
-      await ProductImage.bulkCreate(
-        images.map((image, index) => ({
-          product_id: product.id,
-          image_url: image.url,
-          is_featured: index === 0, // First image is featured by default
-        }))
-      );
-    }
+      // Check if category exists
+      const category = await Category.findByPk(category_id, { transaction: t });
+      if (!category) {
+        throw new AppError("Category not found", 404);
+      }
 
-    // Fetch the created product with associations
-    const createdProduct = await Product.findByPk(product.id, {
-      include: [
-        { model: ProductVariant, as: "variants" },
-        { model: ProductImage, as: "images" },
-        { model: Category, attributes: ["id", "name", "slug"] },
+      // Generate unique slug from product name
+      let slug = slugify(name, {
+        lower: true,
+        strict: true,
+        remove: /[*+~.()'"!:@]/g,
+      });
+
+      // Check if slug already exists and make it unique if needed
+      const slugCount = await Product.count({
+        where: { slug: { [Op.like]: `${slug}%` } },
+        transaction: t,
+      });
+      if (slugCount > 0) {
+        const randomString = Math.random().toString(36).substring(2, 8);
+        slug = `${slug}-${randomString}`;
+      }
+
+      // Create the product with the vendor's ID (not user ID)
+      const product = await Product.create(
         {
-          model: Vendor,
-          attributes: ["id", "status"],
-          as: "vendor",
-          include: [
-            {
-              model: Store,
-              as: "store",
-              attributes: ["id", "business_name"],
-            },
-          ],
+          vendor_id: vendor.id, // Use the vendor's ID from the vendors table
+          category_id,
+          name,
+          slug,
+          description,
+          price,
+          sku,
+          status: "active",
+          impressions: 0,
+          sold_units: 0,
         },
-      ],
-    });
+        { transaction: t }
+      );
+
+      // Add variants and generate combinations if any
+      if (variants && variants.length > 0) {
+        try {
+          // Validate variant data
+          const validation = VariantService.validateVariantData(variants);
+          if (!validation.isValid) {
+            throw new AppError(
+              `Invalid variant data: ${validation.errors.join(", ")}`,
+              400
+            );
+          }
+
+          // Create variants with type associations
+          const createdVariants = [];
+          for (const variantData of variants) {
+            // Find or create variant type
+            let variantType = await VariantType.findOne({
+              where: { name: variantData.type.toLowerCase() },
+              transaction: t,
+            });
+
+            if (!variantType) {
+              variantType = await VariantType.create(
+                {
+                  name: variantData.type.toLowerCase(),
+                  display_name: variantData.type,
+                  sort_order: 0,
+                },
+                { transaction: t }
+              );
+            }
+
+            // Create the variant
+            const variant = await ProductVariant.create(
+              {
+                product_id: product.id,
+                variant_type_id: variantType.id,
+                name: variantData.type,
+                value: variantData.value,
+                created_at: new Date(),
+              },
+              { transaction: t }
+            );
+
+            createdVariants.push({
+              id: variant.id,
+              type: variantData.type,
+              value: variantData.value,
+            });
+          }
+
+          // Generate and create combinations
+          await VariantService.createCombinationsForProduct(
+            product.id,
+            createdVariants,
+            t
+          );
+        } catch (variantError) {
+          console.error("Variant creation error:", variantError);
+          throw variantError;
+        }
+      }
+
+      // Add images if any
+      if (processedImages && processedImages.length > 0) {
+        await ProductImage.bulkCreate(
+          processedImages.map((image, index) => ({
+            product_id: product.id,
+            image_url: image.url, // Use the URL from processed image
+            is_featured: index === 0, // First image is featured by default
+          })),
+          { transaction: t }
+        );
+      }
+
+      // Fetch the created product with associations
+      createdProduct = await Product.findByPk(product.id, {
+        include: [
+          {
+            model: ProductVariant,
+            as: "variants",
+            attributes: ["id", "name", "value"],
+          },
+          {
+            model: VariantCombination,
+            as: "combinations",
+            include: [
+              {
+                model: ProductVariant,
+                as: "variants",
+                attributes: ["id", "name", "value"],
+                through: { attributes: [] },
+              },
+            ],
+          },
+          { model: ProductImage, as: "images" },
+          { model: Category, attributes: ["id", "name", "slug"] },
+          {
+            model: Vendor,
+            attributes: ["id", "status"],
+            as: "vendor",
+            include: [
+              {
+                model: Store,
+                as: "store",
+                attributes: ["id", "business_name"],
+              },
+            ],
+          },
+        ],
+        transaction: t,
+      });
+    }); // End of transaction
 
     res.status(201).json({
       success: true,
       data: createdProduct,
     });
   } catch (error) {
+    // Clean up uploaded images if transaction failed
+    if (processedImages && processedImages.length > 0) {
+      processedImages.forEach((image) => {
+        if (image.path && fs.existsSync(image.path)) {
+          try {
+            fs.unlinkSync(image.path);
+            console.log(`Cleaned up file: ${image.path}`);
+          } catch (cleanupError) {
+            console.warn(
+              `Failed to clean up file ${image.path}:`,
+              cleanupError.message
+            );
+          }
+        }
+      });
+    }
     next(error);
   }
 };
@@ -409,7 +500,7 @@ const getProducts = async (req, res, next) => {
         {
           model: ProductVariant,
           as: "variants",
-          attributes: ["id", "name", "value", "additional_price", "stock"],
+          attributes: ["id", "name", "value"],
         },
         { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
       ],
@@ -517,7 +608,11 @@ const getProductByIdentifier = async (req, res, next) => {
             },
           ],
         },
-        { model: ProductVariant, as: "variants" },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: ["id", "name", "value"],
+        },
         { model: ProductImage, as: "images" },
         {
           model: VariantCombination,
@@ -528,8 +623,27 @@ const getProductByIdentifier = async (req, res, next) => {
             {
               model: ProductVariant,
               as: "variants",
-              attributes: ["id", "name", "value", "additional_price"],
+              attributes: ["id", "name", "value"],
               through: { attributes: [] },
+            },
+          ],
+        },
+        {
+          model: Review,
+          as: "reviews",
+          attributes: ["id", "rating", "comment", "created_at"],
+          include: [
+            {
+              model: User,
+              as: "user",
+              attributes: [
+                "id",
+                "first_name",
+                "last_name",
+                "phone",
+                "email",
+                "profile_image",
+              ],
             },
           ],
         },
@@ -555,212 +669,20 @@ const getProductByIdentifier = async (req, res, next) => {
           productId: product.id,
           metadata: {
             ipAddress: req.ip || req.connection.remoteAddress,
-            userAgent: req.get('User-Agent'),
-            referrer: req.get('Referrer'),
-            deviceType: req.user.deviceType || 'unknown'
-          }
+            userAgent: req.get("User-Agent"),
+            referrer: req.get("Referrer"),
+            deviceType: req.user.deviceType || "unknown",
+          },
         });
       } catch (error) {
         // Log error but don't fail the request
-        console.warn('Failed to track product view:', error.message);
+        console.warn("Failed to track product view:", error.message);
       }
     }
 
     res.status(200).json({
       success: true,
       data: product,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Retrieves the user's recently viewed products with full product details.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.query - Query parameters
- * @param {number} [req.query.limit=10] - Number of products to return (max 50)
- * @param {Object} req.user - Authenticated user info
- * @param {number} req.user.id - User ID
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with recently viewed products
- * @returns {boolean} data.success - Success flag
- * @returns {number} data.count - Number of products returned
- * @returns {Array} data.data - Array of recently viewed products with details
- * @throws {AppError} 401 - When user not authenticated
- * @api {get} /api/v1/products/recent Get Recently Viewed Products
- * @private user
- * @example
- * // Request
- * GET /api/v1/products/recent?limit=5
- * Authorization: Bearer <token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "count": 3,
- *   "data": [
- *     {
- *       "id": 123,
- *       "name": "Wireless Headphones",
- *       "slug": "wireless-headphones",
- *       "description": "High-quality wireless headphones",
- *       "price": 99.99,
- *       "status": "active",
- *       "Category": {"id": 1, "name": "Electronics"},
- *       "Vendor": {"id": 1, "business_name": "Tech Store"},
- *       "images": [{"id": 1, "image_url": "https://example.com/image.jpg"}]
- *     }
- *   ]
- * }
- */
-const getRecentViews = async (req, res, next) => {
-  try {
-    const { limit = 10 } = req.query;
-    const userId = req.user.id;
-
-    // Get recently viewed products
-    const recentViews = await recentlyViewedService.getRecentViews({
-      userId,
-      limit: parseInt(limit)
-    });
-
-    res.status(200).json({
-      success: true,
-      count: recentViews.length,
-      data: recentViews,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Clears the user's recently viewed products history.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.user - Authenticated user info
- * @param {number} req.user.id - User ID
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response confirming deletion
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Deletion result
- * @returns {number} data.data.deletedCount - Number of records deleted
- * @throws {AppError} 401 - When user not authenticated
- * @api {delete} /api/v1/products/recent Clear Recently Viewed Products
- * @private user
- * @example
- * // Request
- * DELETE /api/v1/products/recent
- * Authorization: Bearer <token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {
- *     "deletedCount": 15
- *   }
- * }
- */
-const clearRecentViews = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-
-    const result = await recentlyViewedService.clearRecentViews({ userId });
-
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Gets viewing statistics for the authenticated user.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.user - Authenticated user info
- * @param {number} req.user.id - User ID
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response with view statistics
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Statistics data
- * @returns {number} data.data.totalViews - Total number of product views
- * @returns {number} data.data.uniqueProducts - Number of unique products viewed
- * @returns {string} data.data.lastViewDate - Date of most recent view
- * @throws {AppError} 401 - When user not authenticated
- * @api {get} /api/v1/products/recent/stats Get View Statistics
- * @private user
- * @example
- * // Request
- * GET /api/v1/products/recent/stats
- * Authorization: Bearer <token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {
- *     "totalViews": 45,
- *     "uniqueProducts": 23,
- *     "lastViewDate": "2024-11-08T20:15:00.000Z"
- *   }
- * }
- */
-const getViewStatistics = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-
-    const statistics = await recentlyViewedService.getViewStatistics({ userId });
-
-    res.status(200).json({
-      success: true,
-      data: statistics,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Anonymizes user's view data for GDPR compliance.
- * Removes personal identifiers while keeping aggregate analytics.
- * @param {import('express').Request} req - Express request object
- * @param {Object} req.user - Authenticated user info
- * @param {number} req.user.id - User ID to anonymize
- * @param {import('express').Response} res - Express response object
- * @param {import('express').NextFunction} next - Express next middleware function
- * @returns {Object} Success response confirming anonymization
- * @returns {boolean} data.success - Success flag
- * @returns {Object} data.data - Anonymization result
- * @returns {number} data.data.anonymizedCount - Number of records anonymized
- * @throws {AppError} 401 - When user not authenticated
- * @api {patch} /api/v1/products/recent/anonymize Anonymize User View Data (GDPR)
- * @private user
- * @example
- * // Request
- * PATCH /api/v1/products/recent/anonymize
- * Authorization: Bearer <token>
- *
- * // Success Response (200)
- * {
- *   "success": true,
- *   "data": {
- *     "anonymizedCount": 12
- *   }
- * }
- */
-const anonymizeUserData = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-
-    const result = await recentlyViewedService.anonymizeUserData(userId);
-
-    res.status(200).json({
-      success: true,
-      data: result,
     });
   } catch (error) {
     next(error);
@@ -964,13 +886,7 @@ const getAllProducts = async (req, res, next) => {
         {
           model: ProductVariant,
           as: "variants",
-          attributes: [
-            "variant_type_id",
-            "name",
-            "value",
-            "additional_price",
-            "stock",
-          ],
+          attributes: ["variant_type_id", "name", "value"],
         },
       ],
       order: [["created_at", "DESC"]],
@@ -1002,7 +918,11 @@ const adminUpdateProduct = async (req, res, next) => {
             attributes: ["id", "business_name"],
           },
         },
-        { model: ProductVariant, as: "variants" },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: ["id", "name", "value"],
+        },
         { model: ProductImage, as: "images" },
       ],
     });
@@ -1063,7 +983,11 @@ const adminUpdateProduct = async (req, res, next) => {
             },
           ],
         },
-        { model: ProductVariant, as: "variants" },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: ["id", "name", "value"],
+        },
         { model: ProductImage, as: "images" },
       ],
     });
@@ -1303,7 +1227,11 @@ const updateProduct = async (req, res, next) => {
             },
           ],
         },
-        { model: ProductVariant, as: "variants" },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: ["id", "name", "value"],
+        },
         { model: ProductImage, as: "images" },
       ],
     });
@@ -1424,7 +1352,6 @@ const getProductsByVendor = async (req, res, next) => {
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
         { model: ProductImage, limit: 1, as: "images" }, // Only get first image for listing
-        { model: Review, as: "reviews" },
       ],
       order: [["created_at", "DESC"]],
     });
@@ -1622,11 +1549,7 @@ module.exports = {
   getProductsByVendor,
   getProductAnalytics,
   getVendorAnalytics,
-  // Recently viewed products methods
-  getRecentViews,
-  clearRecentViews,
-  getViewStatistics,
-  anonymizeUserData,
+
   // Admin methods
   getAllProducts,
   adminUpdateProduct,

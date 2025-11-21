@@ -1,4 +1,4 @@
-const { Supply, Product, Vendor, Store, Inventory, VendorProductTag, sequelize } = require('../models');
+const { Supply, Product, Vendor, Store, Inventory, VendorProductTag, VariantCombination, sequelize } = require('../models');
 const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 
@@ -520,10 +520,9 @@ const getProductSupplyHistory = async (req, res, next) => {
       })
     );
 
-    // Get current inventory level
-    const inventory = await Inventory.findOne({
-      where: { product_id: productId },
-      attributes: ['stock']
+    // Get current stock level from variant combinations
+    const currentStockResult = await VariantCombination.sum('stock', {
+      where: { product_id: productId }
     });
 
     res.status(200).json({
@@ -532,7 +531,7 @@ const getProductSupplyHistory = async (req, res, next) => {
         total: count,
         page: parseInt(page),
         pages: Math.ceil(count / limit),
-        currentStock: inventory ? inventory.stock : 0,
+        currentStock: currentStockResult || 0,
         supplies: suppliesWithVendorDetails
       }
     });

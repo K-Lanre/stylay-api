@@ -1,0 +1,546 @@
+{
+  "info": {
+    "_postman_id": "YOUR_POSTMAN_COLLECTION_ID",
+    "name": "Stylay Product with Variants Creation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variables": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "ADMIN_TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "VENDOR_TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "PRODUCT_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "CATEGORY_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "VENDOR_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "VARIANT_TYPE_COLOR_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "VARIANT_TYPE_SIZE_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "COMBINATION_ID_RED_SMALL",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "COMBINATION_ID_BLUE_MEDIUM",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Authentication",
+      "item": [
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"adminpassword\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/auth/login",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let response = pm.response.json();",
+                  "pm.expect(pm.response).to.have.status(200);",
+                  "pm.expect(response.success).to.be.true;",
+                  "pm.expect(response.token).to.be.a('string');",
+                  "pm.environment.set(\"ADMIN_TOKEN\", response.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vendor Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"vendorpassword\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/auth/login",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let response = pm.response.json();",
+                  "pm.expect(pm.response).to.have.status(200);",
+                  "pm.expect(response.success).to.be.true;",
+                  "pm.expect(response.token).to.be.a('string');",
+                  "pm.environment.set(\"VENDOR_TOKEN\", response.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Prerequisites Setup",
+      "item": [
+        {
+          "name": "Create Category (Admin Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Apparel\",\n  \"slug\": \"apparel\",\n  \"description\": \"Clothing and accessories\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/categories",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let response = pm.response.json();",
+                  "pm.expect(pm.response).to.have.status(201);",
+                  "pm.expect(response.success).to.be.true;",
+                  "pm.expect(response.data.id).to.be.a('number');",
+                  "pm.environment.set(\"CATEGORY_ID\", response.data.id);",
+                  "console.log(\"CATEGORY_ID set to: \" + pm.environment.get(\"CATEGORY_ID\"));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Vendor (Admin Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 2,  // Replace with an actual user ID for a vendor user\n  \"business_name\": \"Fashion Hub Co.\",\n  \"email\": \"fashionhub@example.com\",\n  \"phone\": \"+1234567890\",\n  \"address\": \"123 Fashion St\",\n  \"city\": \"Styleville\",\n  \"state\": \"ST\",\n  \"zip_code\": \"12345\",\n  \"cac_number\": \"CAC123456\",\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/vendors",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "vendors"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let response = pm.response.json();",
+                  "pm.expect(pm.response).to.have.status(201);",
+                  "pm.expect(response.success).to.be.true;",
+                  "pm.expect(response.data.id).to.be.a('number');",
+                  "pm.environment.set(\"VENDOR_ID\", response.data.id);",
+                  "console.log(\"VENDOR_ID set to: \" + pm.environment.get(\"VENDOR_ID\"));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Create Product with Variants",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{VENDOR_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"vendor_id\": {{VENDOR_ID}},\n  \"category_id\": {{CATEGORY_ID}},\n  \"name\": \"Comfortable T-Shirt\",\n  \"description\": \"A soft, comfortable t-shirt made from 100% organic cotton.\",\n  \"price\": 19.99,\n  \"sku\": \"TSHIRT-ORG-001\",\n  \"thumbnail\": \"/uploads/product_thumbnails/comfortable_tshirt.jpg\",\n  \"images\": [\n    {\"url\": \"/uploads/product_images/comfortable_tshirt_front.jpg\"},\n    {\"url\": \"/uploads/product_images/comfortable_tshirt_back.jpg\"}\n  ],\n  \"variants\": [\n    {\"type\": \"Color\", \"value\": \"Red\"},\n    {\"type\": \"Color\", \"value\": \"Blue\"},\n    {\"type\": \"Size\", \"value\": \"Small\"},\n    {\"type\": \"Size\", \"value\": \"Medium\"},\n    {\"type\": \"Size\", \"value\": \"Large\"}\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/products",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "products"
+          ]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "let response = pm.response.json();",
+              "pm.expect(pm.response).to.have.status(201);",
+              "pm.expect(response.success).to.be.true;",
+              "pm.expect(response.data.id).to.be.a('number');",
+              "pm.environment.set(\"PRODUCT_ID\", response.data.id);",
+              "console.log(\"PRODUCT_ID set to: \" + pm.environment.get(\"PRODUCT_ID\"));",
+              "",
+              "// Optional: Store variant_type_ids if needed for later validation/updates",
+              "// For this simplified example, we'll focus on combination updates.",
+              "",
+              "// You would typically parse the 'combinations' array in the response",
+              "// and store individual combination IDs for later updates.",
+              "// For now, we'll manually set some combination IDs assuming a predictable generation.",
+              "// In a real scenario, you'd iterate through response.data.combinations",
+              "// and map 'combination_name' to combination.id."
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Get Product Combinations",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{VENDOR_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/variants/products/{{PRODUCT_ID}}/combinations",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "variants",
+            "products",
+            "{{PRODUCT_ID}}",
+            "combinations"
+          ]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "let response = pm.response.json();",
+              "pm.expect(pm.response).to.have.status(200);",
+              "pm.expect(response.success).to.be.true;",
+              "pm.expect(response.data).to.be.an('array').and.to.have.lengthOf(6); // 2 colors * 3 sizes",
+              "",
+              "// Dynamically extract combination IDs for later use",
+              "response.data.forEach(combination => {",
+              "    const comboName = combination.combination_name.replace(/\\s/g, '_').toUpperCase();",
+              "    pm.environment.set(`COMBINATION_ID_${comboName}`, combination.id);",
+              "    console.log(`COMBINATION_ID_${comboName} set to: ${combination.id}`);",
+              "});",
+              "",
+              "// Example: Set specific IDs for known combinations (assuming 'Red-Small', 'Blue-Medium' exist)",
+              "// Note: This relies on predictable naming and order, usually better to iterate as above.",
+              "// pm.environment.set(\"COMBINATION_ID_RED_SMALL\", response.data.find(c => c.combination_name === 'Red-Small').id);",
+              "// pm.environment.set(\"COMBINATION_ID_BLUE_MEDIUM\", response.data.find(c => c.combination_name === 'Blue-Medium').id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Update Combination Details",
+      "item": [
+        {
+          "name": "Update Stock for Red-Small Combination",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{VENDOR_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stock\": 100\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/variants/combinations/{{COMBINATION_ID_RED_SMALL}}/stock",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "variants",
+                "combinations",
+                "{{COMBINATION_ID_RED_SMALL}}",
+                "stock"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.expect(pm.response).to.have.status(200);",
+                  "pm.expect(pm.response.json().success).to.be.true;",
+                  "pm.expect(pm.response.json().data.stock).to.equal(100);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Price for Blue-Medium Combination",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{VENDOR_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price_modifier\": 5.00\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/variants/combinations/{{COMBINATION_ID_BLUE_MEDIUM}}/price",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "variants",
+                "combinations",
+                "{{COMBINATION_ID_BLUE_MEDIUM}}",
+                "price"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.expect(pm.response).to.have.status(200);",
+                  "pm.expect(pm.response.json().success).to.be.true;",
+                  "pm.expect(pm.response.json().data.price_modifier).to.equal('5.00');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toggle Status for Green-Large Combination (Error Example)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{VENDOR_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/variants/combinations/{{COMBINATION_ID_GREEN_LARGE}}/status",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "variants",
+                "combinations",
+                "{{COMBINATION_ID_GREEN_LARGE}}",
+                "status"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.expect(pm.response).to.have.status(200);",
+                  "pm.expect(pm.response.json().success).to.be.true;",
+                  "pm.expect(pm.response.json().data.is_active).to.be.false;"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Verify Product and Combinations",
+      "item": [
+        {
+          "name": "Get Product Details with Combinations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/products/{{PRODUCT_ID}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "products",
+                "{{PRODUCT_ID}}"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let response = pm.response.json();",
+                  "pm.expect(pm.response).to.have.status(200);",
+                  "pm.expect(response.success).to.be.true;",
+                  "pm.expect(response.data.id).to.equal(parseInt(pm.environment.get(\"PRODUCT_ID\")));",
+                  "pm.expect(response.data.combinations).to.be.an('array').and.to.have.lengthOf(6);",
+                  "",
+                  "// Verify updated stock for Red-Small",
+                  "let redSmallCombo = response.data.combinations.find(c => c.combination_name === 'Red-Small');",
+                  "pm.expect(redSmallCombo.stock).to.equal(100);",
+                  "",
+                  "// Verify updated price modifier for Blue-Medium",
+                  "let blueMediumCombo = response.data.combinations.find(c => c.combination_name === 'Blue-Medium');",
+                  "pm.expect(blueMediumCombo.price_modifier).to.equal('5.00');",
+                  "",
+                  "// Verify toggled status for Green-Large",
+                  "let greenLargeCombo = response.data.combinations.find(c => c.combination_name === 'Green-Large');",
+                  "pm.expect(greenLargeCombo.is_active).to.be.false;"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

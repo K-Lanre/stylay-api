@@ -7,15 +7,15 @@ const storage = require('../config/storage');
 const validateFile = (file) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
   const maxSize = 10 * 1024 * 1024; // 10MB
-  
+
   if (!allowedTypes.includes(file.mimetype)) {
     throw new AppError(`Invalid file type: ${file.mimetype}. Only images are allowed.`, 400);
   }
-  
+
   if (file.size > maxSize) {
-    throw new AppError('File too large. Maximum size is 10MB.', 400);
+    throw new AppError("File too large. Maximum size is 10MB.", 400);
   }
-  
+
   return true;
 };
 
@@ -32,42 +32,49 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
     try {
       // Set timeout to prevent hanging
       req.setTimeout(30000);
-      
+
       // Initialize uploadedFiles array if it doesn't exist
       if (!req.uploadedFiles) {
         req.uploadedFiles = [];
       }
-      
+
       // Check if files exist
       if (!req.files) {
         return next();
       }
-      
+
       // Get the files (could be single file or array)
       let files = req.files[fieldName];
-      
+
       if (!files) {
         return next();
       }
-      
+
       // Ensure files is always an array
       if (!Array.isArray(files)) {
         files = [files];
       }
-      
+
       // Check file count limit
       if (files.length > maxCount) {
-        return next(new AppError(`Maximum ${maxCount} files are allowed.`, 400));
+        return next(new AppError("Maximum  files are allowed.", 400));
       }
+
+      // Get the appropriate disk configuration
+      const disk = storage.getDisk(diskName);
+      if (!disk) {
+        return next(new AppError("Invalid storage disk: ", 400));
+      }
+
       // Process and save files
       for (const file of files) {
         try {
           // Skip if no file was uploaded for this field (for optional fields)
           if (!file || !file.name) continue;
-          
+
           // Validate file
           validateFile(file);
-          const disk = storage.getDisk(diskName);
+
           const filename = generateUniqueFilename(file.name, fieldName);
           const uploadDir = path.join(process.cwd(), disk.root);
           const filepath = path.join(uploadDir, filename);
@@ -76,10 +83,10 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
           if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
           }
-          
+
           // Move file to destination
           await file.mv(filepath);
-          
+
           // Add file info to request
           const fileInfo = {
             fieldname: fieldName,
@@ -90,14 +97,14 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
             destination: uploadDir,
             filename: filename,
             path: filepath,
-            url: `${process.env.APP_URL || 'http://localhost:3000'}/uploads/${diskName}/${filename}`
+            url: `${process.env.APP_URL || 'http://localhost:3000'}${disk.url}/${filename}`
           };
-          
+
           // Initialize uploadedFiles array if it doesn't exist
           if (!req.uploadedFiles) {
             req.uploadedFiles = [];
           }
-          
+
           req.uploadedFiles.push(fileInfo);
         } catch (error) {
           // Clean up any uploaded files if one fails
@@ -105,25 +112,31 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
             req.uploadedFiles.forEach(uploadedFile => {
               try {
                 if (fs.existsSync(uploadedFile.path)) {
-                  fs.unlinkSync(uploadedFile.path);
+                  // fs.unlinkSync(uploadedFile.path); // Commented out to avoid EBUSY errors
                 }
               } catch (e) {
-                console.error('Error cleaning up file:', e);
+                console.warn(`File cleanup skipped due to lock: ${uploadedFile.path}`);
               }
             });
           }
           return next(error);
         }
       }
-      
+
       next();
     } catch (error) {
       if (error instanceof AppError) {
         return next(error);
       }
-      return next(new AppError(`File upload error: ${error.message}`, 400));
+      return next(new AppError("File upload error: ", 400));
     }
   };
 };
 
+// Journal-specific upload middleware
+const uploadJournalImages = (fieldName = 'featured_images', maxCount = 10) => {
+  return uploadFiles(fieldName, maxCount, 'journal-images');
+};
+
 module.exports = uploadFiles;
+module.exports.uploadJournalImages = uploadJournalImages;

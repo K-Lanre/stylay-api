@@ -84,6 +84,15 @@ export const permissionMap = {
   // ========================================
   'GET /journals': null, // Public 
   'GET /journals/:id': null, // Public
+  'GET /journals/tags': null, // Public
+  'GET /journals/tags/check': null, // Public
+  'GET /journals/tags/suggestions': null, // Public
+  'GET /journals/tags/popular': null, // Public
+  'GET /journals/categories': null, // Public
+  'POST /admin/journals': 'journals_create',
+  'PUT /admin/journals/:id': 'journals_update',
+  'DELETE /admin/journals/:id': 'journals_delete',
+  
 
   // ========================================
   // ORDER ROUTES
@@ -315,6 +324,11 @@ export const publicRoutes = [
   // Journal routes
   'GET /journals',
   'GET /journals/:id',
+  'GET /journals/tags',
+  'GET /journals/tags/check',
+  'GET /journals/tags/suggestions',
+  'GET /journals/tags/popular',
+  'GET /journals/categories',
 
   // Order routes (webhooks)
   'POST /orders/webhook/payment',

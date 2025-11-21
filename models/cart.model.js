@@ -139,12 +139,22 @@ module.exports = (sequelize, DataTypes) => {
           const variantIds = variants.map(v => v.id);
           
           if (variantIds.length > 0) {
-            const variantDetails = await sequelize.models.ProductVariant.findAll({
+            // Fetch only existing fields from ProductVariant (additional_price moved off this table)
+            const dbVariants = await sequelize.models.ProductVariant.findAll({
               where: { id: variantIds },
-              attributes: ['id', 'name', 'value', 'additional_price'],
+              attributes: ['id', 'name', 'value'],
               raw: true
             });
-            item.selected_variants = variantDetails;
+
+            // Merge additional_price from the parsed selected_variants payload
+            const additionalPriceMap = new Map(
+              variants.map(v => [Number(v.id), parseFloat(v.additional_price) || 0])
+            );
+
+            item.selected_variants = dbVariants.map(v => ({
+              ...v,
+              additional_price: additionalPriceMap.get(Number(v.id)) || 0
+            }));
           } else {
             item.selected_variants = [];
           }

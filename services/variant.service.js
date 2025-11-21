@@ -46,8 +46,8 @@ class VariantService {
       return {
         combination_name: combinationName,
         sku_suffix: skuSuffix,
-        stock: combo.reduce((sum, v) => sum + (v.stock || 0), 0), // Sum stock from variants
-        price_modifier: combo.reduce((sum, v) => sum + (parseFloat(v.additional_price) || 0), 0),
+        stock: 0, // Stock for combination should be managed separately, not summed from individual variant values
+        price_modifier: 0.00, // Price modifier for combination should be managed separately
         is_active: true,
         variants: combo
       };
@@ -104,6 +104,7 @@ class VariantService {
         include: [{
           model: ProductVariant,
           as: 'variants',
+          attributes: ['id', 'name', 'value'],
           through: { attributes: [] }
         }],
         transaction
@@ -153,7 +154,7 @@ class VariantService {
       include: [{
         model: ProductVariant,
         as: 'variants',
-        attributes: ['id', 'name', 'value', 'additional_price'],
+        attributes: ['id', 'name', 'value'],
         through: { attributes: [] }
       }],
       order: [['combination_name', 'ASC']]
@@ -244,14 +245,7 @@ class VariantService {
       if (!variant.value || typeof variant.value !== 'string') {
         errors.push(`Variant ${index}: value is required and must be a string`);
       }
-
-      if (variant.stock !== undefined && (typeof variant.stock !== 'number' || variant.stock < 0)) {
-        errors.push(`Variant ${index}: stock must be a non-negative number`);
-      }
-
-      if (variant.additional_price !== undefined && typeof variant.additional_price !== 'number') {
-        errors.push(`Variant ${index}: additional_price must be a number`);
-      }
+      // Removed stock and additional_price validation as these are now managed at VariantCombination level
     });
 
     return {
