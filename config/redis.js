@@ -98,61 +98,116 @@ const createFallbackRedis = () => ({
     return true;
   },
 
-  // List operations (the missing ones causing errors)
-  lrange: async (key, start, stop) => {
+  // List operations
+  lRange: async (key, start, stop) => {
     console.warn(`Redis fallback: LRANGE ${key} ${start} ${stop} - returning []`);
     return [];
   },
   
-  lpush: async (key, ...values) => {
+  lrange: async (key, start, stop) => {
+    console.warn(`Redis fallback: lrange ${key} ${start} ${stop} - returning []`);
+    return [];
+  },
+  
+  lPush: async (key, ...values) => {
     console.warn(`Redis fallback: LPUSH ${key} ${values.length} items - returning list length`);
     return values.length;
   },
   
-  rpush: async (key, ...values) => {
+  lpush: async (key, ...values) => {
+    console.warn(`Redis fallback: lpush ${key} ${values.length} items - returning list length`);
+    return values.length;
+  },
+  
+  rPush: async (key, ...values) => {
     console.warn(`Redis fallback: RPUSH ${key} ${values.length} items - returning list length`);
     return values.length;
   },
   
-  ltrim: async (key, start, stop) => {
+  rpush: async (key, ...values) => {
+    console.warn(`Redis fallback: rpush ${key} ${values.length} items - returning list length`);
+    return values.length;
+  },
+  
+  lTrim: async (key, start, stop) => {
     console.warn(`Redis fallback: LTRIM ${key} ${start} ${stop} - returning true`);
     return true;
   },
   
-  lrem: async (key, count, value) => {
+  ltrim: async (key, start, stop) => {
+    console.warn(`Redis fallback: ltrim ${key} ${start} ${stop} - returning true`);
+    return true;
+  },
+  
+  lRem: async (key, count, value) => {
     console.warn(`Redis fallback: LREM ${key} ${count} ${value} - returning 0 (not found)`);
+    return 0;
+  },
+  
+  lrem: async (key, count, value) => {
+    console.warn(`Redis fallback: lrem ${key} ${count} ${value} - returning 0 (not found)`);
     return 0;
   },
 
   // Hash operations
-  hset: async (key, field, value) => {
+  hSet: async (key, field, value) => {
     console.warn(`Redis fallback: HSET ${key} ${field} - returning 0 (new field)`);
     return 0;
   },
   
-  hget: async (key, field) => {
+  hset: async (key, field, value) => {
+    console.warn(`Redis fallback: hset ${key} ${field} - returning 0 (new field)`);
+    return 0;
+  },
+  
+  hGet: async (key, field) => {
     console.warn(`Redis fallback: HGET ${key} ${field} - returning null`);
     return null;
   },
   
-  hdel: async (key, field) => {
+  hget: async (key, field) => {
+    console.warn(`Redis fallback: hget ${key} ${field} - returning null`);
+    return null;
+  },
+  
+  hDel: async (key, field) => {
     console.warn(`Redis fallback: HDEL ${key} ${field} - returning 0`);
+    return 0;
+  },
+  
+  hdel: async (key, field) => {
+    console.warn(`Redis fallback: hdel ${key} ${field} - returning 0`);
     return 0;
   },
 
   // Set operations
-  sadd: async (key, member) => {
+  sAdd: async (key, member) => {
     console.warn(`Redis fallback: SADD ${key} ${member} - returning 1 (new member)`);
     return 1;
   },
   
-  srem: async (key, member) => {
+  sadd: async (key, member) => {
+    console.warn(`Redis fallback: sadd ${key} ${member} - returning 1 (new member)`);
+    return 1;
+  },
+  
+  sRem: async (key, member) => {
     console.warn(`Redis fallback: SREM ${key} ${member} - returning 0 (not found)`);
     return 0;
   },
   
-  smembers: async (key) => {
+  srem: async (key, member) => {
+    console.warn(`Redis fallback: srem ${key} ${member} - returning 0 (not found)`);
+    return 0;
+  },
+  
+  sMembers: async (key) => {
     console.warn(`Redis fallback: SMEMBERS ${key} - returning []`);
+    return [];
+  },
+  
+  smembers: async (key) => {
+    console.warn(`Redis fallback: smembers ${key} - returning []`);
     return [];
   },
 
@@ -182,7 +237,7 @@ module.exports = new Proxy(createFallbackRedis(), {
     
     // If Redis is not available, use the fallback
     if (!client || !isConnected) {
-      // Return the fallback method if it exists
+      // Return the fallback method if it exists (support both camelCase and lowercase)
       if (target[prop] && typeof target[prop] === 'function') {
         return target[prop];
       }
@@ -199,7 +254,7 @@ module.exports = new Proxy(createFallbackRedis(), {
       return value.bind(client);
     }
     
-    // If the method doesn't exist on the client, use fallback
+    // If the method doesn't exist on the client, try fallback or return undefined
     if (target[prop] && typeof target[prop] === 'function') {
       console.warn(`Redis client missing method ${prop}, using fallback`);
       return target[prop];

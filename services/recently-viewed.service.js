@@ -31,6 +31,7 @@ class RecentlyViewedService {
 
     try {
       // First, remove any existing view for this product by this user
+      // This ensures we only have one view record per user-product combination
       await UserProductView.destroy({
         where: {
           user_id: userId,
@@ -41,7 +42,9 @@ class RecentlyViewedService {
 
       // Hash IP address for privacy (GDPR compliance)
       const crypto = require('crypto');
-      const hashedIp = metadata.ipAddress ? crypto.createHash('sha256').update(metadata.ipAddress).digest('hex') : null;
+      const hashedIp = metadata.ipAddress 
+        ? crypto.createHash('sha256').update(metadata.ipAddress).digest('hex') 
+        : null;
 
       // Create new view record
       const viewRecord = await UserProductView.create({
@@ -59,13 +62,13 @@ class RecentlyViewedService {
       if (redis.isConnected) {
         try {
           const redisKey = this.getRedisKey(userId);
-          await redis.lRem(redisKey, 0, productId.toString()); // Remove if exists
+          // Remove if exists to avoid duplicates
+          await redis.lRem(redisKey, 0, productId.toString());
+          // Push to front (most recent)
           await redis.lPush(redisKey, productId.toString());
-
           // Trim list to max size
           await redis.lTrim(redisKey, 0, this.maxViewsPerUser - 1);
-
-          // Set expiration if not exists
+          // Set expiration
           await redis.expire(redisKey, this.defaultRetentionDays * 24 * 60 * 60);
         } catch (redisError) {
           console.warn('Redis cache update failed:', redisError.message);
@@ -88,6 +91,9 @@ class RecentlyViewedService {
 
   /**
    * Get recently viewed products for a user
+   * NOTE: Returns ALL viewed products (including inactive ones) for browsing history
+   * Use getViewStatistics() for active product stats only
+   * 
    * @param {Object} params - Query parameters
    * @param {number} params.userId - User ID
    * @param {number} params.limit - Number of products to return
@@ -120,7 +126,7 @@ class RecentlyViewedService {
 
         productIds = dbViews.map(view => view.product_id.toString());
 
-        // Rebuild Redis cache - only if Redis is connected
+        // Rebuild Redis cache - only if Redis is connected and we have data
         if (productIds.length > 0 && redis.isConnected) {
           try {
             await redis.del(redisKey);
@@ -132,14 +138,15 @@ class RecentlyViewedService {
           }
         }
       }
-      // Convert string IDs to integers early (fixes TDZ), fetch timestamps if needed
+
+      // Convert string IDs to integers early
       const numericIds = productIds.map(id => parseInt(id)).filter(id => !isNaN(id));
 
       if (numericIds.length === 0) {
         return [];
       }
 
-      // Fetch timestamps if not already fetched from DB fallback (Redis case)
+      // Fetch timestamps if not already fetched from DB fallback
       if (!dbViews) {
         dbViews = await UserProductView.findAll({
           where: { user_id: userId, product_id: { [Op.in]: numericIds } },
@@ -147,11 +154,13 @@ class RecentlyViewedService {
         });
       }
 
-      // Get products with proper associations (only active products)
+      // Get ALL viewed products regardless of status
+      // This shows user's complete browsing history
+      // (Remove status filter - users want to see what they viewed, even if it's inactive now)
       const products = await Product.findAll({
         where: {
-          id: { [Op.in]: numericIds },
-          status: 'active'
+          id: { [Op.in]: numericIds }
+          // ✅ NO status filter - return all viewed products
         },
         attributes: [
           'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
@@ -183,7 +192,7 @@ class RecentlyViewedService {
         ]
       });
 
-      // Sort products according to Redis order (most recent first)
+      // Sort products according to the order in numericIds (most recent first)
       const productMap = new Map(products.map(p => [p.id, p]));
       const orderedProducts = [];
 
@@ -193,7 +202,7 @@ class RecentlyViewedService {
         }
       }
 
-      // Use timestamps from initial dbViews query (optimization: no redundant query)
+      // Create timestamp map for adding viewed_at to response
       const timestampMap = new Map(dbViews.map(v => [v.product_id, v.viewed_at]));
 
       return orderedProducts.map(product => {
@@ -249,6 +258,8 @@ class RecentlyViewedService {
 
   /**
    * Get viewing statistics for a user
+   * Note: Only counts ACTIVE products (via INNER JOIN in SQL)
+   * 
    * @param {Object} params - Parameters
    * @param {number} params.userId - User ID
    * @returns {Promise<Object>} Statistics object
@@ -289,14 +300,18 @@ class RecentlyViewedService {
 
     try {
       // Anonymize personal data while keeping aggregate analytics
-      const anonymizedCount = await UserProductView.update({
-        session_id: null,
-        ip_address: null,
-        user_agent: null,
-        device_type: 'anonymized',
-        referrer: null
-      }, {
-        where: { user_id: userId },
+      const [affectedRows] = await UserProductView.sequelize.query(`
+        UPDATE user_product_views
+        SET 
+          session_id = NULL,
+          ip_address = NULL,
+          user_agent = NULL,
+          device_type = 'anonymized',
+          referrer = NULL,
+          updated_at = NOW()
+        WHERE user_id = :userId
+      `, {
+        replacements: { userId },
         transaction
       });
 
@@ -315,7 +330,7 @@ class RecentlyViewedService {
 
       return {
         success: true,
-        anonymizedCount: Array.isArray(anonymizedCount) ? anonymizedCount[0] : anonymizedCount
+        anonymizedCount: affectedRows || 0
       };
     } catch (error) {
       await transaction.rollback();

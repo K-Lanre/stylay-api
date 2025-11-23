@@ -3,25 +3,9 @@ const { validationResult } = require("express-validator");
 const { Store } = require("../models");
 const { Op } = require('sequelize');
 
-// Validation rules for vendor registration
 /**
  * Validation rules for vendor registration.
  * Comprehensive validation for business information, contact details, and CAC registration.
- * @type {Array<ValidationChain>} Array of express-validator validation chains
- * @property {ValidationChain} first_name - Required, 2-100 chars, trimmed
- * @property {ValidationChain} last_name - Required, 2-100 chars, trimmed
- * @property {ValidationChain} email - Required, valid email, normalized
- * @property {ValidationChain} phone - Required, Nigerian phone format (+2348012345678)
- * @property {ValidationChain} business_name - Required, 2-100 chars, trimmed, unique check
- * @property {ValidationChain} cac_number - Optional, specific CAC format validation
- * @property {ValidationChain} instagram_handle - Optional, 5-20 chars, alphanumeric + underscore
- * @property {ValidationChain} facebook_handle - Optional, 5-20 chars, alphanumeric + underscore
- * @property {ValidationChain} twitter_handle - Optional, 5-20 chars, alphanumeric + underscore
- * @property {ValidationChain} join_reason - Required, 10-1000 chars, explains vendor motivation
- * @returns {Array} Express validator middleware array for vendor registration
- * @example
- * // Use in route:
- * router.post('/vendors/register', registerVendorValidation, validate, registerVendor);
  */
 const registerVendorValidation = [
   // User fields
@@ -102,7 +86,68 @@ const registerVendorValidation = [
     .withMessage("Please tell us why you want to join as a vendor")
     .isLength({ min: 10, max: 1000 })
     .withMessage("Join reason must be between 10 and 1000 characters"),
+  
+  // ===== ENHANCED BUSINESS IMAGES VALIDATION =====
+  body("business_images")
+    .optional()
+    .custom((value, { req }) => {
+      // File validation is handled by the middleware and controller
+      // This custom validator provides additional request-level checks
+      
+      if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+        const businessImages = req.uploadedFiles.filter(
+          file => file.fieldname === 'businessImages'
+        );
+        
+        // Validate count
+        if (businessImages.length > 5) {
+          throw new Error('Maximum 5 business images allowed');
+        }
+        
+        // Validate file types
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+        const invalidFiles = businessImages.filter(
+          file => !allowedTypes.includes(file.mimetype)
+        );
+        
+        if (invalidFiles.length > 0) {
+          throw new Error(
+            `Invalid file types detected. Only JPEG, PNG, JPG, and WebP images are allowed. ` +
+            `Found: ${invalidFiles.map(f => f.mimetype).join(', ')}`
+          );
+        }
+        
+        // Validate file sizes (5MB max per file)
+        const maxFileSize = 5 * 1024 * 1024; // 5MB
+        const oversizedFiles = businessImages.filter(
+          file => file.size > maxFileSize
+        );
+        
+        if (oversizedFiles.length > 0) {
+          throw new Error(
+            `File size exceeds maximum limit of 5MB per file. ` +
+            `Oversized files: ${oversizedFiles.map(f => f.name).join(', ')}`
+          );
+        }
+        
+        // Additional validation: Check for duplicate filenames
+        const filenames = businessImages.map(f => f.name);
+        const duplicates = filenames.filter((name, index) => filenames.indexOf(name) !== index);
+        
+        if (duplicates.length > 0) {
+          throw new Error(
+            `Duplicate filenames detected: ${[...new Set(duplicates)].join(', ')}. ` +
+            `Please rename files to have unique names.`
+          );
+        }
+      }
+      
+      return true;
+    })
+    .withMessage("Business images validation failed"),
+  // ===== END ENHANCED BUSINESS IMAGES VALIDATION =====
 ];
+
 
 /**
  * Validation rules for completing vendor onboarding process.

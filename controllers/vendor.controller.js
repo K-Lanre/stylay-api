@@ -29,6 +29,9 @@ const hashVerificationCode = (code) => {
   return bcrypt.hashSync(code, 10);
 };
 
+// Enhanced registerVendor function in controllers/vendor.controller.js
+// Replace lines 163-176 with this enhanced implementation
+
 /**
  * Register a new vendor
  * @access Public
@@ -54,6 +57,7 @@ const registerVendor = async (req, res) => {
     } = req.body;
     const { password: providedPassword } = req.body;
     const finalPassword = providedPassword || process.env.DEFAULT_VENDOR_PASSWORD;
+    
     if (!finalPassword) {
       await transaction.rollback();
       return res.status(400).json({
@@ -61,8 +65,10 @@ const registerVendor = async (req, res) => {
         message: "Password required. Provide 'password' in request body or set DEFAULT_VENDOR_PASSWORD environment variable."
       });
     }
+    
     const hashedPassword = bcrypt.hashSync(finalPassword, 12);
     logger.info(`Vendor registration for ${email}: using ${providedPassword ? 'provided' : 'default'} password`);
+    
     // Check if email or phone already exists
     const existingUser = await User.findOne({
       where: {
@@ -144,7 +150,7 @@ const registerVendor = async (req, res) => {
         email,
         phone,
         password: hashedPassword,
-        email_verified_at: null, // Implement email verification
+        email_verified_at: null,
         email_verification_token: hashedCode,
         email_verification_token_expires: tokenExpires,
         is_active: false,
@@ -175,10 +181,102 @@ const registerVendor = async (req, res) => {
         facebook_handle,
         twitter_handle,
         status: 1, // Active
-        is_verified: false, // Will be verified by admin later
+        is_verified: false,
       },
       { transaction }
     );
+
+    // ===== ENHANCED BUSINESS IMAGES PROCESSING =====
+    let businessImagesUrls = [];
+    let uploadedFiles = [];
+    
+    if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+      const businessImages = req.uploadedFiles.filter(
+        file => file.fieldname === 'businessImages'
+      );
+      uploadedFiles = businessImages; // Store for cleanup on error
+      
+      // Validate image count
+      if (businessImages.length > 5) {
+        await transaction.rollback();
+        // Cleanup uploaded files
+        businessImages.forEach(file => {
+          if (file.path && fs.existsSync(file.path)) {
+            try {
+              fs.unlinkSync(file.path);
+              logger.info(`Cleaned up file: ${file.path}`);
+            } catch (unlinkError) {
+              logger.warn(`Failed to cleanup file ${file.path}: ${unlinkError.message}`);
+            }
+          }
+        });
+        return res.status(400).json({
+          status: "error",
+          message: "Maximum 5 business images allowed"
+        });
+      }
+      
+      // Validate file types
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      const invalidFiles = businessImages.filter(
+        file => !allowedTypes.includes(file.mimetype)
+      );
+      
+      if (invalidFiles.length > 0) {
+        await transaction.rollback();
+        // Cleanup all uploaded files
+        businessImages.forEach(file => {
+          if (file.path && fs.existsSync(file.path)) {
+            try {
+              fs.unlinkSync(file.path);
+              logger.info(`Cleaned up invalid file: ${file.path}`);
+            } catch (unlinkError) {
+              logger.warn(`Failed to cleanup file ${file.path}: ${unlinkError.message}`);
+            }
+          }
+        });
+        return res.status(400).json({
+          status: "error",
+          message: `Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed. Found: ${invalidFiles.map(f => f.mimetype).join(', ')}`
+        });
+      }
+      
+      // Validate file sizes (5MB max per file)
+      const maxFileSize = 5 * 1024 * 1024; // 5MB
+      const oversizedFiles = businessImages.filter(
+        file => file.size > maxFileSize
+      );
+      
+      if (oversizedFiles.length > 0) {
+        await transaction.rollback();
+        // Cleanup all uploaded files
+        businessImages.forEach(file => {
+          if (file.path && fs.existsSync(file.path)) {
+            try {
+              fs.unlinkSync(file.path);
+              logger.info(`Cleaned up oversized file: ${file.path}`);
+            } catch (unlinkError) {
+              logger.warn(`Failed to cleanup file ${file.path}: ${unlinkError.message}`);
+            }
+          }
+        });
+        return res.status(400).json({
+          status: "error",
+          message: `File size exceeds maximum limit of 5MB. Oversized files: ${oversizedFiles.map(f => f.name).join(', ')}`
+        });
+      }
+      
+      // Extract URLs from successfully uploaded files
+      businessImagesUrls = businessImages.map(file => file.url);
+      
+      logger.info(`Processed ${businessImages.length} business images for vendor: ${email}`);
+    }
+
+    // Update store with business images
+    await newStore.update({
+      business_images: JSON.stringify(businessImagesUrls)
+    }, { transaction });
+    // ===== END ENHANCED BUSINESS IMAGES PROCESSING =====
 
     // Create vendor
     await Vendor.create(
@@ -186,7 +284,7 @@ const registerVendor = async (req, res) => {
         user_id: user.id,
         store_id: newStore.id,
         join_reason,
-        status: "pending", // Will be approved by admin
+        status: "pending",
       },
       { transaction }
     );
@@ -206,11 +304,7 @@ const registerVendor = async (req, res) => {
     }
 
     // Assign vendor role to user
-    console.log("User:", user);
-    console.log("VendorRole:", vendorRole);
-
     try {
-      // Use the correct method to add role through the belongsToMany association
       await user.addRoles([vendorRole.id], {
         through: {
           user_id: user.id,
@@ -220,9 +314,7 @@ const registerVendor = async (req, res) => {
         transaction,
       });
 
-      console.log("Successfully assigned vendor role to user");
-
-      // Also assign customer role to vendors (ensures access to cart, wishlist, orders, etc.)
+      // Also assign customer role to vendors
       const customerRole = await Role.findOne({
         where: { name: 'customer' },
         transaction,
@@ -237,17 +329,14 @@ const registerVendor = async (req, res) => {
           },
           transaction,
         });
-        console.log("Successfully assigned customer role to new vendor");
       }
     } catch (error) {
-      console.error("Error assigning roles:", error);
+      logger.error("Error assigning roles:", error);
       throw error;
     }
 
     // Commit transaction
     await transaction.commit();
-
-    // TODO: Send notification to admin about new vendor registration
 
     // Omit sensitive data from response
     const userJson = user.toJSON();
@@ -257,18 +346,36 @@ const registerVendor = async (req, res) => {
 
     res.status(201).json({
       status: "success",
-      message:
-        "Vendor registration successful. Your account is pending approval.",
+      message: "Vendor registration successful. Your account is pending approval.",
       data: {
         user: userJson,
         store: {
           ...newStore.toJSON(),
           slug: storeSlug,
+          business_images: businessImagesUrls, // Return parsed array for client
         },
       },
     });
   } catch (error) {
     await transaction.rollback();
+
+    // Cleanup uploaded business images on error
+    if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+      const businessImageFiles = req.uploadedFiles.filter(
+        file => file.fieldname === 'businessImages'
+      );
+      businessImageFiles.forEach(file => {
+        if (file.path && fs.existsSync(file.path)) {
+          try {
+            fs.unlinkSync(file.path);
+            logger.info(`Cleaned up file on error: ${file.path}`);
+          } catch (unlinkError) {
+            logger.warn(`Failed to cleanup file ${file.path}: ${unlinkError.message}`);
+          }
+        }
+      });
+    }
+
     logger.error("Vendor registration error:", error);
 
     res.status(500).json({

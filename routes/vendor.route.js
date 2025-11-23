@@ -16,10 +16,14 @@ const {
 const {
   getVendorProductsValidation,
 } = require("../validators/product.validator");
+const uploadFiles = require("../middlewares/fileUpload");
 
 // Public routes
+const businessImagesUpload = uploadFiles("businessImages", 5, "vendor-assets");
+
 router.post(
-  "/register",
+  "/",
+  businessImagesUpload,
   registerVendorValidation,
   validate,
   vendorController.registerVendor

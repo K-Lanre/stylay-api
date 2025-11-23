@@ -993,29 +993,108 @@
           "name": "Register Vendor",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n    \"first_name\": \"Vendor\",\n    \"last_name\": \"One\",\n    \"email\": \"vendor1@example.com\",\n    \"phone\": \"+2348012345678\",\n    \"business_name\": \"Vendor One Store\",\n    \"cac_number\": \"RC123456\",\n    \"password\": \"Password123!\",\n    \"instagram_handle\": \"vendorone\",\n    \"facebook_handle\": \"vendorone\",\n    \"twitter_handle\": \"vendorone\",\n    \"join_reason\": \"I want to sell my products on your platform\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "first_name",
+                  "value": "Vendor",
+                  "type": "text",
+                  "description": "Vendor's first name (required)"
+                },
+                {
+                  "key": "last_name",
+                  "value": "One",
+                  "type": "text",
+                  "description": "Vendor's last name (required)"
+                },
+                {
+                  "key": "email",
+                  "value": "vendor1@example.com",
+                  "type": "text",
+                  "description": "Vendor's email address (required, must be unique)"
+                },
+                {
+                  "key": "phone",
+                  "value": "+2348012345678",
+                  "type": "text",
+                  "description": "Vendor's phone number in format +234[70|80|81|90|91]XXXXXXXX (required)"
+                },
+                {
+                  "key": "business_name",
+                  "value": "Vendor One Store",
+                  "type": "text",
+                  "description": "Business/store name (required, must be unique)"
+                },
+                {
+                  "key": "cac_number",
+                  "value": "RC/1234567",
+                  "type": "text",
+                  "description": "CAC registration number in format RC/XXXXXXX or BN/XXXXXXX (optional)"
+                },
+                {
+                  "key": "password",
+                  "value": "Password123!",
+                  "type": "text",
+                  "description": "Account password (optional, uses DEFAULT_VENDOR_PASSWORD env var if not provided)"
+                },
+                {
+                  "key": "instagram_handle",
+                  "value": "vendorone",
+                  "type": "text",
+                  "description": "Instagram handle without @ symbol (optional, 5-20 characters)"
+                },
+                {
+                  "key": "facebook_handle",
+                  "value": "vendorone",
+                  "type": "text",
+                  "description": "Facebook handle/page name (optional, 5-20 characters)"
+                },
+                {
+                  "key": "twitter_handle",
+                  "value": "vendorone",
+                  "type": "text",
+                  "description": "Twitter/X handle without @ symbol (optional, 5-20 characters)"
+                },
+                {
+                  "key": "join_reason",
+                  "value": "I want to sell my products on your platform because I believe in quality handmade goods",
+                  "type": "text",
+                  "description": "Reason for joining as a vendor (required, 10-1000 characters)"
+                },
+                {
+                  "key": "businessImages",
+                  "type": "file",
+                  "src": "path/to/business-image1.jpg",
+                  "description": "Business/store images (optional, max 5 files, JPEG/PNG/WebP only, 5MB each max)"
+                },
+                {
+                  "key": "businessImages",
+                  "type": "file",
+                  "src": "path/to/business-image2.jpg",
+                  "description": "Additional business image (optional)"
+                },
+                {
+                  "key": "businessImages",
+                  "type": "file",
+                  "src": "path/to/business-image3.jpg",
+                  "description": "Additional business image (optional)"
+                }
+              ]
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/vendors/register",
+              "raw": "{{base_url}}/api/v1/vendors",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "vendors",
-                "register"
+                "vendors"
               ]
             },
-            "description": "Register a new vendor account"
+            "description": "Register a new vendor account with optional business images (up to 5).\n\n**Features:**\n- Public endpoint, no authentication required\n- Optional business images upload (0-5 images)\n- Automatic email verification code generation\n- Pending approval status by default\n- Automatic vendor and customer role assignment\n\n**Business Images:**\n- Optional during registration\n- Maximum: 5 images\n- Allowed types: JPEG, PNG, JPG, WebP\n- Maximum size: 5MB per file\n- Stored in: public/Upload/vendor-assets/\n\n**Response:**\n- Returns created user and store data\n- Includes business_images array with uploaded image URLs\n- User receives email verification code\n- Vendor status set to 'pending' for admin approval\n\n**Success Response (201):**\n```json\n{\n  \"status\": \"success\",\n  \"message\": \"Vendor registration successful. Your account is pending approval.\",\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"first_name\": \"Vendor\",\n      \"last_name\": \"One\",\n      \"email\": \"vendor1@example.com\",\n      \"phone\": \"+2348012345678\",\n      \"email_verified_at\": null,\n      \"is_active\": false\n    },\n    \"store\": {\n      \"id\": 1,\n      \"business_name\": \"Vendor One Store\",\n      \"slug\": \"vendor-one-store\",\n      \"cac_number\": \"RC/1234567\",\n      \"business_images\": [\n        \"http://localhost:3000/uploads/vendor-assets/businessImages-1234567890-123456789.jpg\",\n        \"http://localhost:3000/uploads/vendor-assets/businessImages-1234567890-987654321.jpg\"\n      ],\n      \"instagram_handle\": \"vendorone\",\n      \"facebook_handle\": \"vendorone\",\n      \"twitter_handle\": \"vendorone\",\n      \"status\": 1,\n      \"is_verified\": false\n    }\n  }\n}\n```\n\n**Error Responses:**\n\n400 - Validation Error:\n```json\n{\n  \"status\": \"error\",\n  \"message\": \"Maximum 5 business images allowed\"\n}\n```\n\n400 - Invalid File Type:\n```json\n{\n  \"status\": \"error\",\n  \"message\": \"Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed. Found: image/gif\"\n}\n```\n\n400 - File Too Large:\n```json\n{\n  \"status\": \"error\",\n  \"message\": \"File size exceeds maximum limit of 5MB. Oversized files: large-image.jpg\"\n}\n```\n\n**Notes:**\n- Business images are optional during registration\n- Images can be added/updated later via /complete-onboarding endpoint\n- All uploaded files are automatically cleaned up on transaction rollback\n- CAC number format: RC/1234567 or BN/1234567\n- Phone format: +234[70|80|81|90|91]XXXXXXXX"
           }
         },
         {
@@ -3784,7 +3863,7 @@
     },
     {
       "name": "Wishlist Management",
-      "description": "Single automatic wishlist per user with cart-like functionality including multiple variants, automatic price calculations, and total tracking",
+      "description": "Minified wishlist management",
       "item": [
         {
           "name": "Get My Wishlist",
@@ -3811,7 +3890,7 @@
           }
         },
         {
-          "name": "Add Item to Wishlist (Multi-Variant)",
+          "name": "Add Item to Wishlist",
           "request": {
             "method": "POST",
             "header": [
@@ -3826,45 +3905,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"product_id\": 123,\n    \"quantity\": 2,\n    \"selected_variants\": [\n        {\n            \"name\": \"size\",\n            \"id\": 456,\n            \"value\": \"Large\",\n            \"additional_price\": 5.00\n        },\n        {\n            \"name\": \"color\",\n            \"id\": 789,\n            \"value\": \"Blue\",\n            \"additional_price\": 0.00\n        }\n    ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/items",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "wishlist",
-                "items"
-              ]
-            },
-            "description": "Add item to wishlist using new multi-variant format (recommended). Supports multiple variants per product with automatic price calculation."
-          }
-        },
-        {
-          "name": "Add Item to Wishlist (Legacy Single Variant)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"product_id\": 1,\n    \"variant_id\": 1,\n    \"quantity\": 2\n}",
+              "raw": "{\n    \"product_id\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3884,131 +3925,6 @@
               ]
             },
             "description": "Add item to wishlist using legacy single variant format for backward compatibility. Automatically converts to new format internally."
-          }
-        },
-        {
-          "name": "Get Wishlist Items",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/items?page=1&limit=20",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "wishlist",
-                "items"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            },
-            "description": "Get all items in the user's wishlist with calculated totals, variants, and price breakdowns"
-          }
-        },
-        {
-          "name": "Update Wishlist Item Quantity",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"quantity\": 3\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/items/:item_id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "wishlist",
-                "items",
-                ":item_id"
-              ],
-              "variable": [
-                {
-                  "key": "item_id",
-                  "value": "1"
-                }
-              ]
-            },
-            "description": "Update item quantity in wishlist (triggers automatic total recalculation)"
-          }
-        },
-        {
-          "name": "Update Wishlist Item Variants",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"product_id\": 123,\n    \"quantity\": 2,\n    \"selected_variants\": [\n        {\n            \"name\": \"size\",\n            \"id\": 456,\n            \"value\": \"Large\",\n            \"additional_price\": 5.00\n        },\n        {\n            \"name\": \"color\",\n            \"id\": 789,\n            \"value\": \"Blue\",\n            \"additional_price\": 0.00\n        }\n    ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/items/:item_id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "wishlist",
-                "items",
-                ":item_id"
-              ],
-              "variable": [
-                {
-                  "key": "item_id",
-                  "value": "1"
-                }
-              ]
-            },
-            "description": "Update item variants in wishlist (triggers automatic price recalculation)"
           }
         },
         {
@@ -4042,70 +3958,8 @@
             },
             "description": "Remove an item from wishlist (triggers automatic total recalculation for remaining items)"
           }
-        },
-        {
-          "name": "Get Wishlist Summary",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/summary",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "wishlist",
-                "summary"
-              ]
-            },
-            "description": "Get wishlist summary including total items count, total amount, and aggregate statistics"
-          }
-        },
-        {
-          "name": "Move Item to Cart",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"wishlist_item_id\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/move-to-cart",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "wishlist",
-                "move-to-cart"
-              ]
-            },
-            "description": "Move a specific item from wishlist to cart, preserving all variant selections and quantity"
-          }
         }
+ 
       ]
     },
     {

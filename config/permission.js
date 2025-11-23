@@ -116,10 +116,10 @@ export const permissionMap = {
   'GET /products/vendor/:id': null, // Public
   
   // Protected routes
-  'GET /products/recent': 'recently_viewed_read',
-  'GET /products/recent/stats': 'recently_viewed_read',
-  'DELETE /products/recent': 'recently_viewed_delete',
-  'PATCH /products/recent/anonymize': 'recently_viewed_update',
+  'GET /products/recent': null, // Public
+  'GET /products/recent/stats': null, // Public
+  'DELETE /products/recent': null, // Public
+  'PATCH /products/recent/anonymize': null, // Public
   'GET /products/:id/analytics': 'products_analytics',
   'GET /products/analytics/vendor': 'products_analytics',
   'POST /products': 'products_create',
@@ -179,7 +179,7 @@ export const permissionMap = {
   // VENDOR ROUTES
   // ========================================
   // Public routes
-  'POST /vendors/register': null, // Public
+  'POST /vendors': null, // Public
   'GET /vendors': null, // Public
   'GET /vendors/:id/products': null, // Public
   'GET /vendors/:id': null, // Public
@@ -349,6 +349,12 @@ export const publicRoutes = [
   'GET /products',
   'GET /products/vendor/:id',
 
+  // Recently Viewed routes
+  'GET /products/recent',
+  'GET /products/recent/stats',
+  'DELETE /products/recent',
+  'PATCH /products/recent/anonymize',
+
   // Review routes
   'GET /reviews',
   'GET /reviews/:id',
@@ -359,7 +365,7 @@ export const publicRoutes = [
   'GET /variants/combinations/:id',
 
   // Vendor routes
-  'POST /vendors/register',
+  'POST /vendors',
   'GET /vendors',
   'GET /vendors/:id/products',
   'GET /vendors/:id',
