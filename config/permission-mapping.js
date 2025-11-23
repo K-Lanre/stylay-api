@@ -6,6 +6,7 @@ const { permissionMap, publicRoutes } = require("./permission");
  */
 const ROUTE_PATTERNS = [
   // Specific patterns first (most specific to least specific)
+  { pattern: /^\/feedback$/, template: '/feedback' },
   { pattern: /^\/products\/recent\/stats$/, template: '/products/recent/stats' },
   { pattern: /^\/products\/recent\/anonymize$/, template: '/products/recent/anonymize' },
   { pattern: /^\/products\/recent$/, template: '/products/recent' },

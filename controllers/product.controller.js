@@ -18,7 +18,7 @@ const { Op } = require("sequelize");
 const slugify = require("slugify");
 const VariantService = require("../services/variant.service");
 const ImageProcessor = require("../utils/imageProcessor");
-const recentlyViewedService = require("../services/recentlyViewed.service");
+const recentlyViewedService = require("../services/recently-viewed.service");
 const fs = require("fs");
 
 /**
@@ -1549,7 +1549,6 @@ module.exports = {
   getProductsByVendor,
   getProductAnalytics,
   getVendorAnalytics,
-
   // Admin methods
   getAllProducts,
   adminUpdateProduct,

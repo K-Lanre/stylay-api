@@ -44,6 +44,7 @@ const reviewRoutes = require("./routes/review.route");
 const variantRoutes = require("./routes/variant.route");
 const wishlistRoutes = require("./routes/wishlist.route");
 const adminRoutes = require("./routes/admin");
+const supportFeedbackRoutes = require("./routes/support-feedback.route");
 
 // Initialize express app
 const app = express();
@@ -349,6 +350,7 @@ app.use("/api/v1/dashboard", cache(300), dashboardRoutes); // 5 minutes cache
 app.use("/api/v1/reviews", reviewRoutes);
 app.use("/api/v1/variants", variantRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/feedbacks", supportFeedbackRoutes);
 
 // Serve static files in production
 

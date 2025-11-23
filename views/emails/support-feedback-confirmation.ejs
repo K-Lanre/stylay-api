@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support Ticket Confirmation - Stylay</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #f6f6f6;
+      color: #333333;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      background-color: #4f46e5;
+      padding: 30px 20px;
+      text-align: center;
+    }
+
+    .content {
+      background-color: #ffffff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .ticket-details {
+      background-color: #f9fafb;
+      border-left: 4px solid #4f46e5;
+      padding: 15px;
+      margin: 20px 0;
+    }
+
+    .ticket-number {
+      font-size: 20px;
+      font-weight: 600;
+      color: #4f46e5;
+      margin: 0;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .button {
+      display: inline-block;
+      background-color: #4f46e5;
+      color: #ffffff;
+      text-decoration: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 500;
+      margin: 10px 0;
+    }
+
+    .divider {
+      border-top: 1px solid #e5e7eb;
+      margin: 24px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+    style="background-color: #f6f6f6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <!-- Header -->
+        <table class="header" width="100%" cellpadding="0" cellspacing="0" border="0"
+          style="background-color: #4f46e5; border-radius: 8px 8px 0 0;">
+          <tr>
+            <td>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">Support Ticket Confirmation</h1>
+              <p style="color: #e0e7ff; margin: 10px 0 0; font-size: 16px;">We've received your request</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Content -->
+        <table class="content" width="100%" cellpadding="0" cellspacing="0" border="0"
+          style="background-color: #ffffff; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 30px;">
+              <p>Hello <%= user.name || 'Valued Customer' %>,</p>
+              <p>Thank you for reaching out to Stylay Support. We've received your request and a member of our team will
+                review it shortly.</p>
+
+              <div class="ticket-details">
+                <p class="ticket-number">Ticket #<%= support.reference_number %>
+                </p>
+                <p><strong>Subject:</strong>
+                  <%= support.subject %>
+                </p>
+                <p><strong>Issue Type:</strong>
+                  <%= support.issue_type %>
+                </p>
+                <% if (support.order_number) { %>
+                  <p><strong>Order #:</strong>
+                    <%= support.order_number %>
+                  </p>
+                  <% } %>
+                    <p><strong>Status:</strong> <span style="text-transform: capitalize;">
+                        <%= support.status.replace('_', ' ' ) %>
+                      </span></p>
+                    <p><strong>Submitted:</strong>
+                      <%= new Date(support.created_at).toLocaleString() %>
+                    </p>
+              </div>
+
+              <h3 style="margin-top: 30px; font-size: 18px; color: #111827;">Your Message</h3>
+              <p style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 10px 0 20px;">
+                <%= support.description %>
+              </p>
+
+              <% if (support.attachments && support.attachments.length> 0) { %>
+                <div class="divider"></div>
+                <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Attachments (<%=
+                    support.attachments.length %>)</h3>
+                <ul style="margin: 0; padding-left: 20px;">
+                  <% support.attachments.forEach(attachment=> { %>
+                    <li>
+                      <%= attachment.originalname %>
+                    </li>
+                    <% }); %>
+                </ul>
+                <% } %>
+
+                  <div class="divider"></div>
+
+                  <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">What's Next?</h3>
+                  <p>Our team will review your request and respond within 24-48 hours. You can track the status of your
+                    ticket using the reference number above.</p>
+
+                  <p style="margin: 25px 0 15px;">
+                    <a href="<%= process.env.FRONTEND_URL || 'https://stylay.com' %>/support/ticket/<%= support.id %>"
+                      class="button"
+                      style="color: #ffffff; text-decoration: none; background-color: #4f46e5; padding: 12px 24px; border-radius: 6px; display: inline-block; font-weight: 500;">View
+                      Ticket Status</a>
+                  </p>
+
+                  <p>If you have any additional information to add, please reply to this email directly.</p>
+
+                  <p>Thank you for your patience,<br>The Stylay Support Team</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Footer -->
+        <table class="footer" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px; line-height: 1.5;">
+              <p style="margin: 0 0 10px 0;">&copy; <%= new Date().getFullYear() %> Stylay. All rights reserved.</p>
+              <p style="margin: 0 0 10px 0; color: #9ca3af;">
+                <a href="<%= process.env.FRONTEND_URL || 'https://stylay.com' %>/privacy"
+                  style="color: #9ca3af; text-decoration: none; margin: 0 10px;">Privacy Policy</a>
+                <span>&bull;</span>
+                <a href="<%= process.env.FRONTEND_URL || 'https://stylay.com' %>/terms"
+                  style="color: #9ca3af; text-decoration: none; margin: 0 10px;">Terms of Service</a>
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                This email was sent to <%= user.email %>. Please add us to your address book to ensure you receive our
+                  emails.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>

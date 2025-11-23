@@ -1001,7 +1001,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"first_name\": \"Vendor\",\n    \"last_name\": \"One\",\n    \"email\": \"vendor1@example.com\",\n    \"phone\": \"+2348012345678\",\n    \"business_name\": \"Vendor One Store\",\n    \"cac_number\": \"RC123456\",\n    \"instagram_handle\": \"vendorone\",\n    \"facebook_handle\": \"vendorone\",\n    \"twitter_handle\": \"vendorone\",\n    \"join_reason\": \"I want to sell my products on your platform\"\n}"
+              "raw": "{\n    \"first_name\": \"Vendor\",\n    \"last_name\": \"One\",\n    \"email\": \"vendor1@example.com\",\n    \"phone\": \"+2348012345678\",\n    \"business_name\": \"Vendor One Store\",\n    \"cac_number\": \"RC123456\",\n    \"password\": \"Password123!\",\n    \"instagram_handle\": \"vendorone\",\n    \"facebook_handle\": \"vendorone\",\n    \"twitter_handle\": \"vendorone\",\n    \"join_reason\": \"I want to sell my products on your platform\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/vendors/register",
@@ -6295,6 +6295,115 @@
               ]
             },
             "description": "Delete a review (Review owner only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support Feedback",
+      "description": "Customer support feedback management",
+      "item": [
+        {
+          "name": "Create Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "subject",
+                  "value": "Order not delivered"
+                },
+                {
+                  "key": "order_number",
+                  "value": "ORD-123-ABC"
+                },
+                {
+                  "key": "issue_type",
+                  "value": "Order Not Delivered"
+                },
+                {
+                  "key": "description",
+                  "value": "My order has not arrived after 10 days."
+                },
+                {
+                  "key": "preferred_support_method",
+                  "value": "Email"
+                },
+                {
+                  "key": "contact_email",
+                  "value": "user@example.com"
+                },
+                {
+                  "key": "attachments",
+                  "type": "file",
+                  "src": "path/to/file.pdf"
+                }
+              ]
+            },
+            "url": "{{base_url}}/api/v1/feedbacks"
+          }
+        },
+        {
+          "name": "List My Feedbacks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/feedbacks"
+          }
+        },
+        {
+          "name": "Get Feedback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/feedbacks/1"
+          }
+        },
+        {
+          "name": "Update Status - Admin ",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"resolved\"}"
+            },
+            "url": "{{base_url}}/api/v1/feedbacks/1"
+          }
+        },
+        {
+          "name": "Delete Feedback",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/feedbacks/1"
           }
         }
       ]

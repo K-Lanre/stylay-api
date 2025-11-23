@@ -66,6 +66,12 @@ module.exports = {
       const vendorPermissionNames = [
         // User management (vendor can manage their own profile)
         'users_read', 'users_update',
+        // Address management
+        'addresses_create', 'addresses_read', 'addresses_update', 'addresses_delete',
+        // Cart management
+        'cart_create', 'cart_read', 'cart_update', 'cart_delete',
+        // Wishlist management
+        'wishlist_create', 'wishlist_read', 'wishlist_update', 'wishlist_delete',
         // Product management (vendor can manage their own products)
         'products_create', 'products_read', 'products_update', 'products_delete', 'products_analytics',
         // Category management (vendor can view categories for products)

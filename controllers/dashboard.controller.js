@@ -1841,7 +1841,7 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     include: [
       {
         model: db.User,
-        attributes: ["id", "first_name", "last_name", "email", "phone"],
+        attributes: ["id", "first_name", "last_name", "email", "phone", "profile_image"],
       },
       {
         model: db.Store,
@@ -1905,27 +1905,24 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
   const salesConversion = earningsConversion; // Same as earnings for this context
 
   // Get monthly ratings for vendor's products - DEBUG: Add logging to identify ambiguous column issue
-  console.log(`[DEBUG] Getting monthly ratings for vendor ID: ${vendorID}`);
+  // Monthly ratings query for vendor products
 
   const monthlyRatings = await db.Review.findAll({
     attributes: [
       [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "month"],
-      [fn("AVG", col("rating")), "average_rating"],
-      [fn("COUNT", col("Review.id")), "total_reviews"], // Fixed: Added table alias to resolve ambiguous column
+      [fn("AVG", col("Review.rating")), "average_rating"],
+      [fn("COUNT", col("Review.id")), "total_reviews"],
     ],
-    include: [
-      {
-        model: db.Product,
-        as: "Product",
-        where: { vendor_id: vendorID },
-        attributes: [],
-      },
-    ],
-    where: {
-      "$Product.vendor_id$": vendorID,
-    },
+    include: [{
+      model: db.Product,
+      as: 'product',
+      where: { vendor_id: vendorID },
+      attributes: [],
+      required: true
+    }],
     group: [literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')")],
-    order: [[literal("DATE_FORMAT(`Review`.`created_at`, '%Y-%m')"), "ASC"]],
+    order: [[literal("DATE_FORMAT(Review.created_at, '%Y-%m')"), "DESC"]],
+    limit: 12,
     raw: true,
   }).catch((error) => {
     console.error("[DEBUG] Error in monthly ratings query:", error.message);
@@ -1933,7 +1930,6 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
     throw error;
   });
 
-  console.log("[DEBUG] Monthly ratings query successful");
 
   // Format monthly ratings
   const formattedMonthlyRatings = monthlyRatings.map((rating) => ({
@@ -2058,6 +2054,7 @@ const getVendorOverview = catchAsync(async (req, res, next) => {
             vendor.User.last_name || ""
           }`.trim() || "Unknown Vendor"
         : "Unknown Vendor",
+        profile_image: vendor.User.profile_image,
       business_name: vendor.store?.business_name || "Unknown Business",
       email: vendor.User?.email || "No Email",
       phone: vendor.User?.phone || "No Phone",

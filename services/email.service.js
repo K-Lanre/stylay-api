@@ -109,6 +109,10 @@ const emailTemplates = {
     template: "subadmin-created.ejs",
     subject: "Sub-Admin Account Created - Welcome to Stylay",
   },
+  SUPPORT_FEEDBACK_CONFIRMATION: {
+    template: "support-feedback-confirmation.ejs",
+    subject: "Support Ticket Confirmation - Reference %s"
+  },
 };
 
 /**
@@ -833,7 +837,24 @@ const sendSubAdminCreatedNotification = async (subAdminData) => {
     }),
     loginUrl,
     appName: process.env.APP_NAME || "Stylay",
+
     year: new Date().getFullYear(),
+  });
+};
+
+/**
+ * Send support feedback confirmation email
+ * @param {string} to - Recipient email address
+ * @param {Object} data - Data containing feedback details and user info
+ * @returns {Promise} - Promise that resolves when email is sent
+ */
+const sendSupportFeedbackConfirmation = async (to, data) => {
+  return sendEmail(to, "SUPPORT_FEEDBACK_CONFIRMATION", {
+    ...data,
+    referenceNumber: data.referenceNumber || data.feedback?.reference_number,
+    subject: data.feedback?.subject,
+    issueType: data.feedback?.issue_type,
+    name: data.user?.name || `${data.user?.first_name} ${data.user?.last_name}`.trim() || 'Customer'
   });
 };
 
@@ -852,4 +873,5 @@ module.exports = {
   sendOrderCancelled,
   notifyVendors,
   transporter,
+  sendSupportFeedbackConfirmation
 };

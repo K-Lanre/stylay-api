@@ -39,12 +39,16 @@ class RecentlyViewedService {
         transaction
       });
 
+      // Hash IP address for privacy (GDPR compliance)
+      const crypto = require('crypto');
+      const hashedIp = metadata.ipAddress ? crypto.createHash('sha256').update(metadata.ipAddress).digest('hex') : null;
+
       // Create new view record
       const viewRecord = await UserProductView.create({
         user_id: userId,
         product_id: productId,
         session_id: metadata.sessionId || null,
-        ip_address: metadata.ipAddress || null,
+        ip_address: hashedIp,
         user_agent: metadata.userAgent || null,
         device_type: metadata.deviceType || 'unknown',
         referrer: metadata.referrer || null,
@@ -105,8 +109,9 @@ class RecentlyViewedService {
       }
 
       // If Redis is empty or unavailable, fall back to database
+      let dbViews;
       if (productIds.length === 0) {
-        const dbViews = await UserProductView.findAll({
+        dbViews = await UserProductView.findAll({
           where: { user_id: userId },
           attributes: ['product_id', 'viewed_at'],
           order: [['viewed_at', 'DESC']],
@@ -127,22 +132,26 @@ class RecentlyViewedService {
           }
         }
       }
-
-      if (productIds.length === 0) {
-        return [];
-      }
-
-      // Convert string IDs to integers and fetch products
+      // Convert string IDs to integers early (fixes TDZ), fetch timestamps if needed
       const numericIds = productIds.map(id => parseInt(id)).filter(id => !isNaN(id));
 
       if (numericIds.length === 0) {
         return [];
       }
 
-      // Get products with proper associations
+      // Fetch timestamps if not already fetched from DB fallback (Redis case)
+      if (!dbViews) {
+        dbViews = await UserProductView.findAll({
+          where: { user_id: userId, product_id: { [Op.in]: numericIds } },
+          attributes: ['product_id', 'viewed_at']
+        });
+      }
+
+      // Get products with proper associations (only active products)
       const products = await Product.findAll({
         where: {
-          id: { [Op.in]: numericIds }
+          id: { [Op.in]: numericIds },
+          status: 'active'
         },
         attributes: [
           'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
@@ -184,16 +193,8 @@ class RecentlyViewedService {
         }
       }
 
-      // Add viewed_at timestamps from database
-      const viewTimestamps = await UserProductView.findAll({
-        where: {
-          user_id: userId,
-          product_id: { [Op.in]: numericIds }
-        },
-        attributes: ['product_id', 'viewed_at']
-      });
-
-      const timestampMap = new Map(viewTimestamps.map(v => [v.product_id, v.viewed_at]));
+      // Use timestamps from initial dbViews query (optimization: no redundant query)
+      const timestampMap = new Map(dbViews.map(v => [v.product_id, v.viewed_at]));
 
       return orderedProducts.map(product => {
         const viewedAt = timestampMap.get(product.id);
@@ -254,14 +255,15 @@ class RecentlyViewedService {
    */
   async getViewStatistics({ userId }) {
     try {
-      // Get statistics from database
+      // Get statistics from database (only for active products)
       const [stats] = await UserProductView.sequelize.query(`
         SELECT
           COUNT(*) as totalViews,
-          COUNT(DISTINCT product_id) as uniqueProducts,
-          MAX(viewed_at) as lastViewDate
-        FROM user_product_views
-        WHERE user_id = :userId
+          COUNT(DISTINCT upv.product_id) as uniqueProducts,
+          MAX(upv.viewed_at) as lastViewDate
+        FROM user_product_views upv
+        INNER JOIN products p ON upv.product_id = p.id AND p.status = 'active'
+        WHERE upv.user_id = :userId
       `, {
         replacements: { userId },
         type: UserProductView.sequelize.QueryTypes.SELECT

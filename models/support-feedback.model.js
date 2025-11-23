@@ -22,16 +22,53 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT({ unsigned: true }),
       allowNull: false
     },
-    type: {
-      type: DataTypes.ENUM('support', 'feedback'),
+    subject: {
+      type: DataTypes.STRING(150),
       allowNull: false
     },
-    message: {
+    order_number: {
+      type: DataTypes.STRING(50),
+      allowNull: false
+    },
+    issue_type: {
+      type: DataTypes.ENUM(
+        'Order Not Delivered',
+        'Wrong Item Received',
+        'Payment Issue',
+        'Return/Refund Request',
+        'Account Issue',
+        'Technical Issue',
+        'Other'
+      ),
+      allowNull: false
+    },
+    description: {
       type: DataTypes.TEXT,
       allowNull: false
     },
+    preferred_support_method: {
+      type: DataTypes.ENUM('Email', 'Phone', 'Chat'),
+      allowNull: false
+    },
+    contact_email: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    contact_phone: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    attachments: {
+      type: DataTypes.JSON,
+      allowNull: true
+    },
+    reference_number: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      unique: true
+    },
     status: {
-      type: DataTypes.ENUM('open', 'resolved'),
+      type: DataTypes.ENUM('open', 'in_progress', 'resolved', 'closed'),
       allowNull: false,
       defaultValue: 'open'
     },
@@ -49,8 +86,17 @@ module.exports = (sequelize, DataTypes) => {
     sequelize,
     modelName: 'SupportFeedback',
     tableName: 'support_feedback',
-    timestamps: false,
+    timestamps: true,
     underscored: true
+  });
+
+  SupportFeedback.beforeCreate((instance) => {
+    instance.created_at = new Date();
+    instance.updated_at = new Date();
+  });
+
+  SupportFeedback.beforeUpdate((instance) => {
+    instance.updated_at = new Date();
   });
 
   return SupportFeedback;

@@ -2,7 +2,7 @@
 const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
 
-const recentlyViewedService = require("../services/recentlyViewed.service");
+const recentlyViewedService = require("../services/recently-viewed.service");
 
 /**
  * Retrieves the user's recently viewed products with full product details.

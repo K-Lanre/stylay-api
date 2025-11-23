@@ -52,8 +52,17 @@ const registerVendor = async (req, res) => {
       twitter_handle,
       join_reason,
     } = req.body;
-    const password = process.env.DEFAULT_VENDOR_PASSWORD;
-    const hashedPassword = hashVerificationCode(password);
+    const { password: providedPassword } = req.body;
+    const finalPassword = providedPassword || process.env.DEFAULT_VENDOR_PASSWORD;
+    if (!finalPassword) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "error",
+        message: "Password required. Provide 'password' in request body or set DEFAULT_VENDOR_PASSWORD environment variable."
+      });
+    }
+    const hashedPassword = bcrypt.hashSync(finalPassword, 12);
+    logger.info(`Vendor registration for ${email}: using ${providedPassword ? 'provided' : 'default'} password`);
     // Check if email or phone already exists
     const existingUser = await User.findOne({
       where: {
@@ -211,9 +220,27 @@ const registerVendor = async (req, res) => {
         transaction,
       });
 
-      console.log("Successfully assigned role to user");
+      console.log("Successfully assigned vendor role to user");
+
+      // Also assign customer role to vendors (ensures access to cart, wishlist, orders, etc.)
+      const customerRole = await Role.findOne({
+        where: { name: 'customer' },
+        transaction,
+      });
+
+      if (customerRole) {
+        await user.addRoles([customerRole.id], {
+          through: {
+            user_id: user.id,
+            role_id: customerRole.id,
+            created_at: new Date(),
+          },
+          transaction,
+        });
+        console.log("Successfully assigned customer role to new vendor");
+      }
     } catch (error) {
-      console.error("Error assigning role:", error);
+      console.error("Error assigning roles:", error);
       throw error;
     }
 

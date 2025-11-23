@@ -47,6 +47,13 @@ const storage = {
       visibility: 'public',
     },
 
+    'support-attachments': {
+      driver: 'local',
+      root: `public/Upload/support-attachments`,
+      url: `/uploads/support-attachments`,
+      visibility: 'public',
+    },
+
     s3: {
       driver: 's3',
       key: process.env.AWS_ACCESS_KEY_ID,

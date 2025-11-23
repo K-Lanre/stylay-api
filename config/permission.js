@@ -203,6 +203,15 @@ export const permissionMap = {
   'PATCH /vendors/:id/reject': 'vendors_reject',
 
   // ========================================
+  // SUPPORT FEEDBACK ROUTES
+  // ========================================
+  'POST /feedback': 'feedbacks_support',
+  'GET /feedback': 'feedbacks_support',
+  'GET /feedback/:id': 'feedbacks_support',
+  'PATCH /feedback/:id': 'feedbacks_support',
+  'DELETE /feedback/:id': 'feedbacks_support',
+
+  // ========================================
   // WEBHOOK ROUTES
   // ========================================
   'POST /webhooks/paystack': null, // Public (webhook)
