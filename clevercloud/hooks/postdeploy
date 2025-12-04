@@ -14,6 +14,13 @@ until mysql -h $MYSQL_ADDON_HOST -P $MYSQL_ADDON_PORT -u $MYSQL_ADDON_USER -p$MY
   sleep 5
 done
 
+# Check if database exists, create if needed
+echo "Checking database existence..."
+mysql -h $MYSQL_ADDON_HOST -P $MYSQL_ADDON_PORT -u $MYSQL_ADDON_USER -p$MYSQL_ADDON_PASSWORD -e "USE $MYSQL_ADDON_DB;" 2>/dev/null || {
+  echo "Database $MYSQL_ADDON_DB does not exist, creating it..."
+  mysql -h $MYSQL_ADDON_HOST -P $MYSQL_ADDON_PORT -u $MYSQL_ADDON_USER -p$MYSQL_ADDON_PASSWORD -e "CREATE DATABASE IF NOT EXISTS $MYSQL_ADDON_DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+}
+
 # Run database migrations
 echo "Running database migrations..."
 npm run migrate
@@ -24,14 +31,17 @@ npm run seed
 
 # Clear Redis cache
 echo "Clearing Redis cache..."
-redis-cli -h $REDIS_ADDON_HOST -p $REDIS_ADDON_PORT -a $REDIS_ADDON_PASSWORD FLUSHDB
+if [ -n "$REDIS_ADDON_HOST" ]; then
+  redis-cli -h $REDIS_ADDON_HOST -p $REDIS_ADDON_PORT -a $REDIS_ADDON_PASSWORD FLUSHDB || echo "Redis not available, skipping cache clear"
+fi
 
 # Set proper permissions
 echo "Setting file permissions..."
-chmod -R 755 /app/public/Upload
+chmod -R 755 /app/public/Upload 2>/dev/null || echo "Upload directory not found, skipping permissions"
 
 # Restart PM2 processes
 echo "Restarting PM2 processes..."
-pm2 restart stylay-api
+pm2 restart stylay-api || echo "PM2 not running, starting application..."
+pm2 start ecosystem.config.js --env clevercloud --name stylay-api
 
 echo "=== Post-deployment hook completed ==="

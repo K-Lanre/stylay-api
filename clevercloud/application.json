@@ -9,13 +9,13 @@
   },
   "deploy": {
     "type": "nodejs",
-    "command": "npm run setup && npm run seed",
+    "command": "npm install && npm run migrate && npm run seed",
     "start": "npm start",
     "stop": "pm2 delete stylay-api",
     "healthcheck": "/health",
-    "healthcheckInterval": 30000,
-    "healthcheckTimeout": 10000,
-    "healthcheckMaxRetries": 3
+    "healthcheckInterval": 60000,
+    "healthcheckTimeout": 30000,
+    "healthcheckMaxRetries": 5
   },
   "scaling": {
     "min": 1,
