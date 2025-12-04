@@ -3,8 +3,8 @@ module.exports = {
     {
       name: 'stylay-api',
       script: 'app.js',
-      instances: 'max', // Use maximum available instances
-      exec_mode: 'cluster', // Run in cluster mode
+      instances: 1, // Use single instance to respect MySQL connection limits
+      exec_mode: 'fork', // Use fork mode instead of cluster to reduce connection pools
       env: {
         NODE_ENV: 'development',
         PORT: 3000

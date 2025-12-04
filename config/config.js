@@ -49,8 +49,8 @@ const config = {
         connectTimeout: 60000
       },
       pool: {
-        max: 20,
-        min: 5,
+        max: 4, // Reduced to respect MySQL addon's 5-connection limit
+        min: 1, // Start with 1 connection minimum
         acquire: 30000,
         idle: 10000
       }

@@ -19,8 +19,8 @@ const sequelize = new Sequelize(
       updatedAt: 'updated_at'
     },
     pool: {
-      max: 20, // Increased from 5 to 20 for better concurrency
-      min: 5, // Increased from 0 to 5 to keep connections warm
+      max: 4, // Reduced to respect MySQL addon's 5-connection limit
+      min: 1, // Start with 1 connection minimum
       acquire: 30000,
       idle: 10000
     },
