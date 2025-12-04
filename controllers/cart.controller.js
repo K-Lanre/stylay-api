@@ -664,6 +664,50 @@ const clearCart = async (req, res, next) => {
  *   }
  * }
  */
+/**
+ * Get detailed cart summary for checkout
+ * Provides comprehensive cart information including user details, totals, and itemized products.
+ * Used for checkout process and order conversion.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {string} [req.headers['x-session-id']] - Session ID for guest carts
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with detailed cart summary
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {Object} res.body.data - Cart summary object
+ * @returns {number} res.body.data.cartId - Cart ID
+ * @returns {number} res.body.data.userId - User ID (null for guest carts)
+ * @returns {number} res.body.data.subtotal - Sum of all item subtotals
+ * @returns {number} res.body.data.discount - Total discount applied (currently 0.00)
+ * @returns {number} res.body.data.total - Final total amount
+ * @returns {Array} res.body.data.items - Array of cart items with product details
+ * @throws {Error} 500 - Server error during summary calculation
+ * @api {get} /api/v1/cart/summary Get cart summary
+ * @private Supports both authenticated and guest users
+ * @example
+ * GET /api/v1/cart/summary
+ * Authorization: Bearer <jwt_token>
+ *
+ * // Response:
+ * {
+ *   "status": "success",
+ *   "data": {
+ *     "cartId": 1,
+ *     "userId": 123,
+ *     "subtotal": 99.99,
+ *     "discount": 10.00,
+ *     "total": 89.99,
+ *     "items": [
+ *       {
+ *         "product": { "id": 1, "name": "Item", "price": 50 },
+ *         "quantity": 2,
+ *         "subtotal": 100
+ *       }
+ *     ]
+ *   }
+ * }
+ */
 const getCartSummary = async (req, res, next) => {
   try {
     const userId = req.user?.id;
@@ -683,7 +727,6 @@ const getCartSummary = async (req, res, next) => {
                 attributes: [
                   "id",
                   "name",
-                  "thumbnail",
                   "price",
                   "discounted_price",
                 ],
@@ -717,7 +760,6 @@ const getCartSummary = async (req, res, next) => {
                 attributes: [
                   "id",
                   "name",
-                  "thumbnail",
                   "price",
                   "discounted_price",
                 ],
@@ -726,6 +768,11 @@ const getCartSummary = async (req, res, next) => {
           },
         ],
       });
+    }
+
+    // Get full cart details to include variant information
+    if (cart) {
+      cart = await cart.getFullCart();
     }
 
     if (!cart) {
@@ -741,25 +788,24 @@ const getCartSummary = async (req, res, next) => {
     // Calculate summary
     const items = cart.items || [];
     const subtotal = parseFloat(cart.total_amount);
-    const shipping = 0.0; // TODO: Calculate shipping based on location
-    const tax = 0.0; // TODO: Calculate tax based on location
-    const total = subtotal + shipping + tax;
+    const discount = 0.0; // TODO: Calculate discounts based on promotions/coupons
+    const total = subtotal - discount;
 
     const summary = {
       cartId: cart.id,
-      totalItems: cart.total_items,
+      userId: userId || null,
       subtotal,
-      shipping,
-      tax,
+      discount,
       total,
       items: items.map((item) => ({
-        id: item.id,
-        productId: item.product_id,
-        productName: item.product.name,
-        thumbnail: item.product.thumbnail,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          price: parseFloat(item.product.discounted_price || item.product.price),
+        },
+        variants: item.selected_variants || [],
         quantity: item.quantity,
-        price: item.price,
-        totalPrice: item.total_price,
+        subtotal: parseFloat(item.total_price),
       })),
     };
 

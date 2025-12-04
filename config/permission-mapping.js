@@ -15,6 +15,7 @@ const ROUTE_PATTERNS = [
   { pattern: /^\/categories\/([\w-]+)\/products$/, template: '/categories/:identifier/products' },
   { pattern: /^\/products\/([\w-]+)\/reviews$/, template: '/products/:productId/reviews' },
   { pattern: /^\/products\/([\w-]+)\/analytics$/, template: '/products/:id/analytics' },
+  { pattern: /^\/inventory\/product$/, template: '/inventory/product' },
   { pattern: /^\/vendors\/([\w-]+)\/products$/, template: '/vendors/:id/products' },
   { pattern: /^\/vendors\/([\w-]+)\/follow$/, template: '/vendors/:vendorId/follow' },
   { pattern: /^\/vendors\/vendor\/([\w-]+)\/followers$/, template: '/vendors/vendor/:vendorId/followers' },
@@ -32,10 +33,13 @@ const ROUTE_PATTERNS = [
   { pattern: /^\/auth\/verify-phone-change\/([\w-]+)$/, template: '/auth/verify-phone-change/:token' },
   { pattern: /^\/auth\/approve-phone-change\/([\w-]+)$/, template: '/auth/approve-phone-change/:userId' },
   { pattern: /^\/auth\/reject-phone-change\/([\w-]+)$/, template: '/auth/reject-phone-change/:userId' },
+  { pattern: /^\/auth\/verify-reset-token\/([\w-]+)$/, template: '/auth/verify-reset-token/:token' },
+  { pattern: /^\/auth\/reset-password\/([\w-]+)$/, template: '/auth/reset-password/:token' },
   { pattern: /^\/inventory\/history\/([\w-]+)$/, template: '/inventory/history/:productId' },
   { pattern: /^\/inventory\/product\/([\w-]+)$/, template: '/inventory/product/:productId' },
   { pattern: /^\/supply\/vendor\/([\w-]+)$/, template: '/supply/vendor/:vendorId' },
-  { pattern: /^\/dashboard\/product\/([\w-]+)$/, template: '/dashboard/product/:id' },
+  // FIXED: Dashboard product pattern - more flexible to handle query parameters and trailing slashes
+  { pattern: /^\/dashboard\/product\/([\w-]+)(?:\/|\?|$)/, template: '/dashboard/product/:id' },
   { pattern: /\/journals\/tags\/suggestions$/, template: "/journals/tags/suggestions" },
   { pattern: /\/journals\/tags\/check$/, template: "/journals/tags/check" },
   { pattern: /\/journals\/tags\/popular$/, template: "/journals/tags/popular" },
@@ -61,6 +65,13 @@ const ROUTE_PATTERNS = [
   { pattern: /^\/vendors\/([\w-]+)\/reject$/, template: '/vendors/:id/reject' },
   
   // Generic patterns (catch-all for remaining routes)
+  { pattern: /^\/filters\/products$/, template: '/filters/products' },
+  { pattern: /^\/filters\/products\/([\w-]+)\/combinations$/, template: '/filters/products/:productId/combinations' },
+  { pattern: /^\/filters\/categories$/, template: '/filters/categories' },
+  { pattern: /^\/filters\/price-range$/, template: '/filters/price-range' },
+  { pattern: /^\/filters\/colors$/, template: '/filters/colors' },
+  { pattern: /^\/filters\/sizes$/, template: '/filters/sizes' },
+  { pattern: /^\/filters\/dress-styles$/, template: '/filters/dress-styles' },
   { pattern: /^\/users\/([\w-]+)\/roles$/, template: '/users/:id/roles' },
   { pattern: /^\/products\/vendor\/([\w-]+)$/, template: '/products/vendor/:id' },
   { pattern: /^\/products\/([\w-]+)$/, template: '/products/:identifier' },
@@ -101,13 +112,29 @@ function generateRouteKey(method, path) {
   
   // Remove query parameters and trailing slashes
   normalizedPath = normalizedPath.split("?")[0].replace(/\/$/, "");
+  // Remove URL-encoded newline characters if present
+  normalizedPath = normalizedPath.replace(/%0A/g, "");
 
+  // DEBUG: Log the normalization process
+  console.log("=== ROUTE KEY GENERATION DEBUG ===");
+  console.log("Original path:", path);
+  console.log("After removing /api/v1:", path.replace(/^\/api\/v1/, ""));
+  console.log("After removing query params:", path.replace(/^\/api\/v1/, "").split("?")[0]);
+  console.log("Normalized path:", normalizedPath);
+  
   // Try to match against known patterns
   for (const { pattern, template } of ROUTE_PATTERNS) {
+    console.log("Testing pattern:", pattern.toString(), "against:", normalizedPath);
     if (pattern.test(normalizedPath)) {
-      return `${method.toUpperCase()} ${template}`;
+      const routeKey = `${method.toUpperCase()} ${template}`;
+      console.log("Pattern matched! Route key:", routeKey);
+      console.log("=====================================");
+      return routeKey;
     }
   }
+  
+  console.log("No pattern matched, using normalized path as-is");
+  console.log("=====================================");
 
   // If no pattern matched, return as-is (for static routes)
   return `${method.toUpperCase()} ${normalizedPath}`;

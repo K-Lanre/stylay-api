@@ -45,6 +45,9 @@ const processOnboardingFiles = async (req, res, next) => {
 
     // Handle logo (optional) - use the URL from the uploaded file
     processedData.logo = logoFile ? logoFile.url : null;
+    
+    // Store the actual file object for cleanup (not just URL)
+    processedData.logoFile = logoFile;
 
     // Business images are required
     if (businessImageFiles.length === 0) {
@@ -64,6 +67,9 @@ const processOnboardingFiles = async (req, res, next) => {
 
     // Process business images
     processedData.business_images = businessImageFiles.map(({ url }) => url);
+    
+    // Store the actual file objects for cleanup (not just URLs)
+    processedData.businessImageFiles = businessImageFiles;
 
     // Attach processed data to request object
     req.processedFiles = processedData;

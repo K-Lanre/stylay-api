@@ -18,6 +18,7 @@ const { sequelize, connectDB } = require("./config/database");
 const { initializePassport } = require("./config/passport");
 const { checkPermission } = require("./middlewares/checkPermission");
 const { setUser } = require("./middlewares/auth");
+const checkBlacklist = require("./middlewares/check-blacklist");
 const {
   httpRequestDurationMiddleware,
   initializePerformanceTracking,
@@ -32,6 +33,7 @@ const vendorRoutes = require("./routes/vendor.route");
 const categoryRoutes = require("./routes/category.route");
 const collectionRoutes = require("./routes/collection.route");
 const productRoutes = require("./routes/product.route");
+const filterRoutes = require("./routes/filter.route");
 const supplyRoutes = require("./routes/supply.route");
 const inventoryRoutes = require("./routes/inventory.route");
 const journalRoutes = require("./routes/journal.route");
@@ -326,6 +328,7 @@ app.get("/health", (req, res) => {
 app.get("/metrics", metricsRoute);
 // Middleware to set user and check permissions
 app.use(setUser);
+app.use(checkBlacklist);
 app.use(checkPermission);
 
 // Mount routes with caching for dashboard endpoints
@@ -336,6 +339,7 @@ app.use("/api/v1/vendors", vendorRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/collections", collectionRoutes);
 app.use("/api/v1/products", productRoutes);
+app.use("/api/v1/filters", filterRoutes);
 app.use("/api/v1/supplies", supplyRoutes);
 app.use("/api/v1/inventory", inventoryRoutes);
 app.use("/api/v1/journals", journalRoutes);

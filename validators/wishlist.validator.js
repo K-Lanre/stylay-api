@@ -1,4 +1,4 @@
-const { body, param } = require('express-validator');
+const { param } = require('express-validator');
 const { Product } = require('../models');
 
 // Validation for adding item to wishlist
@@ -13,7 +13,7 @@ const { Product } = require('../models');
  * router.post('/wishlist/items', addItemValidation, addItemToWishlist);
  */
 exports.addItemValidation = [
-  body('product_id')
+  param('productId')
     .notEmpty().withMessage('Product ID is required')
     .isInt({ min: 1 }).withMessage('Invalid product ID')
     .custom(async (value) => {

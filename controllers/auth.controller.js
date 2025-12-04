@@ -1,4 +1,4 @@
-const bcrypt = require("bcryptjs");
+﻿const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const passport = require('passport');
 const { User, Role, Permission } = require("../models");
@@ -7,6 +7,7 @@ const AppError = require("../utils/appError");
 const { sendWelcomeEmail, sendPasswordResetEmail } = require("../services/email.service"); // Assuming sendPasswordResetEmail is here
 const logger = require("../utils/logger");
 const rateLimit = require('express-rate-limit'); // Import rate-limiter
+const fs = require('fs');
 
 // Generate a random 6-digit code and expiration time (10 minutes from now)
 const generateVerificationCode = () => {
@@ -134,7 +135,7 @@ exports.register = async (req, res, next) => {
       last_name,
       email: email.toLowerCase(),
       password: await bcrypt.hash(password, 12),
-      profile_image: profile_image || `https://ui-avatars.com/api/?name=${first_name}+${last_name}&background=random&size=128`,
+      profile_image: req.body.profile_image || `https://ui-avatars.com/api/?name=${first_name}+${last_name}&background=random&size=128`,
       phone,
       gender,
       is_active: false, // User needs to verify email first
@@ -444,9 +445,31 @@ exports.login = async (req, res, next) => {
  * }
  */
 exports.updateProfile = async (req, res, next) => {
+  let uploadedFile = null; // Declare at function level for error handling
+  
   try {
     const { id } = req.user;
     const updateData = { ...req.body };
+    
+    // DEBUG: Log request details to diagnose file upload issues
+    logger.info('updateProfile called with:', {
+      userId: id,
+      hasFiles: !!req.files,
+      hasUploadedFiles: !!req.uploadedFiles,
+      contentType: req.get('Content-Type'),
+      bodyKeys: Object.keys(req.body),
+      uploadedFilesCount: req.uploadedFiles ? req.uploadedFiles.length : 0
+    });
+    
+    // DEBUG: Log uploaded files details if any
+    if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+      logger.info('Uploaded files found:', req.uploadedFiles.map(file => ({
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        url: file.url
+      })));
+    }
     
     // Remove fields that shouldn't be updated this way
     const restrictedFields = ['password', 'password_reset_token', 'password_reset_expires', 'email_verified_at', 'email_verification_token'];
@@ -459,18 +482,37 @@ exports.updateProfile = async (req, res, next) => {
       // TODO: Send verification email
     }
     
+    // Handle profile image upload if file was uploaded
+    if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+      const profileImageFile = req.uploadedFiles[0];
+      if (profileImageFile && profileImageFile.url) {
+        updateData.profile_image = profileImageFile.url;
+        uploadedFile = profileImageFile;
+        logger.info('Profile image updated:', {
+          userId: id,
+          imageUrl: profileImageFile.url,
+          originalFilename: profileImageFile.originalname
+        });
+      }
+    }
+    
+    // DEBUG: Log update data before database operation
+    logger.info('Update data prepared:', {
+      updateDataKeys: Object.keys(updateData),
+      hasProfileImage: !!updateData.profile_image
+    });
+    
     // Update user in database
-    const [updated] = await User.update(updateData, {
+    const [updatedCount] = await User.update(updateData, {
       where: { id },
-      returning: true,
       individualHooks: true
     });
     
-    if (!updated) {
+    if (updatedCount === 0) {
       return next(new AppError('No user found with that ID', 404));
     }
     
-    // Fetch the updated user
+    // Fetch the updated user with all necessary relations
     const updatedUser = await User.findByPk(id, {
       attributes: { exclude: ['password', 'password_reset_token', 'password_reset_expires'] },
       include: [
@@ -483,6 +525,10 @@ exports.updateProfile = async (req, res, next) => {
       ]
     });
     
+    if (!updatedUser) {
+      return next(new AppError('User not found after update', 404));
+    }
+    
     // Log the profile update
     logger.info(`User profile updated: ${updatedUser.email} (ID: ${updatedUser.id})`);
     
@@ -494,10 +540,21 @@ exports.updateProfile = async (req, res, next) => {
     });
     
   } catch (error) {
+    // Clean up uploaded file if there was an error
+    if (uploadedFile && uploadedFile.path && fs.existsSync(uploadedFile.path)) {
+      try {
+        fs.unlinkSync(uploadedFile.path);
+        logger.info(`Cleaned up uploaded file after error: ${uploadedFile.path}`);
+      } catch (cleanupError) {
+        logger.error(`Failed to clean up uploaded file: ${cleanupError.message}`);
+      }
+    }
+    
     logger.error(`Error updating user profile: ${error.message}`, {
       userId: req.user?.id,
       error: error.stack
     });
+    
     // Ensure a user-friendly error is passed to the next middleware
     if (error instanceof AppError) {
       next(error);
@@ -745,8 +802,9 @@ exports.updatePassword = async (req, res, next) => {
 
 /**
  * Initiate password reset process
- * Generates a reset code and sends it via email. Returns success even if email doesn't exist
- * to prevent email enumeration attacks. Uses database transactions for consistency.
+ * Generates a reset token and sends it via email with a clickable reset link.
+ * The token is embedded in the URL, so users don't need to copy/paste it.
+ * Uses database transactions for consistency.
  *
  * @param {import('express').Request} req - Express request object
  * @param {import('express').Request.body} req.body - Request body
@@ -758,7 +816,7 @@ exports.updatePassword = async (req, res, next) => {
  * @returns {string} res.body.message - Generic success message
  * @throws {AppError} 400 - Email required
  * @throws {AppError} 500 - Server error or email sending failure
- * @api {post} /api/v1/auth/forgot-password Forgot password - Send reset code
+ * @api {post} /api/v1/auth/forgot-password Forgot password - Send reset link
  * @example
  * POST /api/v1/auth/forgot-password
  * {
@@ -787,39 +845,55 @@ exports.forgotPassword = async (req, res, next) => {
       return res.status(200).json({
         status: "success",
         message:
-          "If your email is registered, you will receive a password reset code.",
+          "If your email is registered, you will receive a password reset link.",
       });
     }
 
-    // 2) Generate a new 6-digit reset code and set expiration (e.g., 15 minutes)
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedCode = hashVerificationCode(resetCode);
+    // 2) Generate a reset token using crypto (URL-safe)
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
     const resetTokenExpires = new Date();
     resetTokenExpires.setMinutes(resetTokenExpires.getMinutes() + 15); // Token expires in 15 minutes
 
-    // 3) Save the reset code and its expiration to the database
+    // 3) Save the hashed reset token and its expiration to the database
     await user.update({
-      password_reset_token: hashedCode,
-      password_reset_expires: resetTokenExpires, // Store expiration timestamp
-    });
+      password_reset_token: hashedToken,
+      password_reset_expires: resetTokenExpires,
+    }, { transaction });
 
-    // 4) Send the reset code to the user's email
-    await sendPasswordResetEmail(
-      user.email,
-      `${user.first_name} ${user.last_name}`,
-      resetCode
-    );
+    // 4) Create the reset link with embedded token
+    const resetUrl = `${
+      process.env.FRONTEND_URL || "https://stylay.com"
+    }/reset-password/${resetToken}`;
+
+    // 5) Send the reset link to the user's email
+    try {
+      await sendPasswordResetEmail(
+        user.email,
+        `${user.first_name} ${user.last_name}`,
+        resetUrl // Send the full URL instead of just the code
+      );
+    } catch (emailErr) {
+      logger.error(`Error sending password reset email: ${emailErr.message}`);
+      await transaction.rollback();
+      return next(new AppError("Failed to send password reset email. Please try again.", 500));
+    }
 
     // Commit the transaction
     await transaction.commit();
 
     // Log the successful password reset request
-    logger.info(`Password reset code sent to user ${user.id}`);
+    logger.info(`Password reset link sent to user ${user.id}`);
 
     res.status(200).json({
       status: "success",
       message:
-        "If your email is registered, you will receive a password reset code.",
+        "If your email is registered, you will receive a password reset link.",
     });
   } catch (err) {
     // Rollback transaction in case of error
@@ -833,7 +907,6 @@ exports.forgotPassword = async (req, res, next) => {
     logger.error(`Error in forgotPassword for ${email}: ${err.message}`, {
       error: err,
     });
-    // Ensure a user-friendly error is passed to the next middleware
     if (err instanceof AppError) {
       next(err);
     } else {
@@ -841,6 +914,92 @@ exports.forgotPassword = async (req, res, next) => {
     }
   }
 };
+
+/**
+ * Verify password reset token and validate it's still valid
+ * This endpoint validates the token from the URL before allowing password reset.
+ * Users hit this endpoint when they click the reset link to verify the token is valid.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.token - Reset token from URL (required)
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response confirming token validity
+ * @returns {Object} res.body.status - Response status ("success")
+ * @returns {string} res.body.message - Token validation message
+ * @returns {Object} res.body.data - User details (for form prefilling)
+ * @returns {string} res.body.data.email - User's email
+ * @returns {Date} res.body.data.expiresAt - Token expiration time
+ * @throws {AppError} 400 - Invalid or expired token
+ * @throws {AppError} 404 - User not found
+ * @throws {AppError} 500 - Server error
+ * @api {get} /api/v1/auth/verify-reset-token/:token Verify password reset token
+ * @example
+ * GET /api/v1/auth/verify-reset-token/abc123def456xyz789
+ */
+exports.verifyResetToken = async (req, res, next) => {
+  try {
+    let { token } = req.params;
+
+    if (!token) {
+      return next(new AppError("Reset token is required", 400));
+    }
+
+    // Clean the token by removing any trailing URL-encoded newline characters
+    token = token.replace(/%0A/g, "");
+
+    // Hash the token to match what's stored in the database
+    const crypto = require('crypto');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    // Find user with this reset token
+    const user = await User.findOne({
+      where: {
+        password_reset_token: hashedToken,
+      },
+      attributes: ['id', 'email', 'password_reset_expires'],
+    });
+
+    if (!user) {
+      return next(new AppError("Invalid or expired reset token", 400));
+    }
+
+    // Check if token has expired
+    if (new Date() > user.password_reset_expires) {
+      // Clear the expired token from the database
+      await user.update({
+        password_reset_token: null,
+        password_reset_expires: null,
+      });
+      return next(new AppError("Password reset link has expired. Please request a new one.", 400, {
+        code: 'TOKEN_EXPIRED',
+        expiresAt: user.password_reset_expires
+      }));
+    }
+
+    // Token is valid
+    res.status(200).json({
+      status: "success",
+      message: "Reset token is valid",
+      data: {
+        email: user.email,
+        expiresAt: user.password_reset_expires,
+      },
+    });
+  } catch (err) {
+    logger.error(`Error verifying reset token: ${err.message}`, { error: err });
+    if (err instanceof AppError) {
+      next(err);
+    } else {
+      next(new AppError("An error occurred while verifying the reset token.", 500));
+    }
+  }
+};
+
 
 /**
  * Logout user by clearing authentication cookies and blacklisting JWT token
@@ -899,76 +1058,103 @@ exports.logout = async (req, res) => {
 };
 
 /**
- * Reset user password using reset code
- * Validates the reset code and updates the user's password.
- * Marks the reset token as used to prevent reuse.
+ * Reset user password using reset token from URL
+ * Validates the reset token and updates the user's password.
+ * Token is provided in the URL/params instead of the body for security.
  *
  * @param {import('express').Request} req - Express request object
+ * @param {import('express').Request.params} req.params - Route parameters
+ * @param {string} req.params.token - Reset token from URL (required)
  * @param {import('express').Request.body} req.body - Request body
- * @param {string} req.body.email - User's email address (required)
- * @param {string} req.body.code - 6-digit reset code (required)
  * @param {string} req.body.newPassword - New password (required, min 8 characters)
+ * @param {string} req.body.confirmPassword - Password confirmation (required, must match newPassword)
  * @param {import('express').Response} res - Express response object
  * @param {import('express').NextFunction} next - Express next middleware function
  * @returns {Object} Success response confirming password update
  * @returns {Object} res.body.status - Response status ("success")
  * @returns {string} res.body.message - Password update confirmation
- * @throws {AppError} 400 - Missing required fields or invalid/expired code
+ * @throws {AppError} 400 - Missing required fields, invalid/expired token, or password mismatch
  * @throws {AppError} 404 - User not found
  * @throws {AppError} 500 - Server error during password reset
- * @api {post} /api/v1/auth/reset-password Reset password with code
+ * @api {post} /api/v1/auth/reset-password/:token Reset password with embedded token
  * @example
- * POST /api/v1/auth/reset-password
+ * POST /api/v1/auth/reset-password/abc123def456xyz789
  * {
- *   "email": "john.doe@example.com",
- *   "code": "654321",
- *   "newPassword": "newsecurepass123"
+ *   "newPassword": "newsecurepass123",
+ *   "confirmPassword": "newsecurepass123"
  * }
  */
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { email, code, newPassword } = req.body;
+    let { token } = req.params;
+    const { newPassword, confirmPassword } = req.body;
 
-    if (!email || !code || !newPassword) {
-      return next(
-        new AppError("Email, code and new password are required", 400)
-      );
+    // Validate input
+    if (!token) {
+      return next(new AppError("Reset token is required", 400));
     }
 
-    const user = await User.findOne({ where: { email } });
+    // Clean the token by removing any trailing URL-encoded newline characters
+    token = token.replace(/%0A/g, "");
+
+    if (!newPassword || !confirmPassword) {
+      return next(new AppError("New password and confirmation are required", 400));
+    }
+
+    if (newPassword !== confirmPassword) {
+      return next(new AppError("Passwords do not match", 400));
+    }
+
+    // Hash the token to match what's stored in the database
+    const crypto = require('crypto');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    // Find user with this reset token
+    const user = await User.findOne({
+      where: {
+        password_reset_token: hashedToken,
+      },
+    });
+
     if (!user) {
-      return next(new AppError("User not found", 404));
+      return next(new AppError("Invalid or expired reset token", 400));
     }
 
-    // Find and validate reset code
-    const isCodeValid = await bcrypt.compare(code, user.password_reset_token);
-    if (!isCodeValid) {
-      // Clear potentially invalid token and expiration
-      await user.update({ password_reset_token: null, password_reset_expires: null });
-      return next(new AppError("Invalid or expired reset code", 400));
-    }
-
-    // Check if the token has expired
-    if (user.password_reset_expires && new Date() > user.password_reset_expires) {
+    // Check if token has expired
+    if (new Date() > user.password_reset_expires) {
       // Clear the expired token and expiration from the database
-      await user.update({ password_reset_token: null, password_reset_expires: null });
-      return next(new AppError("Password reset code has expired. Please request a new one.", 400));
+      await user.update({
+        password_reset_token: null,
+        password_reset_expires: null,
+      });
+      return next(new AppError("Password reset link has expired. Please request a new one.", 400, {
+        code: 'TOKEN_EXPIRED',
+        expiresAt: user.password_reset_expires
+      }));
     }
-
-    // Mark code as used by clearing it and its expiration
-    await user.update({ password_reset_token: null, password_reset_expires: null });
 
     // Update password
     user.password = await bcrypt.hash(newPassword, 12);
+    user.password_changed_at = new Date();
+    
+    // Clear the reset token and expiration (mark as used)
+    user.password_reset_token = null;
+    user.password_reset_expires = null;
+    
     await user.save();
+
+    // Log successful password reset
+    logger.info(`Password reset successfully for user ${user.id}`);
 
     res.status(200).json({
       status: "success",
-      message: "Password updated successfully",
+      message: "Password has been reset successfully. You can now log in with your new password.",
     });
   } catch (err) {
-    logger.error(`Error resetting password for ${email}: ${err.message}`, { error: err });
-    // Ensure a user-friendly error is passed to the next middleware
+    logger.error(`Error resetting password: ${err.message}`, { error: err });
     if (err instanceof AppError) {
       next(err);
     } else {

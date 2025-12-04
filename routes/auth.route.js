@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require("../controllers/auth.controller");
 const { validate } = require("../validators/auth.validator");
 const { protect, localAuth, restrictTo } = require("../middlewares/auth");
+const uploadFiles = require("../middlewares/fileUpload");
 const {
   registerValidation,
   loginValidation,
@@ -41,14 +42,24 @@ router.post(
   validate,
   authController.resendVerificationCode
 );
+
+// Password reset flow - Token embedded in URL
 router.post(
   "/forgot-password",
   forgotPasswordValidation,
   validate,
   authController.forgotPassword
 );
+
+// Verify reset token is valid (called when user clicks the email link)
+router.get(
+  "/verify-reset-token/:token",
+  authController.verifyResetToken
+);
+
+// Reset password with token in URL (user submits new password)
 router.post(
-  "/reset-password",
+  "/reset-password/:token",
   resetPasswordValidation,
   validate,
   authController.resetPassword
@@ -66,6 +77,7 @@ router.put(
   "/me",
   updateProfileValidation,
   validate,
+  uploadFiles('profile_image', 1, 'user-avatars'), // Add file upload middleware
   authController.updateProfile
 );
 router.patch(

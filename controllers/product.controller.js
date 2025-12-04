@@ -13,6 +13,7 @@ const {
   ProductVariantCombination,
   User,
 } = require("../models");
+const ProductService = require("../services/product.service");
 const AppError = require("../utils/appError");
 const { Op } = require("sequelize");
 const slugify = require("slugify");
@@ -903,74 +904,13 @@ const getAllProducts = async (req, res, next) => {
   }
 };
 
-const adminUpdateProduct = async (req, res, next) => {
+
+const updateProductStatus = async (req, res, next) => {
   try {
+    const { status } = req.body;
+
     const product = await Product.findByPk(req.params.id, {
       include: [
-        { model: Category, attributes: ["id", "name"] },
-        {
-          model: Vendor,
-          attributes: ["id", "user_id"],
-          as: "vendor",
-          include: {
-            model: Store,
-            as: "store",
-            attributes: ["id", "business_name"],
-          },
-        },
-        {
-          model: ProductVariant,
-          as: "variants",
-          attributes: ["id", "name", "value"],
-        },
-        { model: ProductImage, as: "images" },
-      ],
-    });
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
-    }
-
-    // Update product fields
-    const { name, description, price, category_id, sku, status } = req.body;
-
-    if (category_id) {
-      const category = await Category.findByPk(category_id);
-      if (!category) {
-        return next(new AppError("Category not found", 404));
-      }
-    }
-
-    // Generate new slug if name is being updated
-    let slug = product.slug;
-    if (name && name !== product.name) {
-      slug = slugify(name, {
-        lower: true,
-        strict: true,
-        remove: /[*+~.()'"!:@]/g,
-      });
-
-      // Check if slug already exists for another product
-      const existingProduct = await Product.findOne({ where: { slug } });
-      if (existingProduct && existingProduct.id !== product.id) {
-        slug = `${slug}-${Date.now()}`;
-      }
-    }
-
-    await product.update({
-      name: name || product.name,
-      slug,
-      description: description || product.description,
-      price: price || product.price,
-      category_id: category_id || product.category_id,
-      sku: sku || product.sku,
-      status: status || product.status,
-    });
-
-    // Fetch the updated product with associations
-    const updatedProduct = await Product.findByPk(product.id, {
-      include: [
-        { model: Category, attributes: ["id", "name", "slug"] },
         {
           model: Vendor,
           attributes: ["id"],
@@ -979,54 +919,10 @@ const adminUpdateProduct = async (req, res, next) => {
             {
               model: Store,
               as: "store",
-              attributes: ["id", "business_name"],
+              attributes: ["business_name"],
             },
           ],
         },
-        {
-          model: ProductVariant,
-          as: "variants",
-          attributes: ["id", "name", "value"],
-        },
-        { model: ProductImage, as: "images" },
-      ],
-    });
-
-    res.status(200).json({
-      success: true,
-      data: updatedProduct,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const adminDeleteProduct = async (req, res, next) => {
-  try {
-    const product = await Product.findByPk(req.params.id);
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
-    }
-
-    await product.destroy();
-
-    res.status(200).json({
-      success: true,
-      data: {},
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const updateProductStatus = async (req, res, next) => {
-  try {
-    const { status } = req.body;
-
-    const product = await Product.findByPk(req.params.id, {
-      include: [
-        { model: Vendor, attributes: ["id", "business_name"], as: "vendor" },
         { model: Category, attributes: ["id", "name"] },
       ],
     });
@@ -1090,8 +986,15 @@ const getProductsByStatus = async (req, res, next) => {
         { model: Category, attributes: ["id", "name", "slug"] },
         {
           model: Vendor,
-          attributes: ["id", "business_name", "status"],
+          attributes: ["id", "status"],
           as: "vendor",
+          include: [
+            {
+              model: Store,
+              as: "store",
+              attributes: ["business_name"],
+            },
+          ],
         },
         { model: ProductImage, limit: 1, as: "images" },
       ],
@@ -1109,161 +1012,103 @@ const getProductsByStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Update product with full payload support including images and variants
+ * @route   PUT /api/v1/products/:id
+ * @access  Private (Vendor/Admin)
+ */
 const updateProduct = async (req, res, next) => {
+  let processedImages = [];
   try {
-    const product = await Product.findByPk(req.params.id);
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
-    }
-    // For admins, skip ownership check but still verify the product exists
-    const isAdmin =
-      req.user.roles && req.user.roles.some((role) => role.name === "admin");
-
-    if (isAdmin) {
-      // Just verify the vendor exists and is approved
-      const vendor = await Vendor.findByPk(product.vendor_id, {
-        attributes: ["id", "status"],
-        as: "vendor",
-      });
-
-      if (!vendor) {
-        return next(new AppError("Product vendor not found", 404));
-      }
-
-      if (vendor.status !== "approved") {
-        return next(new AppError("Product vendor is not approved", 403));
-      }
-
-      // Continue with the update for admin
-      next();
-      return;
+    // Determine user role - more robust role detection
+    let userRole = "vendor"; // Default to vendor role
+    if (req.user.roles && req.user.roles.some((role) => role.name === "admin")) {
+      userRole = "admin";
     }
 
-    // For vendors, verify ownership and status
-    const vendor = await Vendor.findOne({
-      where: {
-        user_id: req.user.id,
-        id: product.vendor_id,
-      },
-      attributes: ["id", "status"],
-      as: "vendor",
+    // Initialize ImageProcessor for enhanced image handling
+    const imageProcessor = new ImageProcessor({
+      uploadPath: "product-images",
+      maxSize: 10 * 1024 * 1024, // 10MB
+      allowedTypes: ["image/jpeg", "image/png", "image/jpg", "image/webp"],
     });
 
-    if (!vendor) {
-      return next(new AppError("Not authorized to update this product", 403));
-    }
-
-    if (vendor.status !== "approved") {
-      return next(new AppError("Your vendor account is not approved", 403));
-    }
-
-    // Prepare update data
-    const updateData = {};
-    const { name, description, price, category_id, sku, status } = req.body;
-
-    // Handle category update
-    if (category_id) {
-      const category = await Category.findByPk(category_id);
-      if (!category) {
-        return next(new AppError("Category not found", 404));
-      }
-      updateData.category_id = category_id;
-    }
-
-    // Handle name and slug update
-    if (name && name !== product.name) {
-      updateData.name = name;
-
-      // Generate new slug
-      let slug = slugify(name, {
-        lower: true,
-        strict: true,
-        remove: /[*+~.()'"!:@]/g,
-      });
-
-      // Append a unique identifier if slug already exists
-      const existingProduct = await Product.findOne({
-        where: {
-          slug,
-          id: { [Op.ne]: product.id }, // Exclude current product
-        },
-      });
-
-      if (existingProduct) {
-        slug = `${slug}-${Date.now()}`;
-      }
-
-      updateData.slug = slug;
-    }
-
-    // Add other fields to update
-    if (description !== undefined) updateData.description = description;
-    if (price !== undefined) updateData.price = price;
-    if (sku !== undefined) updateData.sku = sku;
-    if (status !== undefined) updateData.status = status;
-
-    // Only update if there are changes
-    if (Object.keys(updateData).length === 0) {
-      return next(new AppError("No valid fields provided for update", 400));
-    }
-
-    // Update the product
-    await product.update(updateData);
-
-    // Fetch the updated product with associations
-    const updatedProduct = await Product.findByPk(product.id, {
-      include: [
-        { model: Category, attributes: ["id", "name", "slug"] },
-        {
-          model: Vendor,
-          attributes: ["id"],
-          as: "vendor",
-          include: [
-            {
-              model: Store,
-              as: "store",
-              attributes: ["id", "business_name"],
-            },
-          ],
-        },
-        {
-          model: ProductVariant,
-          as: "variants",
-          attributes: ["id", "name", "value"],
-        },
-        { model: ProductImage, as: "images" },
-      ],
+    // Process images from multiple sources (multipart, base64, URLs)
+    processedImages = await imageProcessor.processImages(req, {
+      fieldName: "images",
+      maxCount: 10,
     });
+
+    console.log("=== PRODUCT UPDATE DIAGNOSTIC ===");
+    console.log("Request body keys:", Object.keys(req.body));
+    console.log(
+      "Images from req.uploadedFiles:",
+      processedImages.length,
+      "files"
+    );
+    console.log(
+      "Images details:",
+      processedImages.map((img) => ({
+        fieldname: img.fieldname,
+        filename: img.filename,
+        url: img.url,
+      }))
+    );
+    console.log("Raw req.body.images:", req.body.images);
+    console.log("req.files present:", !!req.files);
+    console.log("req.files keys:", req.files ? Object.keys(req.files) : "N/A");
+    console.log("Content-Type:", req.get("Content-Type"));
+    console.log("=====================================");
+
+    // Call the unified service method with processed images
+    const updatedProduct = await ProductService.updateProduct(
+      req.params.id,
+      { ...req.body, images: processedImages },
+      userRole,
+      req.user.id
+    );
 
     res.status(200).json({
       success: true,
       data: updatedProduct,
     });
   } catch (error) {
+    // Clean up uploaded images if transaction failed
+    if (processedImages && processedImages.length > 0) {
+      processedImages.forEach((image) => {
+        if (image.path && fs.existsSync(image.path)) {
+          try {
+            fs.unlinkSync(image.path);
+            console.log(`Cleaned up file: ${image.path}`);
+          } catch (cleanupError) {
+            console.warn(
+              `Failed to clean up file ${image.path}:`,
+              cleanupError.message
+            );
+          }
+        }
+      });
+    }
     next(error);
   }
 };
 
 const deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findByPk(req.params.id);
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
+    // Determine user role - more robust role detection
+    let userRole = "vendor"; // Default to vendor role
+    if (req.user.roles && req.user.roles.some((role) => role.name === "admin")) {
+      userRole = "admin";
     }
 
-    // Check if the current user is the product owner or admin
-    if (product.vendor_id !== req.user.id && req.user.role !== "admin") {
-      return next(new AppError("Not authorized to delete this product", 403));
-    }
+    // Call the unified service method
+    const result = await ProductService.deleteProduct(
+      req.params.id,
+      userRole,
+      req.user.id
+    );
 
-    await product.destroy();
-
-    res.status(200).json({
-      success: true,
-      data: {},
-    });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
@@ -1431,109 +1276,22 @@ const getProductsByVendor = async (req, res, next) => {
  */
 const getProductAnalytics = async (req, res, next) => {
   try {
-    const productId = req.params.id;
-    const isAdmin = req.user.roles.some((role) => role.name === "admin");
-    const isVendor = req.user.roles.some((role) => role.name === "vendor");
-
-    // Find the product
-    const product = await Product.findByPk(productId, {
-      include: [
-        { model: Vendor, attributes: ["id", "user_id"], as: "vendor" },
-        { model: Category, attributes: ["id", "name"] },
-      ],
-    });
-
-    if (!product) {
-      return next(new AppError("Product not found", 404));
+    // Determine user role - more robust role detection
+    let userRole = "vendor"; // Default to vendor role
+    if (req.user.roles && req.user.roles.some((role) => role.name === "admin")) {
+      userRole = "admin";
     }
 
-    // Check if user owns this product or is admin
-    if (!isAdmin && !isVendor && product.vendor.user_id !== req.user.id) {
-      return next(
-        new AppError("Not authorized to view this product's analytics", 403)
-      );
-    }
-
-    // Get order statistics for this product
-    const orderStats = await sequelize.query(
-      `
-      SELECT
-        COUNT(DISTINCT oi.order_id) as total_orders,
-        SUM(oi.quantity) as total_units_sold,
-        AVG(oi.price) as average_sale_price,
-        SUM(oi.sub_total) as total_revenue,
-        MIN(o.order_date) as first_sale_date,
-        MAX(o.order_date) as last_sale_date
-      FROM order_items oi
-      JOIN orders o ON oi.order_id = o.id
-      WHERE oi.product_id = :productId
-      AND o.payment_status = 'paid'
-      AND o.order_status IN ('processing', 'shipped', 'delivered')
-    `,
-      {
-        replacements: { productId },
-        type: sequelize.QueryTypes.SELECT,
-      }
+    // Call the unified service method
+    const analyticsData = await ProductService.getProductAnalytics(
+      req.params.id,
+      userRole,
+      req.user.id
     );
-
-    // Get monthly sales data for the last 12 months
-    const monthlySales = await sequelize.query(
-      `
-      SELECT
-        DATE_FORMAT(o.order_date, '%Y-%m') as month,
-        COUNT(DISTINCT oi.order_id) as orders_count,
-        SUM(oi.quantity) as units_sold,
-        SUM(oi.sub_total) as revenue
-      FROM order_items oi
-      JOIN orders o ON oi.order_id = o.id
-      WHERE oi.product_id = :productId
-      AND o.payment_status = 'paid'
-      AND o.order_status IN ('processing', 'shipped', 'delivered')
-      AND o.order_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-      GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
-      ORDER BY month DESC
-    `,
-      {
-        replacements: { productId },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    // Calculate conversion rate (orders per impression)
-    const stats = orderStats[0] || {};
-    const conversionRate =
-      stats.total_orders && product.impressions
-        ? (stats.total_orders / product.impressions) * 100
-        : 0;
-
-    // Calculate average order value for this product
-    const avgOrderValue =
-      stats.total_revenue && stats.total_orders
-        ? stats.total_revenue / stats.total_orders
-        : 0;
 
     res.status(200).json({
       success: true,
-      data: {
-        product: {
-          id: product.id,
-          name: product.name,
-          impressions: product.impressions,
-          sold_units: product.sold_units,
-          status: product.status,
-        },
-        analytics: {
-          total_orders: parseInt(stats.total_orders) || 0,
-          total_units_sold: parseInt(stats.total_units_sold) || 0,
-          total_revenue: parseFloat(stats.total_revenue) || 0,
-          average_sale_price: parseFloat(stats.average_sale_price) || 0,
-          average_order_value: parseFloat(avgOrderValue),
-          conversion_rate: parseFloat(conversionRate.toFixed(2)),
-          first_sale_date: stats.first_sale_date,
-          last_sale_date: stats.last_sale_date,
-          monthly_sales: monthlySales,
-        },
-      },
+      data: analyticsData,
     });
   } catch (error) {
     next(error);
@@ -1551,8 +1309,6 @@ module.exports = {
   getVendorAnalytics,
   // Admin methods
   getAllProducts,
-  adminUpdateProduct,
-  adminDeleteProduct,
   updateProductStatus,
   getProductsByStatus,
 };

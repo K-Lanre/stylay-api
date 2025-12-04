@@ -141,7 +141,8 @@
                 "auth",
                 "verify-email"
               ]
-            }
+            },
+            "description": "Verify user email with verification code sent to email"
           }
         },
         {
@@ -174,7 +175,8 @@
                 "auth",
                 "resend-verification"
               ]
-            }
+            },
+            "description": "Resend verification code to email (30 second rate limit between requests)"
           }
         },
         {
@@ -207,7 +209,34 @@
                 "auth",
                 "forgot-password"
               ]
-            }
+            },
+            "description": "Initiate password reset. Generates a reset token with 15-minute expiration and sends an email with a clickable reset link containing the token."
+          }
+        },
+        {
+          "name": "Verify Reset Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-reset-token/{{reset_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-reset-token",
+                "{{reset_token}}"
+              ]
+            },
+            "description": "Verify that a password reset token is still valid. Call this when user lands on the reset password page. Returns user email and token expiration time."
           }
         },
         {
@@ -222,7 +251,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"user@example.com\",\n    \"code\": \"123456\",\n    \"password\": \"NewPassword123!\"\n}",
+              "raw": "{\n    \"email\": \"user@example.com\",\n    \"newPassword\": \"NewPassword123!\",\n    \"confirmPassword\": \"NewPassword123!\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -230,7 +259,7 @@
               }
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/auth/reset-password",
+              "raw": "{{base_url}}/api/v1/auth/reset-password/{{reset_token}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -238,9 +267,11 @@
                 "api",
                 "v1",
                 "auth",
-                "reset-password"
+                "reset-password",
+                "{{reset_token}}"
               ]
-            }
+            },
+            "description": "Reset password using the token from the email reset link. Token is provided in the URL, not in the request body. Passwords must match."
           }
         },
         {
@@ -277,7 +308,8 @@
                 "auth",
                 "update-password"
               ]
-            }
+            },
+            "description": "Update password for authenticated user. Requires current password verification. Cannot be done while phone change is pending."
           }
         },
         {
@@ -307,30 +339,18 @@
                 "me"
               ]
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"User\",\n    \"phone\": \"+1234567890\",\n    \"gender\": \"other\",\n    \"date_of_birth\": \"1990-01-01\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "Get current authenticated user's profile including roles and permissions"
           }
         },
         {
           "name": "Update Profile",
           "request": {
             "method": "PUT",
-            "description": "Update the current user's profile",
+            "description": "Update the current user's profile information. Email changes require re-verification. Supports file uploads for profile image.",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "body": {
@@ -338,27 +358,45 @@
               "formdata": [
                 {
                   "key": "first_name",
-                  "value": "Updated"
+                  "value": "Updated",
+                  "type": "text",
+                  "description": "User's first name (optional)"
                 },
                 {
                   "key": "last_name",
-                  "value": "User"
+                  "value": "User",
+                  "type": "text",
+                  "description": "User's last name (optional)"
+                },
+                {
+                  "key": "email",
+                  "value": "newemail@example.com",
+                  "type": "text",
+                  "description": "New email address (optional, triggers re-verification)"
                 },
                 {
                   "key": "phone",
-                  "value": "+1234567890"
+                  "value": "+2348012345678",
+                  "type": "text",
+                  "description": "Phone number (optional)"
                 },
                 {
                   "key": "gender",
-                  "value": "other"
+                  "value": "other",
+                  "type": "text",
+                  "description": "Gender (optional)"
                 },
                 {
                   "key": "dob",
-                  "value": "1990-01-01"
+                  "value": "1990-01-01",
+                  "type": "text",
+                  "description": "Date of birth in YYYY-MM-DD format (optional)"
                 },
                 {
                   "key": "profile_image",
-                  "type": "file"
+                  "type": "file",
+                  "src": "",
+                  "description": "Profile image file (optional, JPEG/PNG/WebP, max 5MB)"
                 }
               ]
             },
@@ -398,11 +436,11 @@
                 "logout"
               ]
             },
-            "description": "Logout and invalidate the user's session"
+            "description": "Logout user and invalidate the session. Clears JWT cookie and blacklists token."
           }
         },
         {
-          "name": "Request phone change",
+          "name": "Request Phone Change",
           "request": {
             "method": "POST",
             "header": [
@@ -435,42 +473,43 @@
                 "auth",
                 "request-phone-change"
               ]
-            }
+            },
+            "description": "Initiate phone number change request. Generates 24-hour verification token and sends email verification link to user. Admin approval required."
           }
         },
         {
-          "name": "Verify phone change",
+          "name": "Verify Phone Change",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/v1/auth/verify-phone-change/:token",
+              "raw": "{{base_url}}/api/v1/auth/verify-phone-change/{{phone_change_token}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "admin",
-                "dashboard",
-                "sales-stats"
-              ],
-              "variable": [
-                {
-                  "key": "token",
-                  "value": "abc123def456"
-                }
+                "v1",
+                "auth",
+                "verify-phone-change",
+                "{{phone_change_token}}"
               ]
-            }
+            },
+            "description": "Verify phone change request via email link. User clicks this link from verification email. Validates token but doesn't apply the change (requires admin approval)."
           }
         },
         {
-          "name": "Cancel phone change",
+          "name": "Cancel Phone Change",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
             "body": {
@@ -493,67 +532,8 @@
                 "auth",
                 "cancel-phone-change"
               ]
-            }
-          }
-        },
-        {
-          "name": "Approve Phone Change - Admin",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/auth/approve-phone-change/:userId",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "approve-phone-change"
-              ],
-              "variable": [
-                {
-                  "key": "userId",
-                  "value": "1"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Reject Phone Change - Admin",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/auth/reject-phone-change/:userId",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "reject-phone-change"
-              ],
-              "variable": [
-                {
-                  "key": "userId",
-                  "value": "1"
-                }
-              ]
-            }
+            },
+            "description": "Cancel pending phone change request. Removes all pending phone change data for the authenticated user."
           }
         },
         {
@@ -587,7 +567,60 @@
                   "value": "10"
                 }
               ]
-            }
+            },
+            "description": "Get paginated list of all pending phone change requests (admin only). Returns users with pending phone changes for review."
+          }
+        },
+        {
+          "name": "Approve Phone Change - Admin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/approve-phone-change/{{userId}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "approve-phone-change",
+                "{{userId}}"
+              ]
+            },
+            "description": "Admin approval of pending phone change request. Updates user's phone number and clears pending data."
+          }
+        },
+        {
+          "name": "Reject Phone Change - Admin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reject-phone-change/{{userId}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reject-phone-change",
+                "{{userId}}"
+              ]
+            },
+            "description": "Admin rejection of pending phone change request. Removes request without updating user's phone number."
           }
         }
       ]
@@ -2184,6 +2217,11 @@
                       "type": "text"
                     },
                     {
+                      "key":"thumbnail",
+                      "value":"/path/to/vendor-thumbnail.jpg",
+                      "type":"file"
+                    },
+                    {
                       "key": "variants",
                       "value": "[{\"type\": \"Color\", \"value\": \"Black\", \"additional_price\": 0}, {\"type\": \"Color\", \"value\": \"Gray\", \"additional_price\": 2.00}, {\"type\": \"Size\", \"value\": \"Small\", \"additional_price\": 0}, {\"type\": \"Size\", \"value\": \"Medium\", \"additional_price\": 0}, {\"type\": \"Size\", \"value\": \"Large\", \"additional_price\": 3.00}]",
                       "type": "text"
@@ -2215,6 +2253,7 @@
             },
             {
               "name": "Update Product",
+              "description": "Update an existing product with file upload for images (Vendor only)",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -2222,15 +2261,47 @@
                     "key": "Authorization",
                     "value": "Bearer {{vendor_token}}",
                     "type": "text"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{\n    \"name\": \"Updated T-Shirt\",\n    \"price\": 34.99,\n    \"stock\": 80\n}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "name",
+                      "value": "Updated Product with Images",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Product updated with new images",
+                      "type": "text"
+                    },
+                    {
+                      "key": "price",
+                      "value": "39.99",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnail",
+                      "value": "/path/to/vendor-thumbnail.jpg",
+                      "type": "file"
+                    },
+                    {
+                      "key": "variants",
+                      "value": "[{\"type\":\"Color\",\"value\":\"Blue\"},{\"type\":\"Size\",\"value\":\"Large\"}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "images",
+                      "type": "file",
+                      "src": ""
+                    },
+                    {
+                      "key": "images",
+                      "type": "file",
+                      "src": ""
+                    }
+                  ]
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/products/1",
@@ -2243,7 +2314,8 @@
                     "products",
                     "1"
                   ]
-                }
+                },
+                "description": "Update product with file uploads for images (Vendor only)"
               }
             },
             {
@@ -2284,7 +2356,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/products/1/analytics",
+                  "raw": "{{base_url}}/api/v1/products/{{productId}}/analytics",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2292,7 +2364,7 @@
                     "api",
                     "v1",
                     "products",
-                    "1",
+                    "{{productId}}",
                     "analytics"
                   ]
                 },
@@ -2300,7 +2372,7 @@
               }
             },
             {
-              "name": "Get Vendor Analytics",
+              "name": "Get Product Analytics For Vendor",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2374,6 +2446,11 @@
                       "key": "sku",
                       "value": "ADM-HOODIE-COT-002",
                       "type": "text"
+                    },
+                    {
+                      "key":"thumbnail",
+                      "value":"/path/to/admin-thumbnail.jpg",
+                      "type":"file"
                     },
                     {
                       "key": "variants",
@@ -2458,8 +2535,69 @@
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{\n    \"name\": \"Admin Updated Product\",\n    \"status\": \"active\",\n    \"price\": 39.99\n}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "name",
+                      "value": "Updated Product with Images",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Product updated with new images",
+                      "type": "text"
+                    },
+                    {
+                      "key": "price",
+                      "value": "39.99",
+                      "type": "text"
+                    },
+                    {
+                      "key": "category_id",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "sku",
+                      "value": "SKU-002",
+                      "type": "text"
+                    },
+                    {
+                      "key": "status",
+                      "value": "active",
+                      "type": "text"
+                    },
+                    {
+                      "key": "discounted_price",
+                      "value": "39.99",
+                      "type": "text"
+                    },
+                    {
+                      "key": "vendor_id",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnail",
+                      "value": "/path/to/admin-thumbnail.jpg",
+                      "type": "file"
+                    },
+                    {
+                      "key": "variants",
+                      "value": "[{\"type\":\"Color\",\"value\":\"Blue\"},{\"type\":\"Size\",\"value\":\"Large\"}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "images",
+                      "type": "file",
+                      "src": ""
+                    },
+                    {
+                      "key": "images",
+                      "type": "file",
+                      "src": ""
+                    }
+                  ]
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/admin/products/:id",
@@ -3905,7 +4043,6 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"product_id\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3913,7 +4050,7 @@
               }
             },
             "url": {
-              "raw": "{{base_url}}/api/v1/wishlist/items",
+              "raw": "{{base_url}}/api/v1/wishlist/items/:productId",
               "host": [
                 "{{base_url}}"
               ],
@@ -3921,7 +4058,15 @@
                 "api",
                 "v1",
                 "wishlist",
-                "items"
+                "items",
+                ":productId"
+              ],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "1",
+                  "type": "int"
+                }
               ]
             },
             "description": "Add item to wishlist using legacy single variant format for backward compatibility. Automatically converts to new format internally."
@@ -3959,7 +4104,6 @@
             "description": "Remove an item from wishlist (triggers automatic total recalculation for remaining items)"
           }
         }
- 
       ]
     },
     {
@@ -4804,7 +4948,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/dashboard/vendor/earnings-breakdown?page=1&limit=20",
+                  "raw": "{{base_url}}/api/v1/dashboard/vendor/earnings/breakdown?page=1&limit=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -4813,7 +4957,8 @@
                     "v1",
                     "dashboard",
                     "vendor",
-                    "earnings-breakdown"
+                    "earnings",
+                    "breakdown"
                   ],
                   "query": [
                     {
@@ -4876,7 +5021,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/dashboard/sales-stats",
+                  "raw": "{{base_url}}/api/v1/admin/dashboard/sales-stats?year=2025&month=11",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -4886,6 +5031,18 @@
                     "admin",
                     "dashboard",
                     "sales-stats"
+                  ],
+                  "query": [
+                    {
+                      "key": "year",
+                      "value": "2025",
+                      "description": "Year for sales statistics"
+                    },
+                    {
+                      "key": "month",
+                      "value": "11",
+                      "description": "Month for sales statistics"
+                    }
                   ]
                 },
                 "description": "Get monthly sales statistics for the current year"
@@ -5019,7 +5176,7 @@
               }
             },
             {
-              "name": "Get Vendor Onboarding Stats",
+              "name": "Get Vendor Application Stats",
               "request": {
                 "method": "GET",
                 "header": [
@@ -6258,6 +6415,218 @@
               }
             ],
             "url": "{{base_url}}/api/v1/feedbacks/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sidebar Filters",
+      "description": "Postman collection for filter endpoints",
+      "item": [
+        {
+          "name": "Get All Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Price Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/price-range",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "price-range"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Colors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/colors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "colors"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sizes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/sizes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "sizes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Dress Styles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/dress-styles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "dress-styles"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Filtered Products",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"filters\": [\n        {\n            \"id\": 1,\n            \"value\": \"Blue\"\n        },\n        {\n            \"id\": 2,\n            \"value\": \"Small\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Product Combinations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/filters/products/1/combinations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "filters",
+                "products",
+                "1",
+                "combinations"
+              ]
+            }
           }
         }
       ]

@@ -684,26 +684,127 @@ const completeOnboarding = async (req, res, next) => {
     logger.error("Complete onboarding error:", error);
 
     // Clean up uploaded files if onboarding failed
+    console.log('=== CLEANUP DIAGNOSTICS ===');
+    console.log('req.processedFiles structure:', JSON.stringify(req.processedFiles, null, 2));
+    console.log('req.uploadedFiles structure:', JSON.stringify(req.uploadedFiles, null, 2));
+    
     if (req.processedFiles) {
       const files = [];
+      console.log('Checking for logo file...');
       if (req.processedFiles.logo && typeof req.processedFiles.logo === 'object' && req.processedFiles.logo.path) {
+        console.log('Found logo with path:', req.processedFiles.logo.path);
         files.push(req.processedFiles.logo.path);
+      } else {
+        console.log('Logo cleanup condition failed. Type:', typeof req.processedFiles.logo);
+        console.log('Logo value:', req.processedFiles.logo);
       }
+      
+      console.log('Checking for business images...');
       if (req.processedFiles.business_images && Array.isArray(req.processedFiles.business_images)) {
-        req.processedFiles.business_images.forEach(img => {
-          if (img.path) files.push(img.path);
+        console.log('Found business_images array:', req.processedFiles.business_images);
+        req.processedFiles.business_images.forEach((img, index) => {
+          console.log(`Business image ${index}:`, typeof img, img);
+          if (img.path) {
+            console.log(`Found business image path: ${img.path}`);
+            files.push(img.path);
+          } else {
+            console.log(`Business image ${index} has no .path property`);
+          }
         });
+      } else {
+        console.log('business_images is not an array or doesn\'t exist');
       }
+      
+      console.log('Files to clean up:', files);
+      
       files.forEach(path => {
+        console.log(`Attempting to clean up: ${path}`);
         if (fs.existsSync(path)) {
           try {
             fs.unlinkSync(path);
-            console.log(`Cleaned up file: ${path}`);
+            console.log(`✓ Cleaned up file: ${path}`);
           } catch (cleanupError) {
-            console.warn(`Failed to clean up file ${path}:`, cleanupError.message);
+            console.warn(`✗ Failed to clean up file ${path}:`, cleanupError.message);
+          }
+        } else {
+          console.warn(`✗ File does not exist: ${path}`);
+        }
+      });
+    } else {
+      console.log('No req.processedFiles found for cleanup');
+    }
+    
+    // Also try to clean up from req.uploadedFiles as fallback
+    if (req.uploadedFiles && req.uploadedFiles.length > 0) {
+      console.log('Attempting cleanup from req.uploadedFiles...');
+      req.uploadedFiles.forEach((file, index) => {
+        console.log(`Uploaded file ${index}:`, {
+          fieldname: file.fieldname,
+          path: file.path,
+          url: file.url,
+          exists: fs.existsSync(file.path)
+        });
+        if (file.path && fs.existsSync(file.path)) {
+          try {
+            fs.unlinkSync(file.path);
+            console.log(`✓ Cleaned up uploaded file: ${file.path}`);
+          } catch (cleanupError) {
+            console.warn(`✗ Failed to clean up uploaded file ${file.path}:`, cleanupError.message);
           }
         }
       });
+    }
+    
+    // NEW: Try to clean up using stored file objects from middleware
+    if (req.processedFiles) {
+      console.log('=== NEW CLEANUP METHOD DIAGNOSTICS ===');
+      
+      // Clean up logo file if it exists
+      if (req.processedFiles.logoFile) {
+        console.log('Found logoFile object:', {
+          fieldname: req.processedFiles.logoFile.fieldname,
+          path: req.processedFiles.logoFile.path,
+          url: req.processedFiles.logoFile.url
+        });
+        const logoPath = req.processedFiles.logoFile.path;
+        if (logoPath && fs.existsSync(logoPath)) {
+          try {
+            fs.unlinkSync(logoPath);
+            console.log(`✓ NEW METHOD: Cleaned up logo file: ${logoPath}`);
+          } catch (cleanupError) {
+            console.warn(`✗ NEW METHOD: Failed to clean up logo file ${logoPath}:`, cleanupError.message);
+          }
+        } else {
+          console.warn(`✗ NEW METHOD: Logo file does not exist: ${logoPath}`);
+        }
+      } else {
+        console.log('No logoFile object found in processedFiles');
+      }
+      
+      // Clean up business image files if they exist
+      if (req.processedFiles.businessImageFiles && Array.isArray(req.processedFiles.businessImageFiles)) {
+        console.log(`Found ${req.processedFiles.businessImageFiles.length} business image files`);
+        req.processedFiles.businessImageFiles.forEach((file, index) => {
+          console.log(`Business image file ${index}:`, {
+            fieldname: file.fieldname,
+            path: file.path,
+            url: file.url
+          });
+          const imagePath = file.path;
+          if (imagePath && fs.existsSync(imagePath)) {
+            try {
+              fs.unlinkSync(imagePath);
+              console.log(`✓ NEW METHOD: Cleaned up business image ${index}: ${imagePath}`);
+            } catch (cleanupError) {
+              console.warn(`✗ NEW METHOD: Failed to clean up business image ${imagePath}:`, cleanupError.message);
+            }
+          } else {
+            console.warn(`✗ NEW METHOD: Business image ${index} does not exist: ${imagePath}`);
+          }
+        });
+      } else {
+        console.log('No businessImageFiles array found in processedFiles');
+      }
     }
 
     next(error);

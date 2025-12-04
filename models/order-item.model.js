@@ -11,7 +11,8 @@ module.exports = (sequelize, DataTypes) => {
       });
       OrderItem.belongsTo(models.Product, {
         foreignKey: 'product_id',
-        as: 'product'
+        as: 'product',
+        onDelete: 'SET NULL'
       });
       OrderItem.belongsTo(models.Vendor, {
         foreignKey: 'vendor_id',
@@ -170,7 +171,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     product_id: {
       type: DataTypes.BIGINT({ unsigned: true }),
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'products',
         key: 'id'

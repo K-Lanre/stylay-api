@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const AppError = require('../utils/appError');
 const storage = require('../config/storage');
+const logger = require('../utils/logger');
 
 // File validation function
 const validateFile = (file) => {
@@ -30,16 +31,26 @@ const generateUniqueFilename = (originalName, fieldname) => {
 const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => {
   return async (req, res, next) => {
     try {
+      // DEBUG: Log file upload eligibility check
+      console.log("=== FILE UPLOAD ELIGIBILITY DEBUG ===");
+      console.log("Request method:", req.method);
+      console.log("Request path:", req.originalUrl);
+      console.log("Field name:", fieldName);
+      console.log("Max count:", maxCount);
+      console.log("Disk name:", diskName);
+      console.log("Has req.files:", !!req.files);
+      console.log("Files object keys:", req.files ? Object.keys(req.files) : "N/A");
+      console.log("=====================================");
+
       // Set timeout to prevent hanging
       req.setTimeout(30000);
 
-      // Initialize uploadedFiles array if it doesn't exist
-      if (!req.uploadedFiles) {
-        req.uploadedFiles = [];
-      }
+      // Initialize uploadedFiles array as empty array
+      req.uploadedFiles = [];
 
       // Check if files exist
       if (!req.files) {
+        console.log("No files found, continuing without upload processing");
         return next();
       }
 
@@ -57,13 +68,13 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
 
       // Check file count limit
       if (files.length > maxCount) {
-        return next(new AppError("Maximum  files are allowed.", 400));
+        return next(new AppError("Maximum files are allowed.", 400));
       }
 
       // Get the appropriate disk configuration
       const disk = storage.getDisk(diskName);
       if (!disk) {
-        return next(new AppError("Invalid storage disk: ", 400));
+        return next(new AppError("Invalid storage disk.", 400));
       }
 
       // Process and save files
@@ -88,6 +99,15 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
           await file.mv(filepath);
 
           // Add file info to request
+          const relativePath = `${disk.url}/${filename}`;
+          
+          logger.info('File URL generation debug:', {
+            diskUrl: disk.url,
+            filename,
+            relativePath,
+            diskName
+          });
+          
           const fileInfo = {
             fieldname: fieldName,
             originalname: file.name,
@@ -97,13 +117,15 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
             destination: uploadDir,
             filename: filename,
             path: filepath,
-            url: `${process.env.APP_URL || 'http://localhost:3000'}${disk.url}/${filename}`
+            url: relativePath
           };
 
-          // Initialize uploadedFiles array if it doesn't exist
-          if (!req.uploadedFiles) {
-            req.uploadedFiles = [];
-          }
+          logger.info('File uploaded successfully:', {
+            fieldname: fileInfo.fieldname,
+            path: fileInfo.path,
+            url: fileInfo.url,
+            size: fileInfo.size
+          });
 
           req.uploadedFiles.push(fileInfo);
         } catch (error) {
@@ -112,10 +134,10 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
             req.uploadedFiles.forEach(uploadedFile => {
               try {
                 if (fs.existsSync(uploadedFile.path)) {
-                  // fs.unlinkSync(uploadedFile.path); // Commented out to avoid EBUSY errors
+                  fs.unlinkSync(uploadedFile.path);
                 }
               } catch (e) {
-                console.warn(`File cleanup skipped due to lock: ${uploadedFile.path}`);
+                logger.warn(`File cleanup skipped due to lock: ${uploadedFile.path}`);
               }
             });
           }
@@ -123,12 +145,18 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
         }
       }
 
+      logger.info('Files uploaded successfully:', {
+        count: req.uploadedFiles.length,
+        files: req.uploadedFiles.map(f => ({ name: f.filename, size: f.size, url: f.url }))
+      });
+
       next();
     } catch (error) {
+      logger.error('File upload middleware error:', error);
       if (error instanceof AppError) {
         return next(error);
       }
-      return next(new AppError("File upload error: ", 400));
+      return next(new AppError("File upload error.", 400));
     }
   };
 };
