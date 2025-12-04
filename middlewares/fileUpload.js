@@ -32,8 +32,8 @@ const uploadFiles = (fieldName = 'files', maxCount = 11, diskName = 'local') => 
   return async (req, res, next) => {
     try {
       // DEBUG: Log file upload eligibility check
-      console.log("=== FILE UPLOAD ELIGIBILITY DEBUG ===");
-      console.log("Request method:", req.method);
+      // console.log("=== FILE UPLOAD ELIGIBILITY DEBUG ===");
+      // console.log("Request method:", req.method);
       console.log("Request path:", req.originalUrl);
       console.log("Field name:", fieldName);
       console.log("Max count:", maxCount);

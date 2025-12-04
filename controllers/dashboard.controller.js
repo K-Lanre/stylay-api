@@ -2630,8 +2630,8 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
  * }
  */
 const getProductOverview = catchAsync(async (req, res, next) => {
-  console.log("=== PRODUCT OVERVIEW DEBUG ===");
-  console.log("Request method:", req.method);
+  // console.log("=== PRODUCT OVERVIEW DEBUG ===");
+  // console.log("Request method:", req.method);
   console.log("Request originalUrl:", req.originalUrl);
   console.log("Request params:", req.params);
   console.log("Request query:", req.query);
