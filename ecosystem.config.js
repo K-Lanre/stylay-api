@@ -62,11 +62,20 @@ module.exports = {
       user: 'clevercloud',
       host: 'git.clever-cloud.com',
       ref: 'origin/main',
-      repo: 'git+ssh://your-clever-cloud-repo.git',
+      repo: 'git@github.com:K-Lanre/stylay-api.git',
       path: '/app',
-      'pre-deploy-local': '',
-      'post-deploy': 'npm install && npm run migrate && pm2 reload ecosystem.config.js --env clevercloud',
-      'pre-setup': ''
+      'pre-deploy-local': 'git fetch --all && git reset --hard origin/main',
+      'post-deploy': 'npm install --production && npm run migrate && pm2 reload ecosystem.config.js --env clevercloud',
+      'pre-setup': 'npm install -g pm2',
+      env: {
+        NODE_ENV: 'production',
+        NODE_OPTIONS: '--max-old-space-size=1024',
+        CC_RUN_COMMAND: 'npm start',
+        CC_WORKER_COMMAND: 'npm run worker',
+        CC_WEB_PROCESS: 'npm start',
+        CC_WORKER_PROCESS: 'npm run worker',
+        NPM_CONFIG_PRODUCTION: 'false'
+      }
     }
   }
 };
