@@ -68,6 +68,19 @@
   "RATE_LIMIT_MAX": "1000",
   
   "REDIS_ENABLED": "true",
+  "REDIS_HOST": {
+    "type": "env",
+    "source": "REDIS_ADDON_HOST"
+  },
+  "REDIS_PORT": {
+    "type": "env",
+    "source": "REDIS_ADDON_PORT"
+  },
+  "REDIS_PASSWORD": {
+    "type": "env",
+    "source": "REDIS_ADDON_PASSWORD"
+  },
+  "REDIS_DB": "0",
   
   "DB_NAME": {
     "type": "env",

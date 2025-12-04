@@ -28,7 +28,8 @@
     "pm2:stop": "pm2 stop all",
     "pm2:delete": "pm2 delete all",
     "clevercloud:setup": "npm run migrate && npm run seed",
-    "clevercloud:postdeploy": "npm run migrate && pm2 restart stylay-api"
+    "clevercloud:postdeploy": "npm run migrate && pm2 restart stylay-api",
+    "fix:deployment": "node scripts/fix-deployment.js"
   },
   "dependencies": {
     "aws-sdk": "^2.1455.0",
