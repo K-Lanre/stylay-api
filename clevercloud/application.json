@@ -1,0 +1,82 @@
+{
+  "name": "stylay-api",
+  "description": "Stylay E-commerce API - Multi-vendor platform",
+  "type": "nodejs",
+  "version": "1.0.0",
+  "env": {
+    "NODE_ENV": "production",
+    "NODE_VERSION": "18.x"
+  },
+  "deploy": {
+    "type": "nodejs",
+    "command": "npm run setup && npm run seed",
+    "start": "npm start",
+    "stop": "pm2 delete stylay-api",
+    "healthcheck": "/health",
+    "healthcheckInterval": 30000,
+    "healthcheckTimeout": 10000,
+    "healthcheckMaxRetries": 3
+  },
+  "scaling": {
+    "min": 1,
+    "max": 3,
+    "strategy": "cpu",
+    "cpuThreshold": 70
+  },
+  "memory": {
+    "min": 1024,
+    "max": 2048
+  },
+  "disk": {
+    "size": 10240
+  },
+  "addons": [
+    {
+      "type": "mysql",
+      "plan": "dev",
+      "name": "stylay-mysql",
+      "options": {
+        "version": "8.0",
+        "backup": true,
+        "backupRetention": 30
+      }
+    },
+    {
+      "type": "redis",
+      "plan": "dev",
+      "name": "stylay-redis",
+      "options": {
+        "version": "6.2",
+        "backup": true,
+        "backupRetention": 7
+      }
+    }
+  ],
+  "routes": {
+    "/api/*": {
+      "target": "stylay-api",
+      "stripPath": false
+    },
+    "/health": {
+      "target": "stylay-api",
+      "stripPath": false
+    },
+    "/metrics": {
+      "target": "stylay-api",
+      "stripPath": false
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics": [
+      "cpu",
+      "memory",
+      "disk",
+      "network"
+    ]
+  },
+  "logs": {
+    "level": "info",
+    "format": "json"
+  }
+}

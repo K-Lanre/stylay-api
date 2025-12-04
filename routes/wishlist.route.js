@@ -19,7 +19,7 @@ router.get(
 
 // Add item to user's wishlist
 router.post(
-  '/items',
+  '/items/:productId',
   addItemValidation,
   validate,
   wishlistController.addItemToWishlist

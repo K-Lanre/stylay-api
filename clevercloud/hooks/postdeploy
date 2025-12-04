@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Post-deployment hook for Clever Cloud
+# This script runs after each deployment
+
+set -e
+
+echo "=== Post-deployment hook started ==="
+
+# Wait for database to be ready
+echo "Waiting for database to be ready..."
+until mysql -h $MYSQL_ADDON_HOST -P $MYSQL_ADDON_PORT -u $MYSQL_ADDON_USER -p$MYSQL_ADDON_PASSWORD -e "SELECT 1;" > /dev/null 2>&1; do
+  echo "Waiting for database connection..."
+  sleep 5
+done
+
+# Run database migrations
+echo "Running database migrations..."
+npm run migrate
+
+# Seed initial data if needed
+echo "Seeding initial data..."
+npm run seed
+
+# Clear Redis cache
+echo "Clearing Redis cache..."
+redis-cli -h $REDIS_ADDON_HOST -p $REDIS_ADDON_PORT -a $REDIS_ADDON_PASSWORD FLUSHDB
+
+# Set proper permissions
+echo "Setting file permissions..."
+chmod -R 755 /app/public/Upload
+
+# Restart PM2 processes
+echo "Restarting PM2 processes..."
+pm2 restart stylay-api
+
+echo "=== Post-deployment hook completed ==="

@@ -1,27 +1,270 @@
 // Import necessary models
 const {
-  Order,
-  OrderItem,
-  OrderDetail,
-  User,
-  Product,
-  Vendor,
-  Store,
-  Address,
-  Inventory,
-  InventoryHistory,
-  PaymentTransaction,
-  Notification,
-  NotificationItem,
-  sequelize,
-  ProductVariant,
-  ProductImage, // Add ProductImage import
+   Order,
+   OrderItem,
+   OrderDetail,
+   User,
+   Product,
+   Vendor,
+   Store,
+   Address,
+   Inventory,
+   InventoryHistory,
+   PaymentTransaction,
+   Notification,
+   NotificationItem,
+   sequelize,
+   ProductVariant,
+   ProductImage, // Add ProductImage import
+   Cart,
+   CartItem,
 } = require("../models");
 const paymentService = require("../services/payment.service");
 const emailService = require("../services/email.service");
 const logger = require("../utils/logger");
 const { generateOrderNumber } = require("../utils/orderUtils");
 const { v4: uuidv4 } = require("uuid");
+
+/**
+ * Convert cart data to order payload structure
+ * Maps cart summary data to the exact payload required by order creation.
+ * Handles cart validation, item mapping, and total calculations.
+ *
+ * @param {Object} cartSummary - Cart summary from getCartSummary
+ * @param {number} cartSummary.cartId - Cart ID
+ * @param {number} cartSummary.userId - User ID
+ * @param {number} cartSummary.subtotal - Cart subtotal
+ * @param {number} cartSummary.discount - Applied discount
+ * @param {number} cartSummary.total - Cart total
+ * @param {Array} cartSummary.items - Cart items array
+ * @param {Object} options - Additional options
+ * @param {number} options.addressId - Shipping address ID
+ * @param {string} [options.paymentMethod="paystack"] - Payment method
+ * @param {string} [options.notes] - Order notes
+ * @returns {Object} Order payload structure
+ * @throws {Error} When cart is empty, invalid, or missing required data
+ */
+async function convertCartToOrder(cartSummary, options = {}) {
+  try {
+    // Validate cart summary
+    if (!cartSummary || !cartSummary.items || cartSummary.items.length === 0) {
+      throw new Error("Cart is empty or invalid");
+    }
+
+    if (!cartSummary.userId) {
+      throw new Error("User authentication required for order creation");
+    }
+
+    if (!options.addressId) {
+      throw new Error("Shipping address is required");
+    }
+
+    // Fetch cart with full details to ensure data integrity
+    const cart = await Cart.findByPk(cartSummary.cartId, {
+      include: [
+        {
+          model: CartItem,
+          as: "items",
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: ["id", "name", "price", "discounted_price", "status"],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!cart) {
+      throw new Error("Cart not found");
+    }
+
+    if (cart.user_id !== cartSummary.userId) {
+      throw new Error("Cart does not belong to the authenticated user");
+    }
+
+    // Validate cart items and check stock
+    const orderItems = [];
+    for (const cartItem of cart.items) {
+      const product = cartItem.product;
+
+      if (!product || product.status !== "active") {
+        throw new Error(`Product ${product?.name || 'Unknown'} is no longer available`);
+      }
+
+      // Check inventory (simplified - you may want to check variant combinations)
+      const inventory = await product.getInventory();
+      if (inventory && inventory.stock !== null && inventory.stock < cartItem.quantity) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${inventory.stock}`);
+      }
+
+      // Map cart item to order item
+      orderItems.push({
+        productId: cartItem.product_id,
+        quantity: cartItem.quantity,
+        price: parseFloat(product.discounted_price || product.price),
+        selected_variants: cartItem.selected_variants || null,
+        combinationId: cartItem.combination_id || null,
+      });
+    }
+
+    // Calculate order totals
+    const subtotal = parseFloat(cartSummary.subtotal);
+    const discount = parseFloat(cartSummary.discount || 0);
+    const shipping = 0.00; // TODO: Calculate shipping based on address/location
+    const tax = 0.00; // TODO: Calculate tax based on address/location
+    const total = subtotal - discount + shipping + tax;
+
+    // Return order payload structure
+    return {
+      userId: cartSummary.userId,
+      addressId: options.addressId,
+      items: orderItems,
+      subtotal,
+      discount,
+      shipping,
+      tax,
+      total,
+      notes: options.notes || null,
+      paymentMethod: options.paymentMethod || "paystack",
+    };
+  } catch (error) {
+    throw new Error(`Cart to order conversion failed: ${error.message}`);
+  }
+}
+
+/**
+ * Create order from cart data
+ * Fetches cart summary, converts it to order payload, and creates the order.
+ * Uses convertCartToOrder utility to handle the conversion logic.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {number} req.body.addressId - Shipping address ID (required)
+ * @param {string} [req.body.paymentMethod="paystack"] - Payment method
+ * @param {string} [req.body.notes] - Order notes
+ * @param {Object} req.user - Authenticated user info
+ * @param {number} req.user.id - User ID
+ * @param {import('express').Response} res - Express response object
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {Object} Success response with created order details
+ * @throws {Error} 400 - When cart is empty, invalid address, or conversion fails
+ * @api {post} /api/orders/from-cart Create order from cart
+ * @private Requires authentication
+ * @example
+ * POST /api/orders/from-cart
+ * Authorization: Bearer <token>
+ * {
+ *   "addressId": 123,
+ *   "paymentMethod": "paystack",
+ *   "notes": "Handle with care"
+ * }
+ */
+async function createOrderFromCart(req, res) {
+  const transaction = await sequelize.transaction();
+  try {
+    const { addressId, paymentMethod = "paystack", notes } = req.body;
+    const userId = req.user.id;
+
+    // Validate required fields
+    if (!addressId) {
+      throw new Error("Shipping address ID is required");
+    }
+
+    // Get cart summary using the cart controller logic
+    const cartController = require("../controllers/cart.controller");
+    const cartSummaryResponse = await new Promise((resolve, reject) => {
+      const mockReq = {
+        user: { id: userId },
+        headers: {},
+        session: {},
+      };
+      const mockRes = {
+        status: (code) => ({
+          json: (data) => resolve({ statusCode: code, data }),
+        }),
+      };
+      const mockNext = (error) => reject(error);
+
+      cartController.getCartSummary(mockReq, mockRes, mockNext);
+    });
+
+    if (cartSummaryResponse.statusCode !== 200 || !cartSummaryResponse.data) {
+      throw new Error("Failed to retrieve cart summary");
+    }
+
+    const cartSummary = cartSummaryResponse.data;
+
+    // Convert cart to order payload
+    const orderPayload = await convertCartToOrder(cartSummary, {
+      addressId,
+      paymentMethod,
+      notes,
+    });
+
+    // Create the order using the existing createOrder logic
+    // We'll simulate the request to reuse the createOrder function
+    const mockOrderReq = {
+      body: {
+        addressId: orderPayload.addressId,
+        items: orderPayload.items,
+        shippingCost: orderPayload.shipping,
+        taxAmount: orderPayload.tax,
+        notes: orderPayload.notes,
+        paymentMethod: orderPayload.paymentMethod,
+      },
+      user: { id: userId },
+    };
+
+    const orderResponse = await new Promise((resolve, reject) => {
+      const mockOrderRes = {
+        status: (code) => ({
+          json: (data) => resolve({ statusCode: code, data }),
+        }),
+      };
+      const mockOrderNext = (error) => reject(error);
+
+      createOrder(mockOrderReq, mockOrderRes, mockOrderNext);
+    });
+
+    if (orderResponse.statusCode !== 201) {
+      throw new Error(orderResponse.data?.message || "Failed to create order");
+    }
+
+    // Clear the cart after successful order creation
+    const cart = await Cart.findOne({ where: { user_id: userId } });
+    if (cart) {
+      await CartItem.destroy({ where: { cart_id: cart.id }, transaction });
+      await cart.update({ total_items: 0, total_amount: 0 }, { transaction });
+    }
+
+    await transaction.commit();
+
+    res.status(201).json({
+      status: "success",
+      message: "Order created successfully from cart",
+      data: orderResponse.data,
+    });
+
+  } catch (error) {
+    // Only rollback if transaction hasn't been committed yet
+    try {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+    } catch (rollbackError) {
+      logger.error("Error rolling back transaction:", rollbackError);
+    }
+
+    logger.error("Order from cart creation failed:", error);
+    res.status(400).json({
+      status: "error",
+      message: error.message || "Failed to create order from cart",
+      error: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+}
 
 /**
  * Creates a new order with inventory management, payment initialization, and vendor notifications.
@@ -2111,14 +2354,16 @@ async function getAllOrders(req, res) {
 }
 
 module.exports = {
-  createOrder,
-  getOrder,
-  updateOrderStatus,
-  getUserOrders,
-  getVendorOrders,
-  updateOrderItemStatus,
-  getAllOrders,
-  verifyPayment,
-  handlePaymentWebhook,
-  cancelOrder,
+   createOrder,
+   createOrderFromCart,
+   convertCartToOrder,
+   getOrder,
+   updateOrderStatus,
+   getUserOrders,
+   getVendorOrders,
+   updateOrderItemStatus,
+   getAllOrders,
+   verifyPayment,
+   handlePaymentWebhook,
+   cancelOrder,
 };

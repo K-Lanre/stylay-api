@@ -11,12 +11,19 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: process.env.PORT || 8080
+      },
+      env_clevercloud: {
+        NODE_ENV: 'production',
+        PORT: process.env.PORT || 8080,
+        // Clever Cloud specific environment variables
+        CC_APM_ENABLED: 'true',
+        CC_APM_LOG_LEVEL: 'info'
       },
       // Enable auto-restart if the app crashes
       autorestart: true,
       // Restart the app if it uses more than 1GB of memory
-      max_memory_restart: '1G',
+      max_memory_restart: '512M',
       // Log file configuration
       log_file: './logs/combined.log',
       out_file: './logs/out.log',
@@ -25,7 +32,19 @@ module.exports = {
       // Merge logs from different instances into a single file
       merge_logs: true,
       // Save the process list to a file for persistence
-      pmx: true
+      pmx: true,
+      // Graceful shutdown timeout
+      kill_timeout: 5000,
+      // Instance variable for cluster mode
+      instance_var: 'INSTANCE_ID',
+      // Watch for changes in development
+      watch: process.env.NODE_ENV === 'development',
+      // Ignore watch patterns
+      ignore_watch: ['node_modules', 'logs', '.git'],
+      // Max number of log files
+      max_files: 5,
+      // Max size of log files
+      max_size: '10M'
     }
   ],
   deploy: {
@@ -33,10 +52,20 @@ module.exports = {
       user: 'node',
       host: 'your-server.com',
       ref: 'origin/main',
-      repo: 'git@github.com:yourusername/stylay-api.git',
+      repo: 'git@github.com:K-Lanre/stylay-api.git',
       path: '/var/www/stylay-api',
       'pre-deploy-local': '',
       'post-deploy': 'npm install && pm2 reload ecosystem.config.js --env production',
+      'pre-setup': ''
+    },
+    clevercloud: {
+      user: 'clevercloud',
+      host: 'git.clever-cloud.com',
+      ref: 'origin/main',
+      repo: 'git+ssh://your-clever-cloud-repo.git',
+      path: '/app',
+      'pre-deploy-local': '',
+      'post-deploy': 'npm install && npm run migrate && pm2 reload ecosystem.config.js --env clevercloud',
       'pre-setup': ''
     }
   }

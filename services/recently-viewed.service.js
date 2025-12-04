@@ -1,12 +1,21 @@
-const redis = require('../config/redis');
-const { UserProductView, Product, Category, Vendor, Store, ProductImage } = require('../models');
-const { Op } = require('sequelize');
+const { log } = require("console");
+const redis = require("../config/redis");
+const {
+  UserProductView,
+  Product,
+  Category,
+  Vendor,
+  Store,
+  ProductImage,
+} = require("../models");
+const { Op } = require("sequelize");
 
 class RecentlyViewedService {
   constructor() {
     this.maxViewsPerUser = parseInt(process.env.RECENTLY_VIEWED_LIMIT) || 10;
-    this.defaultRetentionDays = parseInt(process.env.VIEW_DATA_RETENTION_DAYS) || 30;
-    this.redisKeyPrefix = 'recent_views:';
+    this.defaultRetentionDays =
+      parseInt(process.env.VIEW_DATA_RETENTION_DAYS) || 30;
+    this.redisKeyPrefix = "recent_views:";
   }
 
   /**
@@ -35,28 +44,31 @@ class RecentlyViewedService {
       await UserProductView.destroy({
         where: {
           user_id: userId,
-          product_id: productId
+          product_id: productId,
         },
-        transaction
+        transaction,
       });
 
       // Hash IP address for privacy (GDPR compliance)
-      const crypto = require('crypto');
-      const hashedIp = metadata.ipAddress 
-        ? crypto.createHash('sha256').update(metadata.ipAddress).digest('hex') 
+      const crypto = require("crypto");
+      const hashedIp = metadata.ipAddress
+        ? crypto.createHash("sha256").update(metadata.ipAddress).digest("hex")
         : null;
 
       // Create new view record
-      const viewRecord = await UserProductView.create({
-        user_id: userId,
-        product_id: productId,
-        session_id: metadata.sessionId || null,
-        ip_address: hashedIp,
-        user_agent: metadata.userAgent || null,
-        device_type: metadata.deviceType || 'unknown',
-        referrer: metadata.referrer || null,
-        viewed_at: new Date()
-      }, { transaction });
+      const viewRecord = await UserProductView.create(
+        {
+          user_id: userId,
+          product_id: productId,
+          session_id: metadata.sessionId || null,
+          ip_address: hashedIp,
+          user_agent: metadata.userAgent || null,
+          device_type: metadata.deviceType || "unknown",
+          referrer: metadata.referrer || null,
+          viewed_at: new Date(),
+        },
+        { transaction }
+      );
 
       // Update Redis cache (push to front of list) - only if Redis is connected
       if (redis.isConnected) {
@@ -69,9 +81,12 @@ class RecentlyViewedService {
           // Trim list to max size
           await redis.lTrim(redisKey, 0, this.maxViewsPerUser - 1);
           // Set expiration
-          await redis.expire(redisKey, this.defaultRetentionDays * 24 * 60 * 60);
+          await redis.expire(
+            redisKey,
+            this.defaultRetentionDays * 24 * 60 * 60
+          );
         } catch (redisError) {
-          console.warn('Redis cache update failed:', redisError.message);
+          console.warn("Redis cache update failed:", redisError.message);
           // Continue without Redis - database is already updated
         }
       }
@@ -81,7 +96,7 @@ class RecentlyViewedService {
       return {
         success: true,
         viewId: viewRecord.id,
-        timestamp: viewRecord.viewed_at
+        timestamp: viewRecord.viewed_at,
       };
     } catch (error) {
       await transaction.rollback();
@@ -93,7 +108,7 @@ class RecentlyViewedService {
    * Get recently viewed products for a user
    * NOTE: Returns ALL viewed products (including inactive ones) for browsing history
    * Use getViewStatistics() for active product stats only
-   * 
+   *
    * @param {Object} params - Query parameters
    * @param {number} params.userId - User ID
    * @param {number} params.limit - Number of products to return
@@ -102,6 +117,9 @@ class RecentlyViewedService {
   async getRecentViews({ userId, limit = 10 }) {
     try {
       const redisKey = this.getRedisKey(userId);
+      const redisProductIds = await redis.lRange(redisKey, 0, limit - 1);
+
+      // console.log("productIds", productIds);
       let productIds = [];
 
       // Try Redis first for fast access (only if Redis is connected)
@@ -109,7 +127,10 @@ class RecentlyViewedService {
         try {
           productIds = await redis.lRange(redisKey, 0, limit - 1);
         } catch (redisError) {
-          console.warn('Redis error, falling back to database:', redisError.message);
+          console.warn(
+            "Redis error, falling back to database:",
+            redisError.message
+          );
           productIds = [];
         }
       }
@@ -119,28 +140,33 @@ class RecentlyViewedService {
       if (productIds.length === 0) {
         dbViews = await UserProductView.findAll({
           where: { user_id: userId },
-          attributes: ['product_id', 'viewed_at'],
-          order: [['viewed_at', 'DESC']],
-          limit: this.maxViewsPerUser
+          attributes: ["product_id", "viewed_at"],
+          order: [["viewed_at", "DESC"]],
+          limit: this.maxViewsPerUser,
         });
 
-        productIds = dbViews.map(view => view.product_id.toString());
+        productIds = dbViews.map((view) => view.product_id.toString());
 
         // Rebuild Redis cache - only if Redis is connected and we have data
         if (productIds.length > 0 && redis.isConnected) {
           try {
             await redis.del(redisKey);
             await redis.rPush(redisKey, ...productIds);
-            await redis.expire(redisKey, this.defaultRetentionDays * 24 * 60 * 60);
+            await redis.expire(
+              redisKey,
+              this.defaultRetentionDays * 24 * 60 * 60
+            );
           } catch (redisError) {
-            console.warn('Redis cache rebuild failed:', redisError.message);
+            console.warn("Redis cache rebuild failed:", redisError.message);
             // Continue without Redis cache
           }
         }
       }
 
       // Convert string IDs to integers early
-      const numericIds = productIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const numericIds = productIds
+        .map((id) => parseInt(id))
+        .filter((id) => !isNaN(id));
 
       if (numericIds.length === 0) {
         return [];
@@ -150,7 +176,7 @@ class RecentlyViewedService {
       if (!dbViews) {
         dbViews = await UserProductView.findAll({
           where: { user_id: userId, product_id: { [Op.in]: numericIds } },
-          attributes: ['product_id', 'viewed_at']
+          attributes: ["product_id", "viewed_at"],
         });
       }
 
@@ -159,37 +185,49 @@ class RecentlyViewedService {
       // (Remove status filter - users want to see what they viewed, even if it's inactive now)
       const products = await Product.findAll({
         where: {
-          id: { [Op.in]: numericIds }
+          id: { [Op.in]: numericIds },
           // ✅ NO status filter - return all viewed products
         },
         attributes: [
-          'id', 'vendor_id', 'category_id', 'name', 'slug', 'description',
-          'thumbnail', 'price', 'discounted_price', 'sku', 'status',
-          'impressions', 'sold_units', 'created_at', 'updated_at'
+          "id",
+          "vendor_id",
+          "category_id",
+          "name",
+          "slug",
+          "description",
+          "thumbnail",
+          "price",
+          "discounted_price",
+          "sku",
+          "status",
+          "impressions",
+          "sold_units",
+          "created_at",
+          "updated_at",
         ],
         include: [
           {
             model: Category,
-            attributes: ['id', 'name', 'slug']
+            attributes: ["id", "name", "slug"],
           },
           {
             model: Vendor,
-            attributes: ['id', 'status'],
-            as: 'vendor',
+            attributes: ["id", "status"],
+            as: "vendor",
             include: [
               {
                 model: Store,
-                as: 'store',
-                attributes: ['business_name']
-              }
-            ]
+                as: "store",
+                attributes: ["business_name"],
+              },
+            ],
           },
           {
             model: ProductImage,
             limit: 1,
-            as: 'images'
-          }
-        ]
+            as: "images",
+          },
+        ],
       });
 
       // Sort products according to the order in numericIds (most recent first)
@@ -203,13 +241,15 @@ class RecentlyViewedService {
       }
 
       // Create timestamp map for adding viewed_at to response
-      const timestampMap = new Map(dbViews.map(v => [v.product_id, v.viewed_at]));
+      const timestampMap = new Map(
+        dbViews.map((v) => [v.product_id, v.viewed_at])
+      );
 
-      return orderedProducts.map(product => {
+      return orderedProducts.map((product) => {
         const viewedAt = timestampMap.get(product.id);
         return {
           ...product.toJSON(),
-          viewed_at: viewedAt
+          viewed_at: viewedAt,
         };
       });
     } catch (error) {
@@ -230,7 +270,7 @@ class RecentlyViewedService {
       // Delete from database
       const deletedCount = await UserProductView.destroy({
         where: { user_id: userId },
-        transaction
+        transaction,
       });
 
       // Clear Redis cache - only if Redis is connected
@@ -239,7 +279,7 @@ class RecentlyViewedService {
           const redisKey = this.getRedisKey(userId);
           await redis.del(redisKey);
         } catch (redisError) {
-          console.warn('Redis cache clear failed:', redisError.message);
+          console.warn("Redis cache clear failed:", redisError.message);
           // Continue - database is already cleared
         }
       }
@@ -248,7 +288,7 @@ class RecentlyViewedService {
 
       return {
         success: true,
-        deletedCount
+        deletedCount,
       };
     } catch (error) {
       await transaction.rollback();
@@ -259,7 +299,7 @@ class RecentlyViewedService {
   /**
    * Get viewing statistics for a user
    * Note: Only counts ACTIVE products (via INNER JOIN in SQL)
-   * 
+   *
    * @param {Object} params - Parameters
    * @param {number} params.userId - User ID
    * @returns {Promise<Object>} Statistics object
@@ -267,7 +307,8 @@ class RecentlyViewedService {
   async getViewStatistics({ userId }) {
     try {
       // Get statistics from database (only for active products)
-      const [stats] = await UserProductView.sequelize.query(`
+      const [stats] = await UserProductView.sequelize.query(
+        `
         SELECT
           COUNT(*) as totalViews,
           COUNT(DISTINCT upv.product_id) as uniqueProducts,
@@ -275,15 +316,17 @@ class RecentlyViewedService {
         FROM user_product_views upv
         INNER JOIN products p ON upv.product_id = p.id AND p.status = 'active'
         WHERE upv.user_id = :userId
-      `, {
-        replacements: { userId },
-        type: UserProductView.sequelize.QueryTypes.SELECT
-      });
+      `,
+        {
+          replacements: { userId },
+          type: UserProductView.sequelize.QueryTypes.SELECT,
+        }
+      );
 
       return {
         totalViews: parseInt(stats.totalViews) || 0,
         uniqueProducts: parseInt(stats.uniqueProducts) || 0,
-        lastViewDate: stats.lastViewDate
+        lastViewDate: stats.lastViewDate,
       };
     } catch (error) {
       throw new Error(`Failed to get view statistics: ${error.message}`);
@@ -300,7 +343,8 @@ class RecentlyViewedService {
 
     try {
       // Anonymize personal data while keeping aggregate analytics
-      const [affectedRows] = await UserProductView.sequelize.query(`
+      const [affectedRows] = await UserProductView.sequelize.query(
+        `
         UPDATE user_product_views
         SET 
           session_id = NULL,
@@ -310,10 +354,12 @@ class RecentlyViewedService {
           referrer = NULL,
           updated_at = NOW()
         WHERE user_id = :userId
-      `, {
-        replacements: { userId },
-        transaction
-      });
+      `,
+        {
+          replacements: { userId },
+          transaction,
+        }
+      );
 
       // Clear user's Redis cache - only if Redis is connected
       if (redis.isConnected) {
@@ -321,7 +367,7 @@ class RecentlyViewedService {
           const redisKey = this.getRedisKey(userId);
           await redis.del(redisKey);
         } catch (redisError) {
-          console.warn('Redis cache clear failed:', redisError.message);
+          console.warn("Redis cache clear failed:", redisError.message);
           // Continue - database is already anonymized
         }
       }
@@ -330,7 +376,7 @@ class RecentlyViewedService {
 
       return {
         success: true,
-        anonymizedCount: affectedRows || 0
+        anonymizedCount: affectedRows || 0,
       };
     } catch (error) {
       await transaction.rollback();
@@ -351,15 +397,15 @@ class RecentlyViewedService {
       const deletedCount = await UserProductView.destroy({
         where: {
           viewed_at: {
-            [Op.lt]: cutoffDate
-          }
-        }
+            [Op.lt]: cutoffDate,
+          },
+        },
       });
 
       return {
         success: true,
         deletedCount,
-        cutoffDate
+        cutoffDate,
       };
     } catch (error) {
       throw new Error(`Failed to cleanup old views: ${error.message}`);
@@ -378,7 +424,8 @@ class RecentlyViewedService {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
-      const [results] = await UserProductView.sequelize.query(`
+      const [results] = await UserProductView.sequelize.query(
+        `
         SELECT
           p.id,
           p.name,
@@ -400,13 +447,15 @@ class RecentlyViewedService {
         GROUP BY p.id, p.name, p.slug, p.description, p.price, p.discounted_price, p.thumbnail, c.name, s.business_name
         ORDER BY view_count DESC
         LIMIT :limit
-      `, {
-        replacements: {
-          startDate: startDate.toISOString(),
-          limit: parseInt(limit)
-        },
-        type: UserProductView.sequelize.QueryTypes.SELECT
-      });
+      `,
+        {
+          replacements: {
+            startDate: startDate.toISOString(),
+            limit: parseInt(limit),
+          },
+          type: UserProductView.sequelize.QueryTypes.SELECT,
+        }
+      );
 
       return results;
     } catch (error) {

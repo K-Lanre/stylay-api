@@ -169,8 +169,8 @@ Remember, color is personal and should make you feel confident. While these guid
         category: "Style Guide",
         view_count: 745,
         featured_images: JSON.stringify([
-          "color-wheel-fashion.jpg",
-          "color-coordination.jpg",
+          "https://picsum.photos/1600/900",
+          "https://picsum.photos/1600/900",
         ]),
         created_at: new Date(),
         updated_at: new Date(),
@@ -210,9 +210,9 @@ Building a fashion brand is a marathon, not a sprint. It requires passion, perse
         category: "Fashion Business",
         view_count: 1589,
         featured_images: JSON.stringify([
-          "fashion-business.jpg",
-          "brand-building.jpg",
-          "entrepreneur-fashion.jpg",
+          "https://picsum.photos/1600/900",
+          "https://picsum.photos/1600/900",
+          "https://picsum.photos/1600/900",
         ]),
         created_at: new Date(),
         updated_at: new Date(),

@@ -43,14 +43,14 @@ router.post(
  * @route   PUT /api/admin/products/:id
  * @access  Private/Admin
  */
-router.put('/:id', requirePermission('products_update'), updateProductValidation, validate, productController.adminUpdateProduct);
+router.put('/:id', requirePermission('products_update'), updateProductValidation, validate, productController.updateProduct);
 
 /**
  * @desc    Delete any product (Admin)
  * @route   DELETE /api/admin/products/:id
  * @access  Private/Admin
  */
-router.delete('/:id', requirePermission('products_delete'), deleteProductValidation, validate, productController.adminDeleteProduct);
+router.delete('/:id', requirePermission('products_delete'), deleteProductValidation, validate, productController.deleteProduct);
 
 /**
  * @desc    Update product status (Admin)

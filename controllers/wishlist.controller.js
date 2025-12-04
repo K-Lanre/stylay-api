@@ -72,7 +72,7 @@ const getUserWishlist = async (req, res, next) => {
 
 /**
  * Add item to user's single wishlist
- * @route POST /api/v1/wishlist/items
+ * @route POST /api/v1/wishlist/items/:productId
  * @access Private
  */
 const addItemToWishlist = async (req, res, next) => {
@@ -80,13 +80,13 @@ const addItemToWishlist = async (req, res, next) => {
 
   try {
     const userId = req.user.id;
-    const { product_id } = req.body;
+    const { productId } = req.params;
 
     // Get or create user's single wishlist
     const wishlist = await getOrCreateUserWishlist(userId, transaction);
 
     // Verify product exists
-    const product = await Product.findByPk(product_id, { transaction });
+    const product = await Product.findByPk(productId, { transaction });
 
     if (!product) {
       await transaction.rollback();
@@ -102,7 +102,7 @@ const addItemToWishlist = async (req, res, next) => {
     const existingItem = await WishlistItem.findOne({
       where: {
         wishlist_id: wishlist.id,
-        product_id
+        product_id: product.id
       },
       transaction,
     });
@@ -116,7 +116,7 @@ const addItemToWishlist = async (req, res, next) => {
     const item = await WishlistItem.create(
       {
         wishlist_id: wishlist.id,
-        product_id,
+        product_id: product.id,
         price_at_addition: product.price,
       },
       { transaction }

@@ -30,7 +30,7 @@ const getLogoBase64 = async () => {
   try {
     const logoPath = path.join(__dirname, "../public/logo.png");
     const logoBuffer = await readFile(logoPath);
-    logoBase64Cache = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    logoBase64Cache = `data:image/png;base64,${logoBuffer.toString("base64")}`;
     return logoBase64Cache;
   } catch (error) {
     logger.error("Error reading logo file:", error);
@@ -111,7 +111,7 @@ const emailTemplates = {
   },
   SUPPORT_FEEDBACK_CONFIRMATION: {
     template: "support-feedback-confirmation.ejs",
-    subject: "Support Ticket Confirmation - Reference %s"
+    subject: "Support Ticket Confirmation - Reference %s",
   },
 };
 
@@ -200,7 +200,6 @@ const sendEmail = async (to, templateType, context = {}) => {
   }
 };
 
-
 /**
  * Send welcome email with verification code
  * @param {string} to - Recipient email address
@@ -221,13 +220,39 @@ const sendWelcomeEmail = async (to, name, code, tokenExpires) => {
 };
 
 /**
- * Send password reset email with verification code
+ * Send password reset email with clickable reset link
+ * Sends an email with a reset URL that contains the token.
+ * Users click the link to navigate to the reset page with the token already embedded.
+ *
  * @param {string} to - Recipient email address
  * @param {string} name - User's name
- * @param {string} code - 6-digit verification code
+ * @param {string} resetUrl - Full reset URL with embedded token (from controller)
  * @returns {Promise} - Promise that resolves when email is sent
+ * @example
+ * await sendPasswordResetEmail(
+ *   'user@example.com',
+ *   'John Doe',
+ *   'https://stylay.com/reset-password/abc123def456xyz789'
+ * );
  */
-const sendPasswordResetEmail = async (to, name, code) => {
+const sendPasswordResetEmail = async (to, name, resetUrl) => {
+  return sendEmail(to, "PASSWORD_RESET", {
+    user: { name },
+    resetUrl: resetUrl, // The full URL with embedded token
+    appName: process.env.APP_NAME || "Stylay",
+    frontendUrl: process.env.FRONTEND_URL || "https://stylay.com",
+    year: new Date().getFullYear(),
+  });
+};
+
+/**
+ * DEPRECATED: Old password reset email function
+ * This was used when reset codes were sent separately.
+ * Kept for backward compatibility but should not be used.
+ *
+ * @deprecated Use sendPasswordResetEmail with resetUrl instead
+ */
+const sendPasswordResetEmailOld = async (to, name, code) => {
   const resetUrl = `${
     process.env.FRONTEND_URL || "https://stylay.com"
   }/reset-password`;
@@ -686,75 +711,87 @@ const notifyVendors = async (orderId) => {
     }
 
     // Send notifications to all vendors
-    const sendPromises = await Promise.all(vendors.map(async (vendor) => {
-      if (!vendor.email) {
-        logger.warn(`Vendor ${vendor.id} has no email address`);
-        return Promise.resolve();
-      }
-
-      // Get items for this vendor
-      const vendorItems = order.items
-        .filter((item) => item.product?.vendor?.id === vendor.id)
-        .map((item) => ({
-          id: item.product.id,
-          name: item.product.name,
-          price: item.product.price,
-          quantity: item.quantity,
-          thumbnail: item.product.thumbnail,
-          variant: item.variant || null,
-        }));
-
-      // Get shipping address from order details
-      let shippingAddress = null;
-      if (order.details?.address_id) {
-        try {
-          shippingAddress = await Address.findByPk(order.details.address_id, {
-            attributes: [
-              'id', 'address_line', 'city',
-              'state', 'country', 'postal_code', 'phone'
-            ]
-          });
-        } catch (addressError) {
-          logger.warn(`Could not fetch shipping address for order ${orderId}:`, addressError);
+    const sendPromises = await Promise.all(
+      vendors.map(async (vendor) => {
+        if (!vendor.email) {
+          logger.warn(`Vendor ${vendor.id} has no email address`);
+          return Promise.resolve();
         }
-      }
 
-      // Prepare order data for the template
-      const orderData = {
-        id: order.id,
-        order_date: order.order_date,
-        total_amount: Number(order.total_amount).toFixed(2),
-        payment_status: order.payment_status,
-        order_status: order.order_status,
-        shipping_address: shippingAddress ? {
-          name: shippingAddress.label || '',
-          line1: shippingAddress.address_line,
-          line2: '',
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          postal_code: shippingAddress.postal_code,
-          country: shippingAddress.country,
-          phone: shippingAddress.phone || '',
-        } : null,
-      };
+        // Get items for this vendor
+        const vendorItems = order.items
+          .filter((item) => item.product?.vendor?.id === vendor.id)
+          .map((item) => ({
+            id: item.product.id,
+            name: item.product.name,
+            price: item.product.price,
+            quantity: item.quantity,
+            thumbnail: item.product.thumbnail,
+            variant: item.variant || null,
+          }));
 
-      return sendEmail(vendor.email, "VENDOR_ORDER", {
-        order: orderData, // Pass the order object that the template expects
-        orderId: order.id, // Keep for backward compatibility
-        vendor,
-        items: vendorItems,
-        orderDate: new Date(order.order_date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
-        orderUrl: `${process.env.VENDOR_PORTAL_URL}/orders/${orderId}`,
-        appUrl: process.env.APP_URL || "https://stylay.com",
-        supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
-        vendorDashboardUrl:
-          process.env.VENDOR_PORTAL_URL || "https://vendor.stylay.com",
-      });
-    }));
+        // Get shipping address from order details
+        let shippingAddress = null;
+        if (order.details?.address_id) {
+          try {
+            shippingAddress = await Address.findByPk(order.details.address_id, {
+              attributes: [
+                "id",
+                "address_line",
+                "city",
+                "state",
+                "country",
+                "postal_code",
+                "phone",
+              ],
+            });
+          } catch (addressError) {
+            logger.warn(
+              `Could not fetch shipping address for order ${orderId}:`,
+              addressError
+            );
+          }
+        }
+
+        // Prepare order data for the template
+        const orderData = {
+          id: order.id,
+          order_date: order.order_date,
+          total_amount: Number(order.total_amount).toFixed(2),
+          payment_status: order.payment_status,
+          order_status: order.order_status,
+          shipping_address: shippingAddress
+            ? {
+                name: shippingAddress.label || "",
+                line1: shippingAddress.address_line,
+                line2: "",
+                city: shippingAddress.city,
+                state: shippingAddress.state,
+                postal_code: shippingAddress.postal_code,
+                country: shippingAddress.country,
+                phone: shippingAddress.phone || "",
+              }
+            : null,
+        };
+
+        return sendEmail(vendor.email, "VENDOR_ORDER", {
+          order: orderData, // Pass the order object that the template expects
+          orderId: order.id, // Keep for backward compatibility
+          vendor,
+          items: vendorItems,
+          orderDate: new Date(order.order_date).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          orderUrl: `${process.env.VENDOR_PORTAL_URL}/orders/${orderId}`,
+          appUrl: process.env.APP_URL || "https://stylay.com",
+          supportEmail: process.env.SUPPORT_EMAIL || "support@stylay.com",
+          vendorDashboardUrl:
+            process.env.VENDOR_PORTAL_URL || "https://vendor.stylay.com",
+        });
+      })
+    );
 
     return Promise.all(sendPromises);
   } catch (error) {
@@ -820,7 +857,9 @@ const sendAdminPhoneChangeNotification = async (to, userData) => {
  * @returns {Promise} - Promise that resolves when email is sent
  */
 const sendSubAdminCreatedNotification = async (subAdminData) => {
-  const loginUrl = `${process.env.FRONTEND_URL || "https://stylay.com"}/admin/login`;
+  const loginUrl = `${
+    process.env.FRONTEND_URL || "https://stylay.com"
+  }/admin/login`;
 
   return sendEmail(subAdminData.email, "SUBADMIN_CREATED", {
     firstName: subAdminData.firstName,
@@ -854,7 +893,10 @@ const sendSupportFeedbackConfirmation = async (to, data) => {
     referenceNumber: data.referenceNumber || data.feedback?.reference_number,
     subject: data.feedback?.subject,
     issueType: data.feedback?.issue_type,
-    name: data.user?.name || `${data.user?.first_name} ${data.user?.last_name}`.trim() || 'Customer'
+    name:
+      data.user?.name ||
+      `${data.user?.first_name} ${data.user?.last_name}`.trim() ||
+      "Customer",
   });
 };
 
@@ -862,6 +904,7 @@ module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendPasswordResetEmailOld,
   sendPhoneChangeNotificationEmail,
   sendAdminPhoneChangeNotification, // Export the new function
   sendSubAdminCreatedNotification, // Export the sub-admin notification function
@@ -873,5 +916,5 @@ module.exports = {
   sendOrderCancelled,
   notifyVendors,
   transporter,
-  sendSupportFeedbackConfirmation
+  sendSupportFeedbackConfirmation,
 };

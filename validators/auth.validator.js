@@ -238,16 +238,6 @@ exports.resetPasswordValidation = [
     .isEmail()
     .withMessage('Please provide a valid email')
     .normalizeEmail(),
-    
-  body('code')
-    .trim()
-    .notEmpty()
-    .withMessage('Reset code is required')
-    .isLength({ min: 6, max: 6 })
-    .withMessage('Reset code must be 6 digits')
-    .isNumeric()
-    .withMessage('Reset code must contain only numbers'),
-    
   body('newPassword')
     .notEmpty()
     .withMessage('New password is required')

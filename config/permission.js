@@ -11,7 +11,8 @@ export const permissionMap = {
   'POST /auth/verify-email': null, // Public
   'POST /auth/resend-verification': null, // Public
   'POST /auth/forgot-password': null, // Public
-  'POST /auth/reset-password': null, // Public
+  'GET /auth/verify-reset-token/:token': null, // Public
+  'POST /auth/reset-password/:token': null, // Public
   'GET /auth/verify-phone-change/:token': null, // Public
   'GET /auth/me': 'users_read',
   'PUT /auth/me': 'users_update',
@@ -51,6 +52,18 @@ export const permissionMap = {
   'GET /categories/tree': null, // Public
   'GET /categories/:identifier': null, // Public
   'GET /categories/:identifier/products': null, // Public
+
+  // ========================================
+  // FILTER ROUTES (Public)
+  // ========================================
+  'GET /filters': null,
+  'GET /filters/categories': null,
+  'GET /filters/price-range': null,
+  'GET /filters/colors': null,
+  'GET /filters/sizes': null,
+  'GET /filters/dress-styles': null,
+  'POST /filters/products': null,
+  'GET /filters/products/:productId/combinations': null,
 
   // ========================================
   // COLLECTION ROUTES (Public)
@@ -125,6 +138,8 @@ export const permissionMap = {
   'POST /products': 'products_create',
   'PUT /products/:id': 'products_update',
   'DELETE /products/:id': 'products_delete',
+  'PATCH /products/:id/images': 'products_images_manage',
+  'PATCH /products/:id/variants': 'products_variants_manage',
 
   // ========================================
   // REVIEW ROUTES
@@ -309,7 +324,8 @@ export const publicRoutes = [
   'POST /auth/verify-email',
   'POST /auth/resend-verification',
   'POST /auth/forgot-password',
-  'POST /auth/reset-password',
+  'GET /auth/verify-reset-token/:token',
+  'POST /auth/reset-password/:token',
   'GET /auth/verify-phone-change/:token',
   'GET /auth/logout',
 
@@ -318,7 +334,16 @@ export const publicRoutes = [
   'GET /categories/tree',
   'GET /categories/:identifier',
   'GET /categories/:identifier/products',
-
+  // Filter routes
+  'GET /filters',
+  'GET /filters/categories',
+  'GET /filters/price-range',
+  'GET /filters/colors',
+  'GET /filters/sizes',
+  'GET /filters/dress-styles',
+  'POST /filters/products',
+  'GET /filters/products/:productId/combinations',
+ 
   // Collection routes
   'GET /collections',
   'GET /collections/:id',

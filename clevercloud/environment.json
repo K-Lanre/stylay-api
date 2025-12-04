@@ -1,0 +1,106 @@
+{
+  "NODE_ENV": "production",
+  "NODE_VERSION": "18.x",
+  "PORT": "8080",
+  "LOG_LEVEL": "info",
+  "CORS_ORIGIN": "https://your-frontend-domain.com",
+  "APP_URL": "https://your-app.cleverapps.io",
+  "FRONTEND_URL": "https://your-frontend-domain.com",
+  "ADMIN_URL": "https://your-admin-domain.com",
+  "VENDOR_PORTAL_URL": "https://your-vendor-domain.com",
+  
+  "JWT_SECRET": {
+    "type": "secret",
+    "description": "JWT secret key for authentication"
+  },
+  "JWT_EXPIRES_IN": "90d",
+  "JWT_COOKIE_EXPIRES_IN": "90",
+  
+  "SESSION_SECRET": {
+    "type": "secret",
+    "description": "Session secret for express-session"
+  },
+  
+  "PASSWORD_RESET_EXPIRES": "30",
+  
+  "EMAIL_HOST": "smtp.gmail.com",
+  "EMAIL_PORT": "587",
+  "EMAIL_SECURE": "false",
+  "EMAIL_USER": "godswilldonald1@gmail.com",
+  "EMAIL_PASS": {
+    "type": "secret",
+    "description": "Email password for sending emails"
+  },
+  "EMAIL_FROM": "noreply@stylay.com",
+  "EMAIL_FROM_NAME": "Stylay",
+  "SUPPORT_EMAIL": "support@stylay.com",
+  
+  "PAYSTACK_SECRET_KEY": {
+    "type": "secret",
+    "description": "Paystack secret key"
+  },
+  "PAYSTACK_PUBLIC_KEY": {
+    "type": "secret",
+    "description": "Paystack public key"
+  },
+  "PAYSTACK_BASE_URL": "https://api.paystack.co",
+  "PAYSTACK_WEBHOOK_URL": "https://your-app.cleverapps.io/api/v1/webhooks/paystack",
+  "PAYSTACK_CALLBACK_URL": "https://your-app.cleverapps.io/api/v1/orders/verify",
+  
+  "DEFAULT_VENDOR_PASSWORD": {
+    "type": "secret",
+    "description": "Default vendor password"
+  },
+  "DEFAULT_CUSTOMER_PASSWORD": {
+    "type": "secret",
+    "description": "Default customer password"
+  },
+  "DEFAULT_ADMIN_PASSWORD": {
+    "type": "secret",
+    "description": "Default admin password"
+  },
+  "DEFAULT_SUBADMIN_PASSWORD": {
+    "type": "secret",
+    "description": "Default subadmin password"
+  },
+  
+  "RATE_LIMIT_WINDOW_MS": "3600000",
+  "RATE_LIMIT_MAX": "1000",
+  
+  "REDIS_ENABLED": "true",
+  
+  "DB_NAME": {
+    "type": "env",
+    "source": "MYSQL_ADDON_DB"
+  },
+  "DB_USER": {
+    "type": "env",
+    "source": "MYSQL_ADDON_USER"
+  },
+  "DB_PASSWORD": {
+    "type": "env",
+    "source": "MYSQL_ADDON_PASSWORD"
+  },
+  "DB_HOST": {
+    "type": "env",
+    "source": "MYSQL_ADDON_HOST"
+  },
+  "DB_PORT": {
+    "type": "env",
+    "source": "MYSQL_ADDON_PORT"
+  },
+  
+  "REDIS_HOST": {
+    "type": "env",
+    "source": "REDIS_ADDON_HOST"
+  },
+  "REDIS_PORT": {
+    "type": "env",
+    "source": "REDIS_ADDON_PORT"
+  },
+  "REDIS_PASSWORD": {
+    "type": "env",
+    "source": "REDIS_ADDON_PASSWORD"
+  },
+  "REDIS_DB": "0"
+}

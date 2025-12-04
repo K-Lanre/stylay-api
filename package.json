@@ -24,8 +24,11 @@
     "tunnel:dev": "concurrently \"npm run dev\" \"npm run tunnel:start\"",
     "pm2:start": "pm2 start ecosystem.config.js --env production",
     "pm2:dev": "pm2 start ecosystem.config.js --env development",
+    "pm2:clevercloud": "pm2 start ecosystem.config.js --env clevercloud",
     "pm2:stop": "pm2 stop all",
-    "pm2:delete": "pm2 delete all"
+    "pm2:delete": "pm2 delete all",
+    "clevercloud:setup": "npm run migrate && npm run seed",
+    "clevercloud:postdeploy": "npm run migrate && pm2 restart stylay-api"
   },
   "dependencies": {
     "aws-sdk": "^2.1455.0",

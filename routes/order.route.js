@@ -13,6 +13,7 @@ router.use((req, res, next) => {
 
 // Customer routes
 router.post("/", orderController.createOrder);
+router.post("/from-cart", orderController.createOrderFromCart);
 router.get("/my-orders", orderController.getUserOrders);
 router.get("/:id", orderController.getOrder);
 router.patch("/:id/cancel", orderController.cancelOrder);

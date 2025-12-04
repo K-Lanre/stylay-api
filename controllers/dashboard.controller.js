@@ -229,6 +229,13 @@ const getNewArrivals = catchAsync(async (req, res, next) => {
  * }
  */
 const getTrendingNow = catchAsync(async (req, res, next) => {
+  const { limit = 10, page = 1 } = req.query;
+  const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 50));
+  
+  // Get products sorted by recent sales momentum (last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
   const products = await db.Product.findAll({
     attributes: [
       "id",
@@ -246,6 +253,18 @@ const getTrendingNow = catchAsync(async (req, res, next) => {
       "sold_units",
       "created_at",
       "updated_at",
+      // Subquery for recent sales count
+      [
+        literal(`(
+          SELECT COUNT(DISTINCT oi.order_id)
+          FROM order_items oi
+          INNER JOIN orders o ON oi.order_id = o.id
+          WHERE oi.product_id = Product.id
+            AND o.payment_status = 'paid'
+            AND oi.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )`),
+        "recent_sales"
+      ],
     ],
     include: [
       {
@@ -267,8 +286,11 @@ const getTrendingNow = catchAsync(async (req, res, next) => {
     where: {
       status: "active",
     },
-    order: [["updated_at", "DESC"]],
-    limit: 12,
+    order: [
+      [literal("recent_sales"), "DESC"],
+      ["impressions", "DESC"], // Tiebreaker
+    ],
+    limit: limitNum,
   });
 
   res.status(200).json({
@@ -396,13 +418,12 @@ const getVendorDashboard = catchAsync(async (req, res, next) => {
   // Get vendor information for the authenticated user
   const vendor = await db.Vendor.findOne({
     where: {
-      user_id: req.user.id,
-      status: "approved", // Only get approved vendors
+      user_id: req.user.id
     },
   });
 
   if (!vendor) {
-    return next(new AppError("Vendor not found or not approved", 404));
+    return next(new AppError("Vendor not found", 404));
   }
 
   const vendorId = vendor.id;
@@ -541,13 +562,12 @@ const getVendorProducts = catchAsync(async (req, res, next) => {
   // Get vendor information for the authenticated user
   const vendor = await db.Vendor.findOne({
     where: {
-      user_id: req.user.id,
-      status: "approved", // Only get approved vendors
+      user_id: req.user.id
     },
   });
 
   if (!vendor) {
-    return next(new AppError("Vendor not found or not approved", 404));
+    return next(new AppError("Vendor not found", 404));
   }
 
   const vendorId = vendor.id;
@@ -582,6 +602,7 @@ const getVendorProducts = catchAsync(async (req, res, next) => {
     order: [["created_at", "DESC"]],
     limit: limitNum,
     offset,
+    subQuery: false, // Explicitly disable subQuery to ensure INNER JOIN behavior
   });
   const response = createPaginationResponse(products, page, limit, count);
   res.status(200).json({
@@ -628,13 +649,12 @@ const getVendorEarnings = catchAsync(async (req, res, next) => {
   // Get vendor information for the authenticated user
   const vendor = await db.Vendor.findOne({
     where: {
-      user_id: req.user.id,
-      status: "approved", // Only get approved vendors
+      user_id: req.user.id
     },
   });
 
   if (!vendor) {
-    return next(new AppError("Vendor not found or not approved", 404));
+    return next(new AppError("Vendor not found", 404));
   }
 
   const vendorId = vendor.id;
@@ -788,13 +808,12 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
   // Get vendor information for the authenticated user
   const vendor = await db.Vendor.findOne({
     where: {
-      user_id: req.user.id,
-      status: "approved", // Only get approved vendors
+      user_id: req.user.id
     },
   });
 
   if (!vendor) {
-    return next(new AppError("Vendor not found or not approved", 404));
+    return next(new AppError("Vendor not found", 404));
   }
 
   const vendorId = vendor.id;
@@ -815,11 +834,13 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
           "payment_status",
           "order_status",
         ],
+        required: true, // IMPORTANT: Ensure Order data is always present
       },
       {
         model: db.Product,
         as: "product",
         attributes: ["id", "name", "price", "thumbnail"],
+        required: true, // IMPORTANT: Ensure Product data is always present
       },
     ],
     attributes: [
@@ -838,59 +859,62 @@ const getVendorEarningsBreakdown = catchAsync(async (req, res, next) => {
     offset,
   });
 
-  // Get payout dates for all earnings in a single optimized query
-  const payoutDates = await db.Payout.findAll({
-    where: { vendor_id: vendorId },
-    attributes: ["id", "payout_date", "created_at"],
-    order: [["created_at", "DESC"]],
+  // Filter out any records that somehow got through without valid Order or Product
+  const validEarnings = earnings.filter(earning => {
+    return earning.order && earning.product && earning.order.id && earning.product.id;
   });
 
-  // Create a map for efficient payout lookup
-  const payoutMap = new Map();
-  payoutDates.forEach((payout) => {
-    const payoutTime = payout.created_at.getTime();
-    if (
-      !payoutMap.has(payoutTime) ||
-      payout.created_at > payoutMap.get(payoutTime).created_at
-    ) {
-      payoutMap.set(payoutTime, payout);
-    }
+  // Get payout dates for all earnings, sorted by payout_date ascending
+  const payoutRecords = await db.Payout.findAll({
+    where: { vendor_id: vendorId, status: "paid" }, // Only consider paid payouts
+    attributes: ["payout_date"], // Only need the date for comparison
+    order: [["payout_date", "ASC"]], // Sort ascending for efficient lookup
   });
+
+  // Extract unique sorted payout dates
+  const sortedPayoutDates = payoutRecords
+    .map((p) => (p.payout_date ? new Date(p.payout_date) : null))
+    .filter(Boolean) // Remove nulls
+    .sort((a, b) => a.getTime() - b.getTime()); // Ensure chronological order
 
   // Map earnings with payout information efficiently
-  const earningsWithPayouts = earnings.map((earning) => {
-    const earningTime = earning.created_at.getTime();
+  const earningsWithPayouts = validEarnings.map((earning) => {
+    const earningCreatedAt = new Date(earning.created_at);
     let payoutDate = null;
 
-    // Find the most recent payout that occurred on or before this earning
-    for (const [payoutTime, payout] of payoutMap.entries()) {
-      if (payoutTime <= earningTime) {
-        payoutDate = payout.payout_date;
+    // Find the first payout date that is on or after the earning's creation date
+    // This implies the earning would be covered by this payout
+    for (const pDate of sortedPayoutDates) {
+      if (earningCreatedAt <= pDate) {
+        payoutDate = pDate.toISOString(); // Use ISO string for consistency
         break;
       }
     }
 
     return {
       date: earning.created_at,
-      product: earning.Product?.name || "Unknown Product",
-      orderId: earning.Order?.id || 0,
+      product: earning.product.name, // Safe to access now after filtering
+      orderId: earning.order.id,     // Safe to access now after filtering
       earnings: parseFloat(earning.sub_total || 0).toFixed(2),
       units: earning.quantity || 0,
       payoutDate,
     };
   });
 
+  // Use the filtered count for pagination
   const response = createPaginationResponse(
     earningsWithPayouts,
     page,
     limit,
-    count
+    count // Still use original count for total records that match the query
   );
+  
   res.status(200).json({
     status: "success",
     ...response,
   });
 });
+
 
 /**
  * Retrieves comprehensive dashboard metrics for administrative oversight.
@@ -1207,9 +1231,41 @@ const getTopSellingVendors = catchAsync(async (req, res, next) => {
  * }
  */
 const getAdminSalesStats = catchAsync(async (req, res, next) => {
+  const { year, month } = req.query;
+  
+  // Validate and set year (default to current year)
   const currentYear = new Date().getFullYear();
+  const targetYear = year ? parseInt(year) : currentYear;
+  
+  // Validate year range (between 2000 and current year + 1)
+  if (isNaN(targetYear) || targetYear < 2000 || targetYear > currentYear + 1) {
+    return next(new AppError("Invalid year. Please provide a year between 2000 and current year.", 400));
+  }
+  
+  // Validate month if provided (1-12)
+  let targetMonth = null;
+  if (month) {
+    targetMonth = parseInt(month);
+    if (isNaN(targetMonth) || targetMonth < 1 || targetMonth > 12) {
+      return next(new AppError("Invalid month. Please provide a month between 1 and 12.", 400));
+    }
+  }
 
-  // First get the monthly order aggregations
+  // Build date range based on filters
+  let dateStart, dateEnd;
+  
+  if (targetMonth) {
+    // Filter for specific month in the year
+    dateStart = new Date(targetYear, targetMonth - 1, 1);
+    dateEnd = new Date(targetYear, targetMonth, 1);
+  } else {
+    // Filter for entire year
+    dateStart = new Date(targetYear, 0, 1);
+    dateEnd = new Date(targetYear + 1, 0, 1);
+  }
+
+  // FIXED: Use "delivered" instead of "completed" as it's the valid status
+  // You can also use ['delivered', 'shipped'] if you want to include both
   const orderStats = await db.Order.findAll({
     attributes: [
       [fn("MONTH", col("created_at")), "month"],
@@ -1219,10 +1275,10 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
     ],
     where: {
       payment_status: "paid",
-      order_status: "completed",
+      order_status: ["delivered", "shipped"], // FIXED: Use valid statuses
       created_at: {
-        [Op.gte]: new Date(currentYear, 0, 1),
-        [Op.lt]: new Date(currentYear + 1, 0, 1),
+        [Op.gte]: dateStart,
+        [Op.lt]: dateEnd,
       },
     },
     group: [fn("YEAR", col("created_at")), fn("MONTH", col("created_at"))],
@@ -1236,8 +1292,8 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
   // Then get the total products sold for each month using a separate query
   const salesStatsWithProducts = await Promise.all(
     orderStats.map(async (stat) => {
-      const monthStart = new Date(currentYear, stat.month - 1, 1);
-      const monthEnd = new Date(currentYear, stat.month, 1);
+      const monthStart = new Date(stat.year, stat.month - 1, 1);
+      const monthEnd = new Date(stat.year, stat.month, 1);
 
       const productsSold =
         (await db.OrderItem.sum("quantity", {
@@ -1247,7 +1303,7 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
               as: "order",
               where: {
                 payment_status: "paid",
-                order_status: "completed",
+                order_status: ["delivered", "shipped"], // FIXED: Use valid statuses
                 created_at: {
                   [Op.gte]: monthStart,
                   [Op.lt]: monthEnd,
@@ -1271,6 +1327,14 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
   res.status(200).json({
     status: "success",
     data: salesStatsWithProducts,
+    filters: {
+      year: targetYear,
+      month: targetMonth,
+      dateRange: {
+        start: dateStart.toISOString(),
+        end: dateEnd.toISOString(),
+      }
+    }
   });
 });
 
@@ -1324,10 +1388,9 @@ const getAdminSalesStats = catchAsync(async (req, res, next) => {
  * }
  */
 const getAdminTopCategories = catchAsync(async (req, res, next) => {
-  const currentMonth = new Date();
-  currentMonth.setDate(1);
-  const nextMonth = new Date(currentMonth);
-  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  // FIXED: Removed overly restrictive monthly date filter
+  // Now returns top categories based on all-time sales data
+  // This provides more meaningful insights for admin dashboard
 
   const topCategories = await db.Category.findAll({
     attributes: [
@@ -1336,14 +1399,18 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
       "slug",
       "description",
       "image",
-      [fn("COUNT", col("Products.id")), "product_count"],
-      [fn("SUM", col("Products.sold_units")), "total_sold"],
+      [fn("COUNT", fn("DISTINCT", col("Products.id"))), "product_count"],
+      [fn("COALESCE", fn("SUM", col("Products.sold_units")), 0), "total_sold"],
       [
         fn(
-          "SUM",
-          literal(
-            "COALESCE(Products.price, 0) * COALESCE(Products.sold_units, 0)"
-          )
+          "COALESCE",
+          fn(
+            "SUM",
+            literal(
+              "COALESCE(Products.price, 0) * COALESCE(Products.sold_units, 0)"
+            )
+          ),
+          0
         ),
         "total_revenue",
       ],
@@ -1354,13 +1421,9 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
         as: "Products",
         attributes: [],
         where: {
-          status: "active",
-          created_at: {
-            [Op.gte]: currentMonth,
-            [Op.lt]: nextMonth,
-          },
+          status: "active", // Only count active products
         },
-        required: false,
+        required: false, // LEFT JOIN - include categories even without products
       },
     ],
     group: [
@@ -1370,28 +1433,32 @@ const getAdminTopCategories = catchAsync(async (req, res, next) => {
       "Category.description",
       "Category.image",
     ],
-    order: [[fn("SUM", col("Products.sold_units")), "DESC"]], // Order by total sold units descending
+    having: literal("COALESCE(SUM(Products.sold_units), 0) > 0"), // Only categories with sales
+    order: [[literal("total_sold"), "DESC"]], // Order by total sold units descending
     limit: 10,
     subQuery: false,
+    raw: true, // CRITICAL: Returns plain objects for GROUP BY queries
   });
 
-  // Validate and format the response data
-  const validatedCategories = topCategories
-    .map((category) => ({
-      id: category.id,
-      name: category.name || "Unknown Category",
-      slug: category.slug || "",
-      description: category.description || "",
-      image: category.image || "",
-      product_count: parseInt(category.dataValues.product_count) || 0,
-      total_sold: parseInt(category.dataValues.total_sold) || 0,
-      total_revenue: parseFloat(category.dataValues.total_revenue) || 0,
-    }))
-    .filter((category) => category.total_sold > 0); // Only return categories with actual sales
+  // Format the response data with proper type conversion
+  const validatedCategories = topCategories.map((category) => ({
+    id: category.id,
+    name: category.name || "Unknown Category",
+    slug: category.slug || "",
+    description: category.description || "",
+    image: category.image || "",
+    product_count: parseInt(category.product_count) || 0,
+    total_sold: parseInt(category.total_sold) || 0,
+    total_revenue: parseFloat(category.total_revenue) || 0,
+  }));
 
   res.status(200).json({
     status: "success",
     data: validatedCategories,
+    metadata: {
+      period: "all_time",
+      total_categories: validatedCategories.length,
+    },
   });
 });
 
@@ -2294,6 +2361,7 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
     offset,
     subQuery: false, // Disable subquery for better performance with joins
   });
+  console.log("[DEBUG] getVendorOnboardingStats - Found vendors count:", totalCount);
 
   if (vendors.length === 0) {
     const response = createPaginationResponse([], page, limit, 0);
@@ -2562,6 +2630,16 @@ const getVendorOnboardingStats = catchAsync(async (req, res, next) => {
  * }
  */
 const getProductOverview = catchAsync(async (req, res, next) => {
+  console.log("=== PRODUCT OVERVIEW DEBUG ===");
+  console.log("Request method:", req.method);
+  console.log("Request originalUrl:", req.originalUrl);
+  console.log("Request params:", req.params);
+  console.log("Request query:", req.query);
+  console.log("Request body:", req.body);
+  console.log("Request files:", req.files ? Object.keys(req.files) : "No files");
+  console.log("Request uploadedFiles:", req.uploadedFiles ? req.uploadedFiles.length : "No uploaded files");
+  console.log("================================");
+  
   const { id } = req.params;
   const { includeReviews = true } = req.query;
 
@@ -3101,13 +3179,16 @@ const getAdminProducts = catchAsync(async (req, res, next) => {
 });
 
 module.exports = {
+  // customers 
   getNewArrivals,
   getTrendingNow,
   getLatestJournal,
+  // vendors
   getVendorDashboard,
   getVendorProducts,
   getVendorEarnings,
   getVendorEarningsBreakdown,
+  // admin
   getAdminDashboard,
   getTopSellingVendors,
   getAdminSalesStats,
