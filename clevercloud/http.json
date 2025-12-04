@@ -1,0 +1,104 @@
+{
+  "routes": [
+    {
+      "path": "/api/*",
+      "target": "stylay-api",
+      "stripPath": false,
+      "rewrite": "/api/*",
+      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      "headers": {
+        "X-Frame-Options": "DENY",
+        "X-Content-Type-Options": "nosniff",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin"
+      }
+    },
+    {
+      "path": "/health",
+      "target": "stylay-api",
+      "stripPath": false,
+      "methods": ["GET"],
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    },
+    {
+      "path": "/metrics",
+      "target": "stylay-api",
+      "stripPath": false,
+      "methods": ["GET"],
+      "headers": {
+        "Content-Type": "text/plain"
+      }
+    },
+    {
+      "path": "/",
+      "target": "stylay-api",
+      "stripPath": false,
+      "methods": ["GET"],
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    }
+  ],
+  "redirects": [
+    {
+      "from": "http://your-app.cleverapps.io",
+      "to": "https://your-app.cleverapps.io",
+      "code": 301
+    }
+  ],
+  "security": {
+    "hsts": {
+      "enabled": true,
+      "maxAge": 31536000,
+      "includeSubDomains": true,
+      "preload": true
+    },
+    "cors": {
+      "enabled": true,
+      "allowOrigins": [
+        "https://your-frontend-domain.com",
+        "https://your-admin-domain.com",
+        "https://your-vendor-domain.com"
+      ],
+      "allowMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      "allowHeaders": [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin"
+      ],
+      "credentials": true,
+      "maxAge": 86400
+    }
+  },
+  "compression": {
+    "enabled": true,
+    "algorithms": ["gzip", "brotli"],
+    "minSize": 1024
+  },
+  "cache": {
+    "enabled": true,
+    "maxAge": 3600,
+    "paths": [
+      {
+        "path": "/api/v1/products",
+        "maxAge": 300
+      },
+      {
+        "path": "/api/v1/categories",
+        "maxAge": 600
+      },
+      {
+        "path": "/api/v1/collections",
+        "maxAge": 600
+      }
+    ]
+  }
+}

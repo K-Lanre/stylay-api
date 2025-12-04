@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "app_id": "app_3e73bbbc-2d87-41a6-861c-4f4645e76820",
+      "org_id": "user_453e558c-e6f7-4869-985a-3740c475d78a",
+      "deploy_url": "https://push-n3-par-clevercloud-customers.services.clever-cloud.com/app_3e73bbbc-2d87-41a6-861c-4f4645e76820.git",
+      "git_ssh_url": "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_3e73bbbc-2d87-41a6-861c-4f4645e76820.git",
+      "name": "stylay-api",
+      "alias": "stylay-api"
+    }
+  ]
+}
