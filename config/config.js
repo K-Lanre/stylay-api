@@ -31,19 +31,27 @@ const config = {
       seederStorage: 'sequelize',
     },
     production: {
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      dialect: process.env.DB_DIALECT || 'mysql',
-      logging: false,
+      username: process.env.MYSQL_ADDON_USER || process.env.DB_USER,
+      password: process.env.MYSQL_ADDON_PASSWORD || process.env.DB_PASSWORD,
+      database: process.env.MYSQL_ADDON_DB || process.env.DB_NAME,
+      host: process.env.MYSQL_ADDON_HOST || process.env.DB_HOST,
+      port: parseInt(process.env.MYSQL_ADDON_PORT || process.env.DB_PORT || '3306'),
+      dialect: 'mysql',
+      logging: process.env.NODE_ENV === 'development' ? console.log : false,
       seederStorage: 'sequelize',
       dialectOptions: {
-        ssl: {
+        ssl: process.env.NODE_ENV === 'production' ? {
           require: true,
           rejectUnauthorized: false
-        }
+        } : false,
+        supportBigNumbers: true,
+        bigNumberStrings: true
+      },
+      pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
       }
     }
   },
