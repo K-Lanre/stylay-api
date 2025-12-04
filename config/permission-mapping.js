@@ -116,25 +116,25 @@ function generateRouteKey(method, path) {
   normalizedPath = normalizedPath.replace(/%0A/g, "");
 
   // DEBUG: Log the normalization process
-  // console.log("=== ROUTE KEY GENERATION DEBUG ===");
-  // console.log("Original path:", path);
-  // console.log("After removing /api/v1:", path.replace(/^\/api\/v1/, ""));
-  // console.log("After removing query params:", path.replace(/^\/api\/v1/, "").split("?")[0]);
-  // console.log("Normalized path:", normalizedPath);
+  console.log("=== ROUTE KEY GENERATION DEBUG ===");
+  console.log("Original path:", path);
+  console.log("After removing /api/v1:", path.replace(/^\/api\/v1/, ""));
+  console.log("After removing query params:", path.replace(/^\/api\/v1/, "").split("?")[0]);
+  console.log("Normalized path:", normalizedPath);
   
   // Try to match against known patterns
   for (const { pattern, template } of ROUTE_PATTERNS) {
-    // console.log("Testing pattern:", pattern.toString(), "against:", normalizedPath);
+    console.log("Testing pattern:", pattern.toString(), "against:", normalizedPath);
     if (pattern.test(normalizedPath)) {
       const routeKey = `${method.toUpperCase()} ${template}`;
-      // console.log("Pattern matched! Route key:", routeKey);
-      // console.log("=====================================");
+      console.log("Pattern matched! Route key:", routeKey);
+      console.log("=====================================");
       return routeKey;
     }
   }
   
-  // console.log("No pattern matched, using normalized path as-is");
-  // console.log("=====================================");
+  console.log("No pattern matched, using normalized path as-is");
+  console.log("=====================================");
 
   // If no pattern matched, return as-is (for static routes)
   return `${method.toUpperCase()} ${normalizedPath}`;

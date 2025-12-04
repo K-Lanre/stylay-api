@@ -313,9 +313,9 @@ exports.updateProductValidation = [
         }
 
         // Debug logging to validate our assumptions
-        // console.log(`[DEBUG] Variant validation - Index: ${index}, Name: "${name}", Type: ${typeof name}, Valid Types: [${validVariantTypes.join(', ')}]`);
-        // console.log(`[DEBUG] Name trimmed: "${name.trim()}", Name length: ${name.length}`);
-        // console.log(`[DEBUG] Includes check: ${validVariantTypes.includes(name)}`);
+        console.log(`[DEBUG] Variant validation - Index: ${index}, Name: "${name}", Type: ${typeof name}, Valid Types: [${validVariantTypes.join(', ')}]`);
+        console.log(`[DEBUG] Name trimmed: "${name.trim()}", Name length: ${name.length}`);
+        console.log(`[DEBUG] Includes check: ${validVariantTypes.includes(name)}`);
         
         if (!validVariantTypes.includes(name)) {
           throw new Error(`Variant at index ${index}: Name must be one of: ${validVariantTypes.join(', ')}`);
