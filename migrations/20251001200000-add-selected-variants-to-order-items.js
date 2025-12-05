@@ -10,12 +10,9 @@ module.exports = {
       comment: 'JSON array/object storing selected product variants for complex variant selections'
     });
 
-    // Add an index on selected_variants for performance (functional index for JSON)
-    // Note: This creates a BTREE index on the JSON column, which can speed up JSON searches
-    await queryInterface.addIndex('order_items', ['selected_variants'], {
-      name: 'order_items_selected_variants_idx',
-      using: 'BTREE'
-    });
+    // Note: MySQL doesn't support direct indexing on JSON columns
+    // The selected_variants column will be searched without an index
+    // This is acceptable for now as order queries typically filter by order_id and product_id first
   },
 
   down: async (queryInterface, Sequelize) => {
