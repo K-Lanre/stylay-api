@@ -72,14 +72,9 @@ module.exports = {
       console.log('Index cart_items_product_id_idx already exists, skipping...');
     }
 
-    try {
-      await queryInterface.addIndex('cart_items', ['selected_variants'], {
-        name: 'cart_items_selected_variants_idx'
-      });
-    } catch (error) {
-      // Index might already exist, continue
-      console.log('Index cart_items_selected_variants_idx already exists, skipping...');
-    }
+    // Note: MySQL doesn't support direct indexing on JSON columns
+    // The selected_variants column will be searched without an index
+    // This is acceptable for now as cart queries typically filter by cart_id and product_id first
 
     // Add unique constraint to prevent duplicate items in the same cart
     await queryInterface.addConstraint('cart_items', {
