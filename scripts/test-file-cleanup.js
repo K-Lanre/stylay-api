@@ -69,7 +69,7 @@ if (fs.existsSync(vendorAssetsDir)) {
 console.log('\n3. Database consistency check...');
 try {
   // Try to require the models to check if we can connect
-  const { Store } = require('./models');
+  const { Store } = require('../models');
   
   if (Store) {
     console.log('✓ Database models loaded successfully');

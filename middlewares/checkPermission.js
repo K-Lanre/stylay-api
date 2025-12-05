@@ -24,15 +24,6 @@ const checkPermission = async (req, res, next) => {
   try {
     const routeKey = generateRouteKey(req.method, req.originalUrl);
     
-    // DEBUG: Log permission check process
-    console.log("=== PERMISSION CHECK DEBUG ===");
-    console.log("Request method:", req.method);
-    console.log("Request originalUrl:", req.originalUrl);
-    console.log("Generated route key:", routeKey);
-    console.log("Is public route:", isPublicRoute(req.method, req.originalUrl));
-    console.log("Required permission:", getRequiredPermission(req.method, req.originalUrl));
-    console.log("User authenticated:", !!req.user);
-    console.log("================================");
     
     // 1. Check if route is public
     if (isPublicRoute(req.method, req.originalUrl)) {

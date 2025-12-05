@@ -64,7 +64,10 @@ class ProductService {
    * @throws {AppError} 404 - When vendor not found
    * @throws {AppError} 403 - When vendor is not approved
    */
-  static async validateVendorApproval(vendorId, operation = "perform this action") {
+  static async validateVendorApproval(
+    vendorId,
+    operation = "perform this action"
+  ) {
     const vendor = await Vendor.findByPk(vendorId);
     if (!vendor) {
       throw new AppError("Vendor not found", 404);
@@ -179,7 +182,7 @@ class ProductService {
       status,
       variants: rawVariants = [],
       images: rawImages = [],
-      vendor_id: vendorId
+      vendor_id: vendorId,
     } = updateData;
 
     return await sequelize.transaction(async (t) => {
@@ -356,22 +359,24 @@ class ProductService {
       console.log(`=== VARIANT UPDATE DIAGNOSTIC ===`);
       console.log(`Product ID: ${productId}`);
       console.log(`Variants to process: ${variants ? variants.length : 0}`);
-      
+
       // First, check for existing supply records that reference variant combinations
       const existingSupplies = await sequelize.models.Supply.count({
         where: { product_id: productId },
-        transaction
+        transaction,
       });
       console.log(`Existing supply records: ${existingSupplies}`);
-      
+
       if (existingSupplies > 0) {
-        console.log(`Found ${existingSupplies} supply records. These must be deleted first.`);
+        console.log(
+          `Found ${existingSupplies} supply records. These must be deleted first.`
+        );
       }
 
       // Delete existing supply records first (child records)
       await sequelize.models.Supply.destroy({
         where: { product_id: productId },
-        transaction
+        transaction,
       });
       console.log(`Deleted ${existingSupplies} supply records`);
 
@@ -379,18 +384,20 @@ class ProductService {
       // First, get all inventory records for this product
       const inventoryRecords = await sequelize.models.Inventory.findAll({
         where: { product_id: productId },
-        attributes: ['id'],
-        transaction
+        attributes: ["id"],
+        transaction,
       });
-      
-      const inventoryIds = inventoryRecords.map(inv => inv.id);
-      
+
+      const inventoryIds = inventoryRecords.map((inv) => inv.id);
+
       if (inventoryIds.length > 0) {
         await sequelize.models.InventoryHistory.destroy({
           where: { inventory_id: inventoryIds },
-          transaction
+          transaction,
         });
-        console.log(`Deleted inventory history records for ${inventoryIds.length} inventory records`);
+        console.log(
+          `Deleted inventory history records for ${inventoryIds.length} inventory records`
+        );
       } else {
         console.log(`No inventory records found for product ${productId}`);
       }
@@ -398,14 +405,14 @@ class ProductService {
       // Now delete variant combinations (parent records)
       await VariantCombination.destroy({
         where: { product_id: productId },
-        transaction
+        transaction,
       });
       console.log(`Deleted variant combinations`);
 
       // Delete existing variants
       await ProductVariant.destroy({
         where: { product_id: productId },
-        transaction
+        transaction,
       });
       console.log(`Deleted product variants`);
 
@@ -452,7 +459,7 @@ class ProductService {
       }
 
       console.log(`Created ${createdVariants.length} new variants`);
-      
+
       // Generate and create combinations
       await VariantService.createCombinationsForProduct(
         productId,
@@ -460,10 +467,10 @@ class ProductService {
         transaction
       );
       console.log(`Created variant combinations`);
-      
+
       console.log(`=== VARIANT UPDATE COMPLETE ===`);
     } catch (error) {
-      console.error('Variant update error:', error);
+      console.error("Variant update error:", error);
       throw error;
     }
   }
@@ -479,7 +486,7 @@ class ProductService {
     // Delete existing images
     await ProductImage.destroy({
       where: { product_id: productId },
-      transaction
+      transaction,
     });
 
     // Add new images if any
@@ -488,7 +495,8 @@ class ProductService {
         images.map((image, index) => ({
           product_id: productId,
           image_url: image.url || image.image_url, // Support both formats
-          is_featured: image.is_featured !== undefined ? image.is_featured : index === 0, // First image is featured by default
+          is_featured:
+            image.is_featured !== undefined ? image.is_featured : index === 0, // First image is featured by default
         })),
         { transaction }
       );
@@ -516,108 +524,136 @@ class ProductService {
       // Admins can delete any product (no additional check needed)
 
       // Check for existing references before deletion
-      console.log(`[Product Deletion Debug] Checking references for product ${productId}`);
-      
+      console.log(
+        `[Product Deletion Debug] Checking references for product ${productId}`
+      );
+
       // Check order items
       const orderItemsCount = await sequelize.models.OrderItem.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Order items referencing product: ${orderItemsCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Order items referencing product: ${orderItemsCount}`
+      );
+
       // Check cart items
       const cartItemsCount = await sequelize.models.CartItem.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Cart items referencing product: ${cartItemsCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Cart items referencing product: ${cartItemsCount}`
+      );
+
       // Check wishlist items
       const wishlistItemsCount = await sequelize.models.WishlistItem.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Wishlist items referencing product: ${wishlistItemsCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Wishlist items referencing product: ${wishlistItemsCount}`
+      );
+
       // Check reviews
       const reviewsCount = await sequelize.models.Review.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Reviews referencing product: ${reviewsCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Reviews referencing product: ${reviewsCount}`
+      );
+
       // Check inventory
       const inventoryCount = await sequelize.models.Inventory.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Inventory records for product: ${inventoryCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Inventory records for product: ${inventoryCount}`
+      );
+
       // Check product images
       const imagesCount = await sequelize.models.ProductImage.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Product images for product: ${imagesCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Product images for product: ${imagesCount}`
+      );
+
       // Check product variants
       const variantsCount = await sequelize.models.ProductVariant.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Product variants for product: ${variantsCount}`);
-      
+      console.log(
+        `[Product Deletion Debug] Product variants for product: ${variantsCount}`
+      );
+
       // Check supply records
       const supplyCount = await sequelize.models.Supply.count({
         where: { product_id: productId },
-        transaction: t
+        transaction: t,
       });
-      console.log(`[Product Deletion Debug] Supply records for product: ${supplyCount}`);
+      console.log(
+        `[Product Deletion Debug] Supply records for product: ${supplyCount}`
+      );
 
       // Delete related records in proper order to avoid foreign key constraint issues
-      console.log(`[Product Deletion Debug] Starting cleanup of related records...`);
+      console.log(
+        `[Product Deletion Debug] Starting cleanup of related records...`
+      );
 
       // 1. Delete product variants (CASCADE should handle this, but being explicit)
       if (variantsCount > 0) {
         await sequelize.models.ProductVariant.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
-        console.log(`[Product Deletion Debug] Deleted ${variantsCount} product variants`);
+        console.log(
+          `[Product Deletion Debug] Deleted ${variantsCount} product variants`
+        );
       }
 
       // 2. Delete product images
       if (imagesCount > 0) {
         await sequelize.models.ProductImage.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
-        console.log(`[Product Deletion Debug] Deleted ${imagesCount} product images`);
+        console.log(
+          `[Product Deletion Debug] Deleted ${imagesCount} product images`
+        );
       }
 
       // 3. Delete inventory records
       if (inventoryCount > 0) {
         await sequelize.models.Inventory.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
-        console.log(`[Product Deletion Debug] Deleted ${inventoryCount} inventory records`);
+        console.log(
+          `[Product Deletion Debug] Deleted ${inventoryCount} inventory records`
+        );
       }
 
       // 4. Delete supply records
       if (supplyCount > 0) {
         await sequelize.models.Supply.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
-        console.log(`[Product Deletion Debug] Deleted ${supplyCount} supply records`);
+        console.log(
+          `[Product Deletion Debug] Deleted ${supplyCount} supply records`
+        );
       }
 
       // 5. Delete reviews (these can be deleted as they don't affect order history)
       if (reviewsCount > 0) {
         await sequelize.models.Review.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
         console.log(`[Product Deletion Debug] Deleted ${reviewsCount} reviews`);
       }
@@ -626,30 +662,38 @@ class ProductService {
       if (wishlistItemsCount > 0) {
         await sequelize.models.WishlistItem.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
-        console.log(`[Product Deletion Debug] Deleted ${wishlistItemsCount} wishlist items`);
+        console.log(
+          `[Product Deletion Debug] Deleted ${wishlistItemsCount} wishlist items`
+        );
       }
 
       // 7. Delete cart items (product is no longer available)
       if (cartItemsCount > 0) {
         await sequelize.models.CartItem.destroy({
           where: { product_id: productId },
-          transaction: t
+          transaction: t,
         });
-        console.log(`[Product Deletion Debug] Deleted ${cartItemsCount} cart items`);
+        console.log(
+          `[Product Deletion Debug] Deleted ${cartItemsCount} cart items`
+        );
       }
 
       // 8. IMPORTANT: Order items should NOT be deleted as they are part of order history
       // Instead, we leave them as references to deleted products for audit trail
       if (orderItemsCount > 0) {
-        console.log(`[Product Deletion Debug] WARNING: ${orderItemsCount} order items reference this product. These will remain for order history.`);
+        console.log(
+          `[Product Deletion Debug] WARNING: ${orderItemsCount} order items reference this product. These will remain for order history.`
+        );
       }
 
       // Delete the product
       await product.destroy({ transaction: t });
 
-      console.log(`[Product Deletion Debug] Product ${productId} deleted successfully`);
+      console.log(
+        `[Product Deletion Debug] Product ${productId} deleted successfully`
+      );
 
       return {
         success: true,
@@ -663,8 +707,8 @@ class ProductService {
             reviews: reviewsCount,
             wishlist_items: wishlistItemsCount,
             cart_items: cartItemsCount,
-            order_items_preserved: orderItemsCount
-          }
+            order_items_preserved: orderItemsCount,
+          },
         },
       };
     });
@@ -678,27 +722,20 @@ class ProductService {
    * @returns {Promise<Object>} Analytics data
    */
   static async getProductAnalytics(productId, userRole, userId) {
-    console.log(`=== DIAGNOSTIC: getProductAnalytics called ===`);
-    console.log(`Product ID: ${productId}`);
-    console.log(`User Role: ${userRole}`);
-    console.log(`User ID: ${userId}`);
-    
     // Validate product exists with associations
     const product = await this.validateProductExists(productId, [
       { model: Vendor, attributes: ["id", "user_id"], as: "vendor" },
       { model: Category, attributes: ["id", "name"] },
     ]);
 
-    console.log(`Product found: ${product.name} (ID: ${product.id})`);
-    console.log(`Product vendor_id: ${product.vendor_id}`);
-    console.log(`Product vendor.user_id: ${product.vendor?.user_id}`);
-
     // Apply role-based authorization
     if (userRole === "vendor") {
       // Check if the product has a vendor and if the vendor's user_id matches the current user
       if (!product.vendor || product.vendor.user_id !== userId) {
-        console.log(`AUTHORIZATION FAILED: Product vendor (${product.vendor?.user_id}) !== User ID (${userId})`);
-        throw new AppError("Not authorized to view this product's analytics", 403);
+        throw new AppError(
+          "Not authorized to view this product's analytics",
+          403
+        );
       }
       console.log(`AUTHORIZATION PASSED: Vendor access granted`);
     } else {
@@ -707,7 +744,6 @@ class ProductService {
     // Admins can view any product analytics (no additional check needed)
 
     // Get order statistics for this product
-    console.log(`=== FETCHING ORDER STATISTICS ===`);
     const orderStats = await sequelize.query(
       `
       SELECT
@@ -729,10 +765,8 @@ class ProductService {
       }
     );
 
-    console.log(`Order stats result:`, orderStats);
 
     // Get monthly sales data for the last 12 months
-    console.log(`=== FETCHING MONTHLY SALES ===`);
     const monthlySales = await sequelize.query(
       `
       SELECT
@@ -755,10 +789,8 @@ class ProductService {
       }
     );
 
-    console.log(`Monthly sales result:`, monthlySales);
 
     // Get review statistics for this product
-    console.log(`=== FETCHING REVIEW STATISTICS ===`);
     const reviewStats = await sequelize.query(
       `
       SELECT
@@ -776,24 +808,20 @@ class ProductService {
       }
     );
 
-    console.log(`Review stats result:`, reviewStats);
-
     // Get recent reviews for this product
-    console.log(`=== FETCHING RECENT REVIEWS ===`);
     const recentReviews = await Review.findAll({
       where: { product_id: productId },
       include: [
         {
           model: User,
-          as: 'user',
-          attributes: ['id', 'first_name', 'last_name', 'profile_image'],
-        }
+          as: "user",
+          attributes: ["id", "first_name", "last_name", "profile_image"],
+        },
       ],
-      order: [['created_at', 'DESC']],
-      limit: 5
+      order: [["created_at", "DESC"]],
+      limit: 5,
     });
 
-    console.log(`Recent reviews result:`, recentReviews);
 
     // Calculate metrics
     const stats = orderStats[0] || {};
@@ -808,13 +836,6 @@ class ProductService {
         : 0;
 
     const reviewData = reviewStats[0] || {};
-
-    console.log(`=== FINAL ANALYTICS DATA ===`);
-    console.log(`Total reviews: ${reviewData.total_reviews || 0}`);
-    console.log(`Average rating: ${reviewData.average_rating || 0}`);
-    console.log(`Positive reviews: ${reviewData.positive_reviews || 0}`);
-    console.log(`Negative reviews: ${reviewData.negative_reviews || 0}`);
-    console.log(`Recent reviews count: ${recentReviews.length}`);
 
     return {
       product: {
@@ -840,7 +861,7 @@ class ProductService {
           positive_reviews: parseInt(reviewData.positive_reviews) || 0,
           negative_reviews: parseInt(reviewData.negative_reviews) || 0,
           neutral_reviews: parseInt(reviewData.neutral_reviews) || 0,
-          recent_reviews: recentReviews.map(review => ({
+          recent_reviews: recentReviews.map((review) => ({
             id: review.id,
             rating: review.rating,
             comment: review.comment,
@@ -849,10 +870,10 @@ class ProductService {
               id: review.user.id,
               first_name: review.user.first_name,
               last_name: review.user.last_name,
-              profile_image: review.user.profile_image
-            }
-          }))
-        }
+              profile_image: review.user.profile_image,
+            },
+          })),
+        },
       },
     };
   }

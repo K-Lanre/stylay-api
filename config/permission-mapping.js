@@ -114,7 +114,16 @@ function generateRouteKey(method, path) {
   normalizedPath = normalizedPath.split("?")[0].replace(/\/$/, "");
   // Remove URL-encoded newline characters if present
   normalizedPath = normalizedPath.replace(/%0A/g, "");
-  // If no pattern matched, return as-is (for static routes)
+  
+  // Apply pattern matching to convert dynamic routes to parameterized format
+  for (const { pattern, template } of ROUTE_PATTERNS) {
+    if (pattern.test(normalizedPath)) {
+      // Replace the matched part with the template
+      normalizedPath = normalizedPath.replace(pattern, template);
+      break;
+    }
+  }
+  
   return `${method.toUpperCase()} ${normalizedPath}`;
 }
 

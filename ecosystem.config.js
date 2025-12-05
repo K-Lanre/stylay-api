@@ -13,13 +13,6 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: process.env.PORT || 8080
       },
-      env_clevercloud: {
-        NODE_ENV: 'production',
-        PORT: process.env.PORT || 8080,
-        // Clever Cloud specific environment variables
-        CC_APM_ENABLED: 'true',
-        CC_APM_LOG_LEVEL: 'info'
-      },
       // Enable auto-restart if the app crashes
       autorestart: true,
       // Restart the app if it uses more than 1GB of memory
@@ -58,24 +51,5 @@ module.exports = {
       'post-deploy': 'npm install && pm2 reload ecosystem.config.js --env production',
       'pre-setup': ''
     },
-    clevercloud: {
-      user: 'clevercloud',
-      host: 'git.clever-cloud.com',
-      ref: 'origin/main',
-      repo: 'git@github.com:K-Lanre/stylay-api.git',
-      path: '/app',
-      'pre-deploy-local': 'git fetch --all && git reset --hard origin/main',
-      'post-deploy': 'npm install --production && npm run migrate && pm2 reload ecosystem.config.js --env clevercloud',
-      'pre-setup': 'npm install -g pm2',
-      env: {
-        NODE_ENV: 'production',
-        NODE_OPTIONS: '--max-old-space-size=1024',
-        CC_RUN_COMMAND: 'npm start',
-        CC_WORKER_COMMAND: 'npm run worker',
-        CC_WEB_PROCESS: 'npm start',
-        CC_WORKER_PROCESS: 'npm run worker',
-        NPM_CONFIG_PRODUCTION: 'false'
-      }
-    }
   }
 };

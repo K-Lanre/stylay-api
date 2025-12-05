@@ -2,12 +2,12 @@ const { Sequelize } = require('sequelize');
 const logger = require('../utils/logger');
 
 const sequelize = new Sequelize(
-  process.env.MYSQL_ADDON_DB || process.env.DB_NAME,
-  process.env.MYSQL_ADDON_USER || process.env.DB_USER,
-  process.env.MYSQL_ADDON_PASSWORD || process.env.DB_PASSWORD || null,
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD || null,
   {
-    host: process.env.MYSQL_ADDON_HOST || process.env.DB_HOST,
-    port: parseInt(process.env.MYSQL_ADDON_PORT) || parseInt(process.env.DB_PORT) || 3306,
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT) || 3306,
     dialect: 'mysql',
     dialectModule: require('mysql2'),
     logging: process.env.NODE_ENV === 'development' ? (msg) => logger.debug(msg) : false,
@@ -19,14 +19,14 @@ const sequelize = new Sequelize(
       updatedAt: 'updated_at'
     },
     pool: {
-      max: 4, // Reduced to respect MySQL addon's 5-connection limit
+      max: 4, // Reduced to respect MySQL connection limits
       min: 1, // Start with 1 connection minimum
       acquire: 30000,
       idle: 10000
     },
     dialectOptions: {
       // Handle empty password case for MySQL
-      password: process.env.MYSQL_ADDON_PASSWORD || process.env.DB_PASSWORD || '',
+      password: process.env.DB_PASSWORD || '',
       // Add support for big numbers
       supportBigNumbers: true,
       bigNumberStrings: true,
