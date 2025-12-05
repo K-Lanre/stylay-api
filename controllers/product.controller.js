@@ -300,6 +300,29 @@ const createProduct = async (req, res, next) => {
 
       // Fetch the created product with associations
       createdProduct = await Product.findByPk(product.id, {
+        attributes: [
+          "id",
+          "vendor_id",
+          "category_id",
+          "name",
+          "slug",
+          "description",
+          "thumbnail",
+          "price",
+          "discounted_price",
+          "sku",
+          "status",
+          "impressions",
+          "sold_units",
+          "created_at",
+          "updated_at",
+          [
+            sequelize.literal(
+              "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+            ),
+            "thumbnailUrl",
+          ],
+        ],
         include: [
           {
             model: ProductVariant,
@@ -487,6 +510,12 @@ const getProducts = async (req, res, next) => {
         "sold_units",
         "created_at",
         "updated_at",
+        [
+          sequelize.literal(
+            "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+          ),
+          "thumbnailUrl",
+        ],
       ],
       where: whereClause,
       limit: parseInt(limit),
@@ -595,6 +624,29 @@ const getProductByIdentifier = async (req, res, next) => {
 
     const product = await Product.findOne({
       where: whereClause,
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at",
+        [
+          sequelize.literal(
+            "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+          ),
+          "thumbnailUrl",
+        ],
+      ],
       include: [
         { model: Category, attributes: ["id", "name", "slug"] },
         {
@@ -865,6 +917,12 @@ const getAllProducts = async (req, res, next) => {
         "sold_units",
         "created_at",
         "updated_at",
+        [
+          sequelize.literal(
+            "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+          ),
+          "thumbnailUrl",
+        ],
       ],
       where: whereClause,
       limit: parseInt(limit),
@@ -978,6 +1036,12 @@ const getProductsByStatus = async (req, res, next) => {
         "sold_units",
         "created_at",
         "updated_at",
+        [
+          sequelize.literal(
+            "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+          ),
+          "thumbnailUrl",
+        ],
       ],
       where: whereClause,
       limit: parseInt(limit),
@@ -1067,6 +1131,11 @@ const updateProduct = async (req, res, next) => {
       userRole,
       req.user.id
     );
+
+    // Add thumbnailUrl to the response if not already present
+    if (updatedProduct && !updatedProduct.thumbnailUrl) {
+      updatedProduct.thumbnailUrl = updatedProduct.thumbnail;
+    }
 
     res.status(200).json({
       success: true,
@@ -1190,6 +1259,12 @@ const getProductsByVendor = async (req, res, next) => {
         "sold_units",
         "created_at",
         "updated_at",
+        [
+          sequelize.literal(
+            "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+          ),
+          "thumbnailUrl",
+        ],
       ],
       where: { vendor_id: req.params.id },
       limit: parseInt(limit),

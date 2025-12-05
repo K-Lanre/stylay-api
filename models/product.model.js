@@ -50,6 +50,19 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'product_id'
       });
     }
+
+    // Getter for thumbnail that falls back to first image if thumbnail is null
+    get thumbnailUrl() {
+      if (this.thumbnail) {
+        return this.thumbnail;
+      }
+      
+      if (this.images && this.images.length > 0) {
+        return this.images[0].image_url;
+      }
+      
+      return null;
+    }
   }
 
   Product.init({

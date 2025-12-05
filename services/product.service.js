@@ -49,7 +49,32 @@ class ProductService {
    * @throws {AppError} 404 - When product not found
    */
   static async validateProductExists(productId, include = []) {
-    const product = await Product.findByPk(productId, { include });
+    const product = await Product.findByPk(productId, {
+      attributes: [
+        "id",
+        "vendor_id",
+        "category_id",
+        "name",
+        "slug",
+        "description",
+        "thumbnail",
+        "price",
+        "discounted_price",
+        "sku",
+        "status",
+        "impressions",
+        "sold_units",
+        "created_at",
+        "updated_at",
+        [
+          sequelize.literal(
+            "(CASE WHEN thumbnail IS NOT NULL THEN thumbnail ELSE (SELECT image_url FROM product_images WHERE product_id = Product.id ORDER BY id LIMIT 1) END)"
+          ),
+          "thumbnailUrl",
+        ],
+      ],
+      include,
+    });
     if (!product) {
       throw new AppError("Product not found", 404);
     }
@@ -140,6 +165,8 @@ class ProductService {
       updated_at: product.updated_at,
       vendor_id: product.vendor_id,
       category_id: product.category_id,
+      thumbnail: product.thumbnail,
+      thumbnailUrl: product.thumbnailUrl || product.thumbnail,
       Category: product.Category,
       vendor: product.vendor,
       variants: product.variants || [],
