@@ -76,19 +76,9 @@ module.exports = {
     // The selected_variants column will be searched without an index
     // This is acceptable for now as cart queries typically filter by cart_id and product_id first
 
-    // Add unique constraint to prevent duplicate items in the same cart
-    await queryInterface.addConstraint('cart_items', {
-      fields: ['cart_id', 'product_id', 'selected_variants'],
-      type: 'unique',
-      name: 'cart_items_unique_cart_product_variant',
-      where: {
-        selected_variants: {
-          [Sequelize.Op.ne]: null
-        }
-      }
-    });
-
-    // Add another unique constraint for items without variants
+    // Add unique constraint for items without variants only
+    // Note: MySQL doesn't support unique constraints on JSON columns directly
+    // We'll handle duplicate detection in the application logic for items with variants
     await queryInterface.addConstraint('cart_items', {
       fields: ['cart_id', 'product_id'],
       type: 'unique',
