@@ -53,17 +53,33 @@ module.exports = {
     });
 
     // Add indexes for better query performance
-    await queryInterface.addIndex('cart_items', ['cart_id'], {
-      name: 'cart_items_cart_id_idx'
-    });
+    // Note: These indexes may already exist from later migrations, so we'll create them with IF NOT EXISTS
+    try {
+      await queryInterface.addIndex('cart_items', ['cart_id'], {
+        name: 'cart_items_cart_id_idx'
+      });
+    } catch (error) {
+      // Index might already exist, continue
+      console.log('Index cart_items_cart_id_idx already exists, skipping...');
+    }
 
-    await queryInterface.addIndex('cart_items', ['product_id'], {
-      name: 'cart_items_product_id_idx'
-    });
+    try {
+      await queryInterface.addIndex('cart_items', ['product_id'], {
+        name: 'cart_items_product_id_idx'
+      });
+    } catch (error) {
+      // Index might already exist, continue
+      console.log('Index cart_items_product_id_idx already exists, skipping...');
+    }
 
-    await queryInterface.addIndex('cart_items', ['selected_variants'], {
-      name: 'cart_items_selected_variants_idx'
-    });
+    try {
+      await queryInterface.addIndex('cart_items', ['selected_variants'], {
+        name: 'cart_items_selected_variants_idx'
+      });
+    } catch (error) {
+      // Index might already exist, continue
+      console.log('Index cart_items_selected_variants_idx already exists, skipping...');
+    }
 
     // Add unique constraint to prevent duplicate items in the same cart
     await queryInterface.addConstraint('cart_items', {
