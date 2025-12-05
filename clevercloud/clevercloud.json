@@ -1,0 +1,6 @@
+{
+  "deploy": {
+    "target": "npm",
+    "command": "start"
+  }
+}
